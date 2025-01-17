@@ -10,6 +10,8 @@ import Image from "next/image";
 import Transcript from "./components/Transcript";
 import Events from "./components/Events";
 import BottomToolbar from "./components/BottomToolbar";
+import { ThemeToggle } from "./components/ThemeToggle";
+import { ThemeProvider } from "./components/ThemeProvider";
 
 // Types
 import { AgentConfig, SessionStatus } from "@/app/types";
@@ -26,6 +28,15 @@ import { createRealtimeConnection } from "./lib/realtimeConnection";
 import { allAgentSets, defaultAgentSetKey } from "@/app/agentConfigs";
 
 function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+      <ThemeToggle />
+    </ThemeProvider>
+  );
+}
+
+function AppContent() {
   const searchParams = useSearchParams();
 
   const { transcriptItems, addTranscriptMessage, addTranscriptBreadcrumb } =
@@ -404,8 +415,8 @@ function App() {
   const agentSetKey = searchParams.get("agentConfig") || "default";
 
   return (
-    <div className="text-base flex flex-col h-screen bg-gray-100 text-gray-800 relative">
-      <div className="p-5 text-lg font-semibold flex justify-between items-center">
+    <div className="text-base flex flex-col h-screen bg-background dark:bg-[#1a1a1a] text-foreground dark:text-white relative">
+      <div className="p-5 text-lg font-semibold flex justify-between items-center bg-background dark:bg-[#202020] panel">
         <div className="flex items-center">
           <div onClick={() => window.location.reload()} style={{ cursor: 'pointer' }}>
             <Image
@@ -413,11 +424,11 @@ function App() {
               alt="OpenAI Logo"
               width={20}
               height={20}
-              className="mr-2"
+              className="mr-2 dark:invert"
             />
           </div>
           <div>
-            Realtime API <span className="text-gray-500">Agents</span>
+            Realtime API <span className="text-muted dark:text-muted">Agents</span>
           </div>
         </div>
         <div className="flex items-center">
@@ -428,7 +439,7 @@ function App() {
             <select
               value={agentSetKey}
               onChange={handleAgentChange}
-              className="appearance-none border border-gray-300 rounded-lg text-base px-2 py-1 pr-8 cursor-pointer font-normal focus:outline-none"
+              className="appearance-none border border-[#acacac] dark:border-[#404040] rounded-lg text-base px-2 py-1 pr-8 cursor-pointer font-normal focus:outline-none bg-[#2a2a2a]/5 dark:bg-[#2a2a2a]/20"
             >
               {Object.keys(allAgentSets).map((agentKey) => (
                 <option key={agentKey} value={agentKey}>
@@ -456,7 +467,7 @@ function App() {
                 <select
                   value={selectedAgentName}
                   onChange={handleSelectedAgentChange}
-                  className="appearance-none border border-gray-300 rounded-lg text-base px-2 py-1 pr-8 cursor-pointer font-normal focus:outline-none"
+                  className="appearance-none border border-[#acacac] dark:border-[#404040] rounded-lg text-base px-2 py-1 pr-8 cursor-pointer font-normal focus:outline-none bg-[#2a2a2a]/5 dark:bg-[#2a2a2a]/20"
                 >
                   {selectedAgentConfigSet?.map(agent => (
                     <option key={agent.name} value={agent.name}>
@@ -483,7 +494,7 @@ function App() {
         </div>
       </div>
 
-      <div className="flex flex-1 gap-2 px-2 overflow-hidden relative">
+      <div className="flex flex-1 gap-4 px-4 py-4 overflow-hidden relative">
         <Transcript
           userText={userText}
           setUserText={setUserText}
