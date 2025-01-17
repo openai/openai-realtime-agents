@@ -40,11 +40,7 @@ function BottomToolbar({
   function getConnectionButtonClasses() {
     const baseClasses = "text-white text-base p-2 w-36 rounded-lg h-full transition-all duration-200 disconnect-btn";
     const cursorClass = isConnecting ? "cursor-not-allowed" : "cursor-pointer";
-
-    if (isConnected) {
-      return `${cursorClass} ${baseClasses}`;
-    }
-    return `bg-surface dark:bg-surface hover:bg-surface/90 dark:hover:bg-surface/90 ${cursorClass} ${baseClasses}`;
+    return `${cursorClass} ${baseClasses}`;
   }
 
   return (
