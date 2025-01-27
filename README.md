@@ -49,6 +49,52 @@ export default agents;
 
 This fully specifies the agent set that was used in the interaction shown in the screenshot above.
 
+### Sequence Diagram
+This diagram illustrates the interaction flow defined in `src/app/agentConfigs/simpleExample.ts`.
+```mermaid
+sequenceDiagram
+    participant User
+    participant WebClient as Next.js Client (App.tsx)
+    participant NextAPI as /api/session
+    participant RealtimeAPI as OpenAI Realtime API
+    participant AgentManager as AgentConfig (greeter, haiku)
+    
+    Note over WebClient: User navigates to the app with ?agentConfig=simpleExample
+    User->>WebClient: Open Page (Next.js SSR fetches page.tsx/layout.tsx)
+    WebClient->>WebClient: useEffect loads agent configs (simpleExample)
+    WebClient->>WebClient: connectToRealtime() called
+    
+    Note right of WebClient: Fetch ephemeral session
+    WebClient->>NextAPI: GET /api/session
+    NextAPI->>RealtimeAPI: POST /v1/realtime/sessions
+    RealtimeAPI->>NextAPI: Returns ephemeral session token
+    NextAPI->>WebClient: Returns ephemeral token (JSON)
+    
+    Note right of WebClient: Start RTC handshake
+    WebClient->>RealtimeAPI: POST /v1/realtime?model=gpt-4o-realtime-preview-2024-12-17 <Offer SDP>
+    RealtimeAPI->>WebClient: Returns SDP answer
+    WebClient->>WebClient: DataChannel "oai-events" established
+    
+    Note over WebClient: The user speaks or sends text
+    User->>WebClient: "Hello!" (mic or text)
+    WebClient->>AgentManager: conversation.item.create (role=user)
+    WebClient->>RealtimeAPI: data channel event: {type: "conversation.item.create"}
+    WebClient->>RealtimeAPI: data channel event: {type: "response.create"}
+    
+    Note left of AgentManager: Agents parse user message
+    AgentManager->>greeter: "greeter" sees new user message
+    greeter->>AgentManager: Potentially calls "transferAgents(haiku)" if user says "Yes"
+    AgentManager-->>WebClient: event: transferAgents => destination_agent="haiku"
+    
+    Note left of WebClient: data channel function call
+    WebClient->>WebClient: handleFunctionCall: sets selectedAgentName="haiku"
+    
+    Note left of AgentManager: "haiku" agent now handles user messages
+    haiku->>AgentManager: Respond with a haiku
+    AgentManager->>WebClient: "Here is a haiku…" (assistant role)
+    WebClient->>User: Display/Play final answer
+```
+
 ### Next steps
 - Check out the configs in `src/app/agentConfigs`. The example above is a minimal demo that illustrates the core concepts.
 - [frontDeskAuthentication](src/app/agentConfigs/frontDeskAuthentication) Guides the user through a step-by-step authentication flow, confirming each value character-by-character, authenticates the user with a tool call, and then transfers to another agent. Note that the second agent is intentionally "bored" to show how to prompt for personality and tone.
