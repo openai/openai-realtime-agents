@@ -50,7 +50,11 @@ export default agents;
 This fully specifies the agent set that was used in the interaction shown in the screenshot above.
 
 ### Sequence Diagram
+
+#### SimpleExample Flow
+
 This diagram illustrates the interaction flow defined in `src/app/agentConfigs/simpleExample.ts`.
+
 ```mermaid
 sequenceDiagram
     participant User
@@ -93,6 +97,106 @@ sequenceDiagram
     haiku->>AgentManager: Respond with a haiku
     AgentManager->>WebClient: "Here is a haiku…" (assistant role)
     WebClient->>User: Display/Play final answer
+```
+
+#### FrontDeskAuthentication Flow
+
+This diagram illustrates the interaction flow defined in `src/app/agentConfigs/frontDeskAuthentication/`.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant WebClient as Next.js Client (App.tsx)
+    participant NextAPI as /api/session
+    participant RealtimeAPI as OpenAI Realtime API
+    participant AgentManager as Agents (authenticationAgent, tourGuide)
+
+    Note over WebClient: User navigates to ?agentConfig=frontDeskAuthentication
+    User->>WebClient: Open Page
+    WebClient->>NextAPI: GET /api/session
+    NextAPI->>RealtimeAPI: POST /v1/realtime/sessions
+    RealtimeAPI->>NextAPI: Returns ephemeral session
+    NextAPI->>WebClient: Returns ephemeral token (JSON)
+
+    Note right of WebClient: Start RTC handshake
+    WebClient->>RealtimeAPI: Offer SDP (WebRTC)
+    RealtimeAPI->>WebClient: SDP answer
+    WebClient->>WebClient: DataChannel "oai-events" established
+
+    Note over WebClient,AgentManager: The user is connected to "authenticationAgent" first
+    User->>WebClient: "Hello, I need to check in."
+    WebClient->>AgentManager: conversation.item.create (role=user)
+    WebClient->>RealtimeAPI: data channel event: {type: "conversation.item.create"}
+    WebClient->>RealtimeAPI: data channel event: {type: "response.create"}
+
+    Note over AgentManager: authenticationAgent prompts for user details
+    authenticationAgent->>AgentManager: calls authenticate_user_information() (tool function)
+    AgentManager-->>WebClient: function_call => name="authenticate_user_information"
+    WebClient->>WebClient: handleFunctionCall => possibly calls your custom backend or a mock to confirm
+
+    Note left of AgentManager: Once user is authenticated
+    authenticationAgent->>AgentManager: calls transferAgents("tourGuide")
+    AgentManager-->>WebClient: function_call => name="transferAgents" args={destination: "tourGuide"}
+
+    WebClient->>WebClient: setSelectedAgentName("tourGuide")
+    Note over AgentManager: "tourGuide" welcomes the user with a friendly introduction
+    tourGuide->>AgentManager: "Here's a guided tour..."
+    AgentManager->>WebClient: conversation.item.create (assistant role)
+    WebClient->>User: Displays or plays back the tour content
+```
+
+#### CustomerServiceRetail Flow
+
+This diagram illustrates the interaction flow defined in `src/app/agentConfigs/customerServiceRetail/`.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant WebClient as Next.js Client
+    participant NextAPI as /api/session
+    participant RealtimeAPI as OpenAI Realtime API
+    participant AgentManager as Agents (authentication, returns, sales, simulatedHuman)
+    participant o1mini as "o1-mini" (Escalation Model)
+
+    Note over WebClient: User navigates to ?agentConfig=customerServiceRetail
+    User->>WebClient: Open Page
+    WebClient->>NextAPI: GET /api/session
+    NextAPI->>RealtimeAPI: POST /v1/realtime/sessions
+    RealtimeAPI->>NextAPI: Returns ephemeral session
+    NextAPI->>WebClient: Returns ephemeral token (JSON)
+
+    Note right of WebClient: Start RTC handshake
+    WebClient->>RealtimeAPI: Offer SDP (WebRTC)
+    RealtimeAPI->>WebClient: SDP answer
+    WebClient->>WebClient: DataChannel "oai-events" established
+
+    Note over AgentManager: Default agent is "authentication"
+    User->>WebClient: "Hi, I'd like to return my snowboard."
+    WebClient->>AgentManager: conversation.item.create (role=user)
+    WebClient->>RealtimeAPI: {type: "conversation.item.create"}
+    WebClient->>RealtimeAPI: {type: "response.create"}
+
+    authentication->>AgentManager: Requests user info, calls authenticate_user_information()
+    AgentManager-->>WebClient: function_call => name="authenticate_user_information"
+    WebClient->>WebClient: handleFunctionCall => verifies details
+
+    Note over AgentManager: After user is authenticated
+    authentication->>AgentManager: transferAgents("returns")
+    AgentManager-->>WebClient: function_call => name="transferAgents" args={ destination: "returns" }
+    WebClient->>WebClient: setSelectedAgentName("returns")
+
+    Note over returns: The user wants to process a return
+    returns->>AgentManager: function_call => checkEligibilityAndPossiblyInitiateReturn
+    AgentManager-->>WebClient: function_call => name="checkEligibilityAndPossiblyInitiateReturn"
+
+    Note over WebClient: The WebClient calls /api/chat/completions with model="o1-mini"
+    WebClient->>o1mini: "Is this item eligible for return?"
+    o1mini->>WebClient: "Yes/No (plus notes)"
+
+    Note right of returns: Returns uses the result from "o1-mini"
+    returns->>AgentManager: "Return is approved" or "Return is denied"
+    AgentManager->>WebClient: conversation.item.create (assistant role)
+    WebClient->>User: Displays final verdict
 ```
 
 ### Next steps
