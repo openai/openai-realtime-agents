@@ -1,22 +1,48 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
+/**
+ * ESLint configuration for the project.
+ * 
+ * See https://eslint.style and https://typescript-eslint.io for additional linting options.
+ */
+// @ts-check
+import js from '@eslint/js';
+import tseslint from 'typescript-eslint';
+import stylistic from '@stylistic/eslint-plugin';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
-
-const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
-  {
-    rules: {
-      "@typescript-eslint/no-explicit-any": "off",
-      "react-hooks/exhaustive-deps": "off"
-    },
-  },
-];
-
-export default eslintConfig;
+export default tseslint.config(
+	{
+		ignores: [
+			'.vscode-test',
+			'out',
+		]
+	},
+	{
+		files: ['**/*.{js,mjs,cjs,ts,jsx,tsx}'],
+	},
+	js.configs.recommended,
+	...tseslint.configs.recommended,
+	...tseslint.configs.stylistic,
+	{
+		plugins: {
+			'@stylistic': stylistic
+		},
+		rules: {
+			'curly': 'warn',
+			'@stylistic/semi': ['warn', 'always'],
+			'@typescript-eslint/no-empty-function': 'off',
+			'@typescript-eslint/array-type': 'off',
+			'@typescript-eslint/naming-convention': [
+				'warn',
+				{
+					'selector': 'import',
+					'format': ['camelCase', 'PascalCase']
+				}
+			],
+			'@typescript-eslint/no-unused-vars': [
+				'error',
+				{
+					'argsIgnorePattern': '^_'
+				}
+			]
+		}
+	}
+);
