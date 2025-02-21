@@ -2,21 +2,191 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Default Light Theme */
 :root {
   --background: #fafafa;
   --foreground: #171717;
+  --primary: #2563eb;
+  --secondary: #4f46e5;
+  --accent: #0ea5e9;
+  --muted: #6b7280;
+  --border: #6b7280;
+  --divider: #282828;
+  --disconnect: #dc2626;
+  --disconnect-hover: #b91c1c;
+  --surface: #f1f5f9;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Default Dark Theme */
+/* Default Dark Theme */
+.dark {
+  --background: #1a1a1a;
+  --foreground: #fffff;
+  --primary: #60a5fa;
+  --secondary: #818cf8;
+  --accent: #38bdf8;
+  --muted: #9ca3af;
+  --border: #2a2a2a;
+  --panel-bg: #202020;
+  --panel-border: #303030;
+  --panel-border-light: #6a2a2a;
+  --panel-border-dark: #404040;
+  --disconnect: #dc2626;
+  --disconnect-hover: #b91c1c;
+  --surface: #242424;
+  --divider: #282828;
+}
+
+/* Material Design Shadows and Transitions */
+.dark .panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Custom shadows for dark mode */
+.dark .shadow-md {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3),
+              0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Custom shadows for light mode */
+.shadow-md {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1),
+              0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Smooth transitions */
+* {
+  transition: background-color 0.1s ease-in-out,
+              color 0.1s ease-in-out,
+              border-color 0.1s ease-in-out,
+              box-shadow 0.1s ease-in-out;
+}
+
+/* Disconnect button styles */
+.disconnect-btn {
+  background: var(--disconnect);
+  border: 1px solid var(--border);
+}
+
+.disconnect-btn:hover {
+  background: var(--disconnect-hover);
+}
+/* Blue Theme - Light */
+[data-theme="blue-light"] {
+  --background: #f0f9ff;
+  --foreground: #0c4a6e;
+  --primary: #0284c7;
+  --secondary: #0369a1;
+  --accent: #0ea5e9;
+  --muted: #64748b;
+}
+
+/* Green Theme - Light */
+[data-theme="green-light"] {
+  --background: #f0fdf4;
+  --foreground: #14532d;
+  --primary: #16a34a;
+  --secondary: #15803d;
+  --accent: #22c55e;
+  --muted: #64748b;
+}
+
+/* Purple Theme - Light */
+[data-theme="purple-light"] {
+  --background: #faf5ff;
+  --foreground: #581c87;
+  --primary: #9333ea;
+  --secondary: #7e22ce;
+  --accent: #a855f7;
+  --muted: #64748b;
+}
+
+/* Dark Theme Variants */
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --primary: #60a5fa;
+  --secondary: #818cf8;
+  --accent: #38bdf8;
+  --muted: #9ca3af;
+}
+
+/* Blue Theme - Dark */
+.dark[data-theme="blue-dark"] {
+  --background: #0c4a6e;
+  --foreground: #e0f2fe;
+  --primary: #38bdf8;
+  --secondary: #0ea5e9;
+  --accent: #7dd3fc;
+  --muted: #94a3b8;
+}
+
+/* Green Theme - Dark */
+.dark[data-theme="green-dark"] {
+  --background: #14532d;
+  --foreground: #dcfce7;
+  --primary: #4ade80;
+  --secondary: #22c55e;
+  --accent: #86efac;
+  --muted: #94a3b8;
+}
+
+/* Purple Theme - Dark */
+.dark[data-theme="purple-dark"] {
+  --background: #581c87;
+  --foreground: #f3e8ff;
+  --primary: #c084fc;
+  --secondary: #a855f7;
+  --accent: #d8b4fe;
+  --muted: #94a3b8;
+}
+
+@layer base {
+  body {
+    @apply text-foreground bg-background transition-colors duration-100;
+  }
+
+  /* Improved dark mode transitions */
+  * {
+    @apply transition-[background-color,color,border-color,box-shadow] duration-100;
   }
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  min-height: 100vh;
+  margin: 0;
+}
+
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: var(--primary);
+  border-radius: 5px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* Responsive Design Adjustments */
+@layer utilities {
+  .theme-toggle {
+    @apply fixed bottom-4 right-4 md:bottom-8 md:right-8;
+  }
+  
+  .theme-selector {
+    @apply fixed bottom-16 right-4 md:bottom-20 md:right-8 bg-background border border-muted rounded-lg p-2 shadow-lg;
+  }
 }

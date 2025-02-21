@@ -38,19 +38,13 @@ function BottomToolbar({
   }
 
   function getConnectionButtonClasses() {
-    const baseClasses = "text-white text-base p-2 w-36 rounded-full h-full";
+    const baseClasses = "text-white text-base p-2 w-36 rounded-lg h-full transition-all duration-200 disconnect-btn";
     const cursorClass = isConnecting ? "cursor-not-allowed" : "cursor-pointer";
-
-    if (isConnected) {
-      // Connected -> label "Disconnect" -> red
-      return `bg-red-600 hover:bg-red-700 ${cursorClass} ${baseClasses}`;
-    }
-    // Disconnected or connecting -> label is either "Connect" or "Connecting" -> black
-    return `bg-black hover:bg-gray-900 ${cursorClass} ${baseClasses}`;
+    return `${cursorClass} ${baseClasses}`;
   }
 
   return (
-    <div className="p-4 flex flex-row items-center justify-center gap-x-8">
+    <div className="p-4 flex flex-row items-center justify-center gap-x-8 bg-background dark:bg-[#202020] panel border-t border-border dark:border-panel-border">
       <button
         onClick={onToggleConnection}
         className={getConnectionButtonClasses()}
@@ -66,9 +60,9 @@ function BottomToolbar({
           checked={isPTTActive}
           onChange={e => setIsPTTActive(e.target.checked)}
           disabled={!isConnected}
-          className="w-4 h-4"
+          className="w-4 h-4 accent-primary dark:accent-primary cursor-pointer"
         />
-        <label htmlFor="push-to-talk" className="flex items-center cursor-pointer">
+        <label htmlFor="push-to-talk" className="flex items-center cursor-pointer text-foreground dark:text-foreground/90">
           Push to talk
         </label>
         <button
@@ -77,11 +71,13 @@ function BottomToolbar({
           onTouchStart={handleTalkButtonDown}
           onTouchEnd={handleTalkButtonUp}
           disabled={!isPTTActive}
-          className={
-            (isPTTUserSpeaking ? "bg-gray-300" : "bg-gray-200") +
-            " py-1 px-4 cursor-pointer rounded-full" +
-            (!isPTTActive ? " bg-gray-100 text-gray-400" : "")
-          }
+          className={`
+            py-1 px-4 rounded-lg transition-all duration-200
+            ${isPTTUserSpeaking 
+              ? 'bg-primary/20 dark:bg-primary/30' 
+              : 'bg-surface dark:bg-surface hover:bg-surface/90 dark:hover:bg-surface/90'}
+            ${!isPTTActive ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+          `}
         >
           Talk
         </button>
@@ -94,10 +90,10 @@ function BottomToolbar({
           checked={isAudioPlaybackEnabled}
           onChange={e => setIsAudioPlaybackEnabled(e.target.checked)}
           disabled={!isConnected}
-          className="w-4 h-4"
+          className="w-4 h-4 accent-primary dark:accent-primary cursor-pointer"
         />
-        <label htmlFor="audio-playback" className="flex items-center cursor-pointer">
-          Audio
+        <label htmlFor="audio-playback" className="flex items-center cursor-pointer text-foreground dark:text-foreground/90">
+          Audio playback
         </label>
       </div>
 
@@ -107,9 +103,9 @@ function BottomToolbar({
           type="checkbox"
           checked={isEventsPaneExpanded}
           onChange={e => setIsEventsPaneExpanded(e.target.checked)}
-          className="w-4 h-4"
+          className="w-4 h-4 accent-primary dark:accent-primary cursor-pointer"
         />
-        <label htmlFor="logs" className="flex items-center cursor-pointer">
+        <label htmlFor="logs" className="flex items-center cursor-pointer text-foreground dark:text-foreground/90">
           Logs
         </label>
       </div>
