@@ -401,6 +401,17 @@ function App() {
     }
   }, [isAudioPlaybackEnabled]);
 
+  useEffect(() => {
+    // (un)mute microphone
+    if (pcRef.current) {
+      pcRef.current.getSenders().forEach((sender) => {
+        if (sender.track) {
+          sender.track.enabled = isAudioPlaybackEnabled
+        }
+      });
+    }
+  }, [isAudioPlaybackEnabled, pcRef.current])
+
   const agentSetKey = searchParams.get("agentConfig") || "default";
 
   return (
