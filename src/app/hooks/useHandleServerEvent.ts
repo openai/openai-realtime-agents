@@ -139,6 +139,16 @@ export function useHandleServerEvent({
         break;
       }
 
+      case "conversation.item.text.delta":
+      case "response.text.delta": {
+        const itemId = serverEvent.item_id;
+        const deltaText = serverEvent.delta || "";
+        if (itemId) {
+          updateTranscriptMessage(itemId, deltaText, true);
+        }
+        break;
+      }
+
       case "conversation.item.input_audio_transcription.completed": {
         const itemId = serverEvent.item_id;
         const finalTranscript =
