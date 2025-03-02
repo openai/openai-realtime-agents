@@ -245,18 +245,28 @@ function App() {
     const instructions = currentAgent?.instructions || "";
     const tools = currentAgent?.tools || [];
 
-    const sessionUpdateEvent = {
-      type: "session.update",
-      session: {
-        modalities: ["text", "audio"],
-        instructions,
+
+    const sessionConfig = {
+      modalities: ["text"],
+      instructions,
+      tools,
+    };
+
+
+    if (isAudioPlaybackEnabled) {
+      sessionConfig.modalities.push("audio"); // Changing this to "text" will disable audio
+      Object.assign(sessionConfig, {
         voice: "coral",
         input_audio_format: "pcm16",
         output_audio_format: "pcm16",
         input_audio_transcription: { model: "whisper-1" },
         turn_detection: turnDetection,
-        tools,
-      },
+      });
+    }
+
+    const sessionUpdateEvent = {
+      type: "session.update",
+      session: sessionConfig,
     };
 
     sendClientEvent(sessionUpdateEvent);
