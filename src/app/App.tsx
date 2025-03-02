@@ -248,8 +248,11 @@ function App() {
 
     const sessionConfig = {
       modalities: ["text"],
+      input_audio_format: "pcm16",
+      input_audio_transcription: { model: "whisper-1" },
       instructions,
       tools,
+      turn_detection: turnDetection,
     };
 
 
@@ -257,10 +260,7 @@ function App() {
       sessionConfig.modalities.push("audio"); // Changing this to "text" will disable audio
       Object.assign(sessionConfig, {
         voice: "coral",
-        input_audio_format: "pcm16",
         output_audio_format: "pcm16",
-        input_audio_transcription: { model: "whisper-1" },
-        turn_detection: turnDetection,
       });
     }
 
