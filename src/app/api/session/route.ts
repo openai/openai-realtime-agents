@@ -12,6 +12,12 @@ export async function GET() {
         },
         body: JSON.stringify({
           model: "gpt-4o-realtime-preview-2024-12-17",
+          turn_detection: {
+            type: "server_vad",
+            threshold: 0.93,
+            prefix_padding_ms: 300,
+            silence_duration_ms: 900,
+          },
         }),
       }
     );
