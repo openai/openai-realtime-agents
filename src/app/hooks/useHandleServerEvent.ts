@@ -103,7 +103,9 @@ export function useHandleServerEvent({
   };
 
   const handleServerEvent = (serverEvent: ServerEvent) => {
-    logServerEvent(serverEvent);
+    if (serverEvent.type !== "response.audio_transcript.delta") {
+      logServerEvent(serverEvent);
+    }
 
     switch (serverEvent.type) {
       case "session.created": {
