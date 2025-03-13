@@ -31,6 +31,23 @@ export function useHandleServerEvent({
 
   const { logServerEvent } = useEvent();
 
+  // A ref to hold the list of active output audio buffers (using their IDs)
+  const outputAudioBuffersRef = useRef<string[]>([]);
+  
+  // Wait until all output audio buffers are empty
+  async function waitUntilAudioBuffersEmpty() {
+    if (outputAudioBuffersRef.current.length > 0) {
+      await new Promise<void>((resolve) => {
+        const interval = setInterval(() => {
+          if (outputAudioBuffersRef.current.length === 0) {
+            clearInterval(interval);
+            resolve();
+          }
+        }, 100);
+      });
+    }
+  }
+
   const handleFunctionCall = async (functionCallParams: {
     name: string;
     call_id?: string;
@@ -59,11 +76,15 @@ export function useHandleServerEvent({
           output: JSON.stringify(fnResult),
         },
       });
+      
+      await waitUntilAudioBuffersEmpty();
       sendClientEvent({ type: "response.create" });
     } else if (functionCallParams.name === "transferAgents") {
       const destinationAgent = args.destination_agent;
       const newAgentConfig =
         selectedAgentConfigSet?.find((a) => a.name === destinationAgent) || null;
+
+      await waitUntilAudioBuffersEmpty();
       if (newAgentConfig) {
         setSelectedAgentName(destinationAgent);
       }
@@ -98,6 +119,8 @@ export function useHandleServerEvent({
           output: JSON.stringify(simulatedResult),
         },
       });
+
+      await waitUntilAudioBuffersEmpty();
       sendClientEvent({ type: "response.create" });
     }
   };
@@ -183,6 +206,26 @@ export function useHandleServerEvent({
         const itemId = serverEvent.item?.id;
         if (itemId) {
           updateTranscriptItemStatus(itemId, "DONE");
+        }
+        break;
+      }
+
+      // Handle creation of an output audio buffer.
+      case "output_audio_buffer.started": {
+        // Assuming serverEvent carries a unique buffer ID in serverEvent.response_id.
+        if (serverEvent.response_id) {
+          outputAudioBuffersRef.current.push(serverEvent.response_id);
+        }
+        break;
+      }
+
+      // Handle deletion of an output audio buffer.
+      case "output_audio_buffer.stopped":
+      case "output_audio_buffer.cleared": {
+        if (serverEvent.response_id) {
+          outputAudioBuffersRef.current = outputAudioBuffersRef.current.filter(
+            (id) => id !== serverEvent.response_id
+          );
         }
         break;
       }
