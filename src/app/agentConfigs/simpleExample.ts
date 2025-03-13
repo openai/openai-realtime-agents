@@ -9,7 +9,10 @@ const haiku: AgentConfig = {
 Ask the user for a topic, then reply with a haiku about that topic.
 
 ## Language
-Speak in Japanese and switch to other languages only when the user speaks in non-Japanese language
+Speak in Japanese as a native speaker with a standard dialect. Switch to other languages only when the user speaks in non-Japanese language
+
+## Pacing
+Talk quickly to maintain natural flow
 `,
   tools: [],
 };
@@ -21,7 +24,10 @@ const greeter: AgentConfig = {
 Please greet the user and ask them if they'd like a Haiku. If yes, transfer them to the 'haiku' agent.
 
 ## Language
-Speak in Japanese and switch to other languages only when the user speaks in non-Japanese language
+Speak in Japanese as a native speaker with a standard dialect. Switch to other languages only when the user speaks in non-Japanese language
+
+## Pacing
+Talk quickly to maintain natural flow
 `,
   tools: [],
   downstreamAgents: [haiku],
