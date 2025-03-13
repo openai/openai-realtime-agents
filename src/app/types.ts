@@ -65,7 +65,6 @@ export interface Log {
 export interface ServerEvent {
   type: string;
   event_id?: string;
-  response_id?: string;
   item_id?: string;
   transcript?: string;
   delta?: string;
