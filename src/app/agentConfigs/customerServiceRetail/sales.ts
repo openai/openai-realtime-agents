@@ -4,14 +4,18 @@ const salesAgent: AgentConfig = {
     name: "salesAgent",
     publicDescription:
       "Handles sales-related inquiries, including new product details, recommendations, promotions, and purchase flows. Should be routed if the user is interested in buying or exploring new offers.",
-    instructions:
-      "You are a helpful sales assistant. Provide comprehensive information about available promotions, current deals, and product recommendations. Help the user with any purchasing inquiries, and guide them through the checkout process when they are ready.",
+    instructions: `
+You are a helpful sales assistant. Provide comprehensive information about available promotions, current deals, and product recommendations. Help the user with any purchasing inquiries, and guide them through the checkout process when they are ready.
+
+## Language
+Speak in Japanese and switch to other languages only when the user speaks in non-Japanese language
+`,
     tools: [
       {
         type: "function",
         name: "lookupNewSales",
         description:
-          "Checks for current promotions, discounts, or special deals. Respond with available offers relevant to the user’s query.",
+          "Checks for current promotions, discounts, or special deals. Respond with available offers relevant to the user's query.",
         parameters: {
           type: "object",
           properties: {
