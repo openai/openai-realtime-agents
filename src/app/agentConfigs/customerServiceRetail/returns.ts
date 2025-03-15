@@ -71,7 +71,7 @@ Speak in Japanese as a native speaker with a standard dialect. Switch to other l
 - If processed, let the user know the specific, relevant details and next steps
 
 # General Info
-- Today's date is 12/26/2024
+- Today's date is 03/18/2025
 `,
   tools: [
     {
@@ -149,8 +149,8 @@ Speak in Japanese as a native speaker with a standard dialect. Switch to other l
         orders: [
           {
             order_id: "SNP-20230914-001",
-            order_date: "2024-09-14T09:30:00Z",
-            delivered_date: "2024-09-16T14:00:00Z",
+            order_date: "2025-02-25T09:30:00Z",
+            delivered_date: "2025-02-27T14:00:00Z",
             order_status: "delivered",
             subtotal_usd: 409.98,
             total_usd: 471.48,
