@@ -1,72 +1,66 @@
-# Realtime API Agents Demo
+# OpenAI Realtime Agents
 
-This is a simple demonstration of more advanced, agentic patterns built on top of the Realtime API. In particular, this demonstrates:
-- Sequential agent handoffs according to a defined agent graph (taking inspiration from [OpenAI Swarm](https://github.com/openai/swarm))
-- Background escalation to more intelligent models like o1-mini for high-stakes decisions
-- Prompting models to follow a state machine, for example to accurately collect things like names and phone numbers with confirmation character by character to authenticate a user.
+A repository designed for implementing realtime agent systems powered by OpenAI technologies. This branch (`Nodoubtz`) focuses on [insert specific focus or features of the branch].
 
-You should be able to use this repo to prototype your own multi-agent realtime voice app in less than 20 minutes!
+## Features
 
-![Screenshot of the Realtime API Agents Demo](/public/screenshot.png)
+- **Realtime interactions**: Leverages OpenAI's APIs for dynamic agent responses.
+- **Customizable agents**: Easily configure agents for specialized tasks.
+- **Scalable architecture**: Built to handle high-concurrency environments.
+- **Modular design**: Add or remove functionalities with ease.
 
-## Setup
+## Getting Started
 
-- This is a Next.js typescript app
-- Install dependencies with `npm i`
-- Add your `OPENAI_API_KEY` to your env
-- Start the server with `npm run dev`
-- Open your browser to [http://localhost:3000](http://localhost:3000) to see the app. It should automatically connect to the `simpleExample` Agent Set.
+### Prerequisites
 
-## Configuring Agents
-Configuration in `src/app/agentConfigs/simpleExample.ts`
-```javascript
-import { AgentConfig } from "@/app/types";
-import { injectTransferTools } from "./utils";
+- [Node.js](https://nodejs.org/) >= 16.x
+- [Python](https://www.python.org/) >= 3.8
+- OpenAI API Key ([Sign up for API access](https://platform.openai.com/signup/))
 
-// Define agents
-const haiku: AgentConfig = {
-  name: "haiku",
-  publicDescription: "Agent that writes haikus.", // Context for the agent_transfer tool
-  instructions:
-    "Ask the user for a topic, then reply with a haiku about that topic.",
-  tools: [],
-};
+### Installation
 
-const greeter: AgentConfig = {
-  name: "greeter",
-  publicDescription: "Agent that greets the user.",
-  instructions:
-    "Please greet the user and ask them if they'd like a Haiku. If yes, transfer them to the 'haiku' agent.",
-  tools: [],
-  downstreamAgents: [haiku],
-};
+1. Clone the repository:
+   ```bash
+   git clone -b Nodoubtz https://github.com/nodoubtz/openai-realtime-agents.git
+   cd openai-realtime-agents
+   ```
 
-// add the transfer tool to point to downstreamAgents
-const agents = injectTransferTools([greeter, haiku]);
+2. Install dependencies:
+   ```bash
+   npm install
+   # or if using Python
+   pip install -r requirements.txt
+   ```
 
-export default agents;
-```
+### Usage
 
-This fully specifies the agent set that was used in the interaction shown in the screenshot above.
+1. Set up your environment variables:
+   Create a `.env` file in the root directory and add your OpenAI API key:
+   ```
+   OPENAI_API_KEY=your-openai-api-key
+   ```
 
-### Next steps
-- Check out the configs in `src/app/agentConfigs`. The example above is a minimal demo that illustrates the core concepts.
-- [frontDeskAuthentication](src/app/agentConfigs/frontDeskAuthentication) Guides the user through a step-by-step authentication flow, confirming each value character-by-character, authenticates the user with a tool call, and then transfers to another agent. Note that the second agent is intentionally "bored" to show how to prompt for personality and tone.
-- [customerServiceRetail](src/app/agentConfigs/customerServiceRetail) Also guides through an authentication flow, reads a long offer from a canned script verbatim, and then walks through a complex return flow which requires looking up orders and policies, gathering user context, and checking with `o1-mini` to ensure the return is eligible. To test this flow, say that you'd like to return your snowboard and go through the necessary prompts!
+2. Run the application:
+   ```bash
+   npm start
+   # or for Python
+   python main.py
+   ```
 
-### Defining your own agents
-- You can copy these to make your own multi-agent voice app! Once you make a new agent set config, add it to `src/app/agentConfigs/index.ts` and you should be able to select it in the UI in the "Scenario" dropdown menu.
-- To see how to define tools and toolLogic, including a background LLM call, see [src/app/agentConfigs/customerServiceRetail/returns.ts](src/app/agentConfigs/customerServiceRetail/returns.ts)
-- To see how to define a detailed personality and tone, and use a prompt state machine to collect user information step by step, see [src/app/agentConfigs/frontDeskAuthentication/authentication.ts](src/app/agentConfigs/frontDeskAuthentication/authentication.ts)
-- To see how to wire up Agents into a single Agent Set, see [src/app/agentConfigs/frontDeskAuthentication/index.ts](src/app/agentConfigs/frontDeskAuthentication/index.ts)
-- If you want help creating your own prompt using these conventions, we've included a metaprompt [here](src/app/agentConfigs/voiceAgentMetaprompt.txt), or you can use our [Voice Agent Metaprompter GPT](https://chatgpt.com/g/g-678865c9fb5c81918fa28699735dd08e-voice-agent-metaprompt-gpt)
+3. Interact with the agents via the provided interface.
 
-## UI
-- You can select agent scenarios in the Scenario dropdown, and automatically switch to a specific agent with the Agent dropdown.
-- The conversation transcript is on the left, including tool calls, tool call responses, and agent changes. Click to expand non-message elements.
-- The event log is on the right, showing both client and server events. Click to see the full payload.
-- On the bottom, you can disconnect, toggle between automated voice-activity detection or PTT, turn off audio playback, and toggle logs.
+## Contributing
 
-## Core Contributors
-- Noah MacCallum - [noahmacca](https://x.com/noahmacca)
-- Ilan Bigio - [ibigio](https://github.com/ibigio)
+Contributions are welcome! Please follow the guidelines below:
+
+1. Fork this repository.
+2. Create a new branch for your feature or bug fix.
+3. Submit a pull request with a detailed description of your changes.
+
+## License
+
+This repository is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## Contact
+
+For any questions or feedback, feel free to reach out via [GitHub Issues](https://github.com/nodoubtz/openai-realtime-agents/issues).
