@@ -1,53 +1,27 @@
 import { AgentConfig, Tool } from "@/app/types";
 
 /**
- * This defines and adds "transferAgents" tool dynamically based on the specified downstreamAgents on each agent.
+ * Gera dinamicamente o tool de transferência de agentes downstream
  */
 export function injectTransferTools(agentDefs: AgentConfig[]): AgentConfig[] {
-  // Iterate over each agent definition
   agentDefs.forEach((agentDef) => {
-    const downstreamAgents = agentDef.downstreamAgents || [];
-
-    // Only proceed if there are downstream agents
-    if (downstreamAgents.length > 0) {
-      // Build a list of downstream agents and their descriptions for the prompt
-      const availableAgentsList = downstreamAgents
-        .map(
-          (dAgent) =>
-            `- ${dAgent.name}: ${dAgent.publicDescription ?? "No description"}`
-        )
+    const downstream = agentDef.downstreamAgents || [];
+    if (downstream.length > 0) {
+      const descList = downstream
+        .map((d) => `- ${d.name}: ${d.publicDescription}`)
         .join("\n");
-
-      // Create the transfer_agent tool specific to this agent
-      const transferAgentTool: Tool = {
+      const transferTool: Tool = {
         type: "function",
         name: "transferAgents",
-        description: `Triggers a transfer of the user to a more specialized agent. 
-  Calls escalate to a more specialized LLM agent or to a human agent, with additional context. 
-  Only call this function if one of the available agents is appropriate. Don't transfer to your own agent type.
-  
-  Let the user know you're about to transfer them before doing so.
-  
-  Available Agents:
-  ${availableAgentsList}
-        `,
+        description: `Transfere o usuário para outro agente especializado.\nDisponíveis:\n${descList}`,
         parameters: {
           type: "object",
           properties: {
-            rationale_for_transfer: {
-              type: "string",
-              description: "The reasoning why this transfer is needed.",
-            },
-            conversation_context: {
-              type: "string",
-              description:
-                "Relevant context from the conversation that will help the recipient perform the correct action.",
-            },
+            rationale_for_transfer: { type: "string" },
+            conversation_context: { type: "string" },
             destination_agent: {
               type: "string",
-              description:
-                "The more specialized destination_agent that should handle the user’s intended request.",
-              enum: downstreamAgents.map((dAgent) => dAgent.name),
+              enum: downstream.map((d) => d.name),
             },
           },
           required: [
@@ -57,24 +31,59 @@ export function injectTransferTools(agentDefs: AgentConfig[]): AgentConfig[] {
           ],
         },
       };
-
-      // Ensure the agent has a tools array
-      if (!agentDef.tools) {
-        agentDef.tools = [];
-      }
-
-      // Add the newly created tool to the current agent's tools
-      agentDef.tools.push(transferAgentTool);
+      agentDef.tools = [...(agentDef.tools || []), transferTool];
     }
-
-    // so .stringify doesn't break with circular dependencies
-    agentDef.downstreamAgents = agentDef.downstreamAgents?.map(
-      ({ name, publicDescription }) => ({
-        name,
-        publicDescription,
-      })
+    // evita circular
+    agentDef.downstreamAgents = (agentDef.downstreamAgents || []).map(
+      ({ name, publicDescription }) => ({ name, publicDescription })
     );
   });
-
   return agentDefs;
 }
+
+/**
+ * Tool para exibir um ícone/alerta na UI (ex: 💰)
+ */
+export const uiEventTool: Tool = {
+  type: "function",
+  name: "ui_event",
+  description: `Emite um evento para a interface exibir um ícone/flutuante.`,
+  parameters: {
+    type: "object",
+    properties: {
+      name: { type: "string" },
+      icon: { type: "string" },
+      color: { type: "string" },
+    },
+    required: ["name", "icon", "color"],
+  },
+};
+
+/**
+ * Tool para solicitar que o cliente abra a câmera
+ */
+export const openCameraTool: Tool = {
+  type: "function",
+  name: "open_camera",
+  description:
+    "Pede permissão ao usuário e ativa a câmera do dispositivo para verificação.",
+  parameters: { type: "object", properties: {}, required: [] },
+};
+
+/**
+ * Tool para pegar valor correto do consig
+ */
+export const getInterestRateTool: Tool = {
+  name: "get_interest_rate",
+  description: "Busca a taxa SELIC diária na API pública do Banco Central",
+  func: async () => {
+    // fetch é suportado no ambiente edge/serverless
+    const res = await fetch(
+      "https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados/ultimos/1?formato=json"
+    );
+    const json = await res.json();
+    // o resultado é [{data: "dd/MM/yyyy", valor: "x,xxxx"}]
+    const valor = parseFloat(json[0].valor.replace(",", "."));
+    return JSON.stringify({ rate: valor });
+  },
+};
