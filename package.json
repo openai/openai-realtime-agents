@@ -9,7 +9,11 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.49.4",
+    "dotenv": "^16.5.0",
+    "gpt-3-encoder": "^1.1.4",
     "next": "15.1.4",
+    "node-fetch": "^3.3.2",
     "openai": "^4.77.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
