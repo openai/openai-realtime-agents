@@ -73,17 +73,7 @@ export const openCameraTool: Tool = {
 /**
  * Tool para pegar valor correto do consig
  */
-export const getInterestRateTool: Tool = {
-  name: "get_interest_rate",
-  description: "Busca a taxa SELIC diária na API pública do Banco Central",
-  func: async () => {
-    // fetch é suportado no ambiente edge/serverless
-    const res = await fetch(
-      "https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados/ultimos/1?formato=json"
-    );
-    const json = await res.json();
-    // o resultado é [{data: "dd/MM/yyyy", valor: "x,xxxx"}]
-    const valor = parseFloat(json[0].valor.replace(",", "."));
-    return JSON.stringify({ rate: valor });
-  },
+export const getCurrentRateTool: Tool = {
+  name: "get_current_rate",
+  description: "Retorna a taxa atual de crédito consignado (em % a.m.) para o Itaú",
 };

@@ -1,0 +1,12 @@
+Cliente com Benefício (Hipótese de Compreensão e Papel Ativo):
+• Pode ser que o cliente com benefício veja o crédito como uma forma de acessar dinheiro de forma segura e confie na instituição financeira, mas é incerto até que ponto ele compreende os detalhes do processo ou se sente à vontade com o uso da tecnologia.
+• É necessário investigar se ele prefere ter um papel mais ativo, acompanhando todas as etapas, ou se seria mais adequado que uma pessoa de confiança ou o atendente do Corban assuma um papel mais central na execução do fluxo.
+• A validação deve explorar o nível de clareza necessário para que ele se sinta confortável e seguro no processo
+Atendente do Corban (Hipótese de Facilitação e Suporte):
+• Pode-se supor que o atendente atua não apenas como facilitador, mas também como uma espécie de consultor para o cliente, adaptando a abordagem conforme a capacidade de entendimento do usuário. No entanto, não se sabe até que ponto ele está preparado para lidar com diferentes perfis.
+• É importante investigar se o treinamento que ele recebe e as ferramentas que utiliza são realmente eficazes para oferecer o suporte necessário, especialmente para pessoas com menos letramento digital.
+• A validação deste perfil deve explorar se a presença do atendente de fato influencia a experiência do cliente e como ele percebe seu papel na conclusão do processo.
+Pessoa de Confiança ou Familiar (Hipótese de Apoio e Intermediação):
+• Presume-se que essa pessoa possa atuar como intermediária, ajudando o cliente com benefício a concluir o processo, mas é necessário investigar até que ponto ela entende o que é esperado dela.
+• É incerto se essa pessoa possui o conhecimento necessário para guiar o cliente de maneira adequada, ou se ela também pode enfrentar dificuldades técnicas ou de compreensão durante o fluxo.
+• A validação deve considerar como essa figura de apoio pode impactar a sensação de segurança do cliente e se o processo se torna mais fácil ou mais complicado com a sua intermediação.

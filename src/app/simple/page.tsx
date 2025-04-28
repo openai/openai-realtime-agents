@@ -14,7 +14,8 @@ export default function SimplePage() {
   const [uiEvents, setUiEvents] = useState<UIEvent[]>([]);
   const [cameraRequests, setCameraRequests] = useState<CameraRequest[]>([]);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
-
+  const [currentTime, setCurrentTime] = useState<string>("");
+  
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -22,7 +23,23 @@ export default function SimplePage() {
 
   useEffect(() => {
     startConnection();
-    return () => { stopConnection(); closeCamera(); };
+    
+    // Atualizar o relógio a cada segundo
+    const updateClock = () => {
+      const now = new Date();
+      const hours = now.getHours().toString().padStart(2, '0');
+      const minutes = now.getMinutes().toString().padStart(2, '0');
+      setCurrentTime(`${hours}:${minutes}`);
+    };
+    
+    updateClock(); // Inicializar imediatamente
+    const clockInterval = setInterval(updateClock, 60000); // Atualizar a cada minuto
+    
+    return () => { 
+      stopConnection(); 
+      closeCamera(); 
+      clearInterval(clockInterval);
+    };
   }, []);
 
   // Quando receber o stream, anexa ao <video>
@@ -160,6 +177,29 @@ export default function SimplePage() {
         <div className="camera-hole" />
         <div className="notch" />
         <div className="screen">
+          {/* Barra de status do telefone */}
+          <div className="status-bar">
+            <div className="status-bar-time">{currentTime}</div>
+            <div className="status-bar-icons">
+              {/* Ícone de sinal de celular */}
+              <svg className="status-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M4 16h2v4H4v-4zm4-4h2v8H8v-8zm4-4h2v12h-2V8zm4-4h2v16h-2V4z" strokeWidth="2"/>
+              </svg>
+              {/* Ícone de WiFi */}
+              <svg className="status-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M12 6c5.52 0 10 4.48 10 10H2c0-5.52 4.48-10 10-10z" strokeWidth="1.5"/>
+                <path d="M12 11c2.76 0 5 2.24 5 5H7c0-2.76 2.24-5 5-5z" strokeWidth="1.5"/>
+                <circle cx="12" cy="18" r="1" strokeWidth="1.5"/>
+              </svg>
+              {/* Ícone de bateria */}
+              <svg className="status-icon" width="24" height="18" viewBox="0 0 24 12" fill="none" stroke="currentColor">
+                <rect x="2" y="2" width="18" height="8" rx="1" strokeWidth="1.5"/>
+                <path d="M22 5v2" strokeWidth="2" strokeLinecap="round"/>
+                <rect x="4" y="4" width="13" height="4" fill="currentColor"/>
+              </svg>
+            </div>
+          </div>
+
           {/* ícones de evento */}
           {uiEvents.map((evt, i) => (
             <div key={i} className="ui-event-icon" style={{ color: evt.color }}>
@@ -206,8 +246,7 @@ export default function SimplePage() {
     align-items: center;
     height: 100vh;
     overflow: hidden;
-    background: radial-gradient(100% 100% at var(--25-x-position) var(--25-y-position), #898989 0%, #eaa8a800), radial-gradient(100% 100% at var(--26-x-position) var(--26-y-position), #ffcdcd 0%, #ffd8d800), #ffffff;
-    animation: main 8s infinite ease-out;
+    background-color: blue;
 }
 
 /* define as variáveis customizadas para os pontos de origem dos gradientes */
@@ -255,7 +294,7 @@ export default function SimplePage() {
           width: 360px;
           height: 780px;
           border-radius: 48px;
-          background: #111;
+          background: #FFF;
           box-shadow:
             0 20px 30px rgba(0,0,0,0.25),
             inset 0 0 0 2px rgba(255,255,255,0.05);
@@ -295,7 +334,7 @@ export default function SimplePage() {
           transform: translateX(-50%);
           width: 140px;
           height: 30px;
-          background: #111;
+          background: #e7e7e7;
           border-bottom-left-radius: 16px;
           border-bottom-right-radius: 16px;
         }
@@ -307,15 +346,85 @@ export default function SimplePage() {
           left: 8px;
           width: calc(100% - 19px);
           height: calc(100% - 66px);
-          background: #000de;
+          background: rgb(249, 247, 245);;
           border-radius: 10px 10px 32px 32px;
           overflow: hidden;
+          box-shadow: 
+            inset 0 0 40px rgba(0,0,0,0.05),
+            inset 0 0 2px rgba(0,0,0,0.1);
+          position: relative;
+        }
+        
+        /* Adiciona uma textura sutil de ruído */
+        .screen::before {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-image: url("data:image/png;base64,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");
+          opacity: 0.02;
+          z-index: 2;
+          pointer-events: none;
+        }
+        
+        /* Adiciona reflexo e gradiente de vidro */
+        .screen::after {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: 
+            linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0) 50%),
+            linear-gradient(to bottom, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 30%, rgba(0,0,0,0.05) 100%);
+          z-index: 3;
+          pointer-events: none;
+          border-radius: 10px 10px 32px 32px;
+        }
+
+        /* Status bar do telefone */
+        .status-bar {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 36px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0 20px;
+          color: #333;
+          background: rgb(242 242 242 / 80%);
+          z-index: 10;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        
+        .status-bar-time {
+          font-weight: 600;
+          font-size: 15px;
+          color: #222;
+        }
+        
+        .status-bar-icons {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+        
+        .status-icon {
+          height: 14px;
+          width: auto;
+          color: #222;
+          opacity: 0.85;
         }
 
         /* UI icon */
         .ui-event-icon {
           position: absolute;
-          top: 16px;
+          top: 50px; /* Ajustado para ficar abaixo da barra de status */
           right: 16px;
           font-size: 2rem;
           animation: pop .4s ease-out;
@@ -387,7 +496,6 @@ export default function SimplePage() {
           cursor: pointer;
         }
 
-        /* PTT button */
         .ptt-button {
           position: absolute;
           bottom: 60px;
@@ -397,20 +505,37 @@ export default function SimplePage() {
           height: 70px;
           border: none;
           border-radius: 35px;
-          background: linear-gradient(45deg, #ff8a00, #ff6400);
-          box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-          animation: gradientAnim 2s infinite;
+          background: linear-gradient(45deg, #ff9d55, #ff8548);
+          box-shadow: 
+            0 4px 12px rgba(255, 133, 0, 0.3),
+            0 2px 4px rgba(0, 0, 0, 0.2);
           cursor: pointer;
           z-index: 11;
         }
-        .ptt-button.paused {
-          animation-play-state: paused;
-          opacity: .6;
+        
+        .ptt-button.speaking {
+          animation: pulse 2s infinite;
         }
-        @keyframes gradientAnim {
-          0%   { background-position: 0% 50%; }
-          50%  { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
+        
+        .ptt-button.paused {
+          opacity: 0.7;
+          background: linear-gradient(45deg, #ff9d55, #ff8548);
+          animation: none;
+        }
+        
+        @keyframes pulse {
+          0% {
+            box-shadow: 0 0 0 0 rgba(255, 133, 0, 0.5);
+            transform: translateX(-50%) scale(1);
+          }
+          50% {
+            box-shadow: 0 0 0 10px rgba(255, 133, 0, 0);
+            transform: translateX(-50%) scale(1.05);
+          }
+          100% {
+            box-shadow: 0 0 0 0 rgba(255, 133, 0, 0);
+            transform: translateX(-50%) scale(1);
+          }
         }
       `}</style>
     </div>
