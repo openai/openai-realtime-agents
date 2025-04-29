@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { createRealtimeConnection } from "@/app/lib/realtimeConnection";
 import marleneConfig from "@/app/agentConfigs/marlene";
+import Image from "next/image";
 
 interface CameraRequest { id: string; left: number; }
 interface UIEvent { name: string; icon: string; color: string; }
@@ -15,11 +16,16 @@ export default function SimplePage() {
   const [cameraRequests, setCameraRequests] = useState<CameraRequest[]>([]);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [currentTime, setCurrentTime] = useState<string>("");
+  const [agentIsSpeaking, setAgentIsSpeaking] = useState(false);
+  const [speechIntensity, setSpeechIntensity] = useState(0);
   
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const intensityTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     startConnection();
@@ -39,8 +45,58 @@ export default function SimplePage() {
       stopConnection(); 
       closeCamera(); 
       clearInterval(clockInterval);
+      if (intensityTimerRef.current) {
+        clearInterval(intensityTimerRef.current);
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
     };
   }, []);
+
+  // Função para configurar análise de áudio
+  const setupAudioAnalysis = () => {
+    if (!audioRef.current || !audioRef.current.srcObject) return;
+    
+    try {
+      // Criar contexto de áudio apenas se ainda não existir
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContext();
+      }
+      
+      // Criar source do áudio
+      const stream = audioRef.current.srcObject as MediaStream;
+      const source = audioContextRef.current.createMediaStreamSource(stream);
+      
+      // Criar analisador
+      const analyser = audioContextRef.current.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.8;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+      
+      // Configurar timer para atualizar intensidade
+      if (intensityTimerRef.current) {
+        clearInterval(intensityTimerRef.current);
+      }
+      
+      intensityTimerRef.current = setInterval(() => {
+        if (!analyserRef.current || !agentIsSpeaking) return;
+        
+        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+        analyserRef.current.getByteFrequencyData(dataArray);
+        
+        // Calcular média de intensidade (0-255)
+        const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
+        
+        // Normalizar para 0-100
+        const intensity = Math.min(100, Math.max(0, average / 2.55));
+        setSpeechIntensity(intensity);
+      }, 100);
+    } catch (error) {
+      console.error("Erro ao configurar análise de áudio:", error);
+    }
+  };
 
   // Quando receber o stream, anexa ao <video>
   useEffect(() => {
@@ -87,6 +143,14 @@ export default function SimplePage() {
       pcRef.current = pc;
       dcRef.current = dc;
 
+      // Configurar áudio e análise quando a conexão for estabelecida
+      pc.ontrack = (e) => {
+        if (audioRef.current) {
+          audioRef.current.srcObject = e.streams[0];
+          setupAudioAnalysis();
+        }
+      };
+
       dc.onopen = () => {
         setConnected(true);
         dc.send(JSON.stringify({
@@ -120,6 +184,14 @@ export default function SimplePage() {
           return;
         }
 
+        // Detectar quando o agente começa e termina de falar
+        if (msg.type === "audio_started") {
+          setAgentIsSpeaking(true);
+        } else if (msg.type === "audio_ended") {
+          setAgentIsSpeaking(false);
+          setSpeechIntensity(0);
+        }
+
         if (msg.type === "response.done" && Array.isArray(msg.response.output)) {
           msg.response.output.forEach((it: any) => {
             // solicita o balaozinho de câmera
@@ -149,12 +221,18 @@ export default function SimplePage() {
       dc.onerror = ev => {
         console.error("DataChannel erro", ev);
         setConnected(false);
+        setAgentIsSpeaking(false);
       };
-      dc.onclose = () => setConnected(false);
+      
+      dc.onclose = () => {
+        setConnected(false);
+        setAgentIsSpeaking(false);
+      };
 
     } catch (err) {
       console.error("startConnection falhou:", err);
       setConnected(false);
+      setAgentIsSpeaking(false);
     }
   }
 
@@ -166,7 +244,24 @@ export default function SimplePage() {
     dc?.close();
     pc?.close();
     setConnected(false);
+    setAgentIsSpeaking(false);
+    
+    if (intensityTimerRef.current) {
+      clearInterval(intensityTimerRef.current);
+      intensityTimerRef.current = null;
+    }
   }
+
+  // Calcular a cor do gradiente com base na intensidade
+  const getGradientColor = () => {
+    // Base: #EC7000 (laranja Itaú)
+    // Quanto maior a intensidade, mais "quente" fica o gradiente
+    const baseHue = 27; // laranja
+    const saturation = 100;
+    const lightness = Math.max(30, 50 - speechIntensity / 5); // 50 para baixa intensidade, 30 para alta
+    
+    return `hsl(${baseHue}, ${saturation}%, ${lightness}%)`;
+  };
 
   return (
     <div className="stage">
@@ -201,7 +296,7 @@ export default function SimplePage() {
             </div>
           </div>
 
-          {/* Barra de navegador do browser */}
+          {/* Browser navbar */}
           <div className="browser-navbar">
             <div className="browser-navbar-left">
               <button className="browser-btn">
@@ -231,6 +326,24 @@ export default function SimplePage() {
                 </svg>
               </button>
             </div>
+          </div>
+
+          {/* Logo do Itaú */}
+          <div className="itau-logo">
+            <Image 
+              src="/images/brand.svg" 
+              alt="Itaú Logo" 
+              width={0}
+              height={0}
+              style={{ width: 'auto', height: 'auto', maxHeight: '40px' }}
+              priority
+            />
+          </div>
+          
+          {/* Header com título e nome */}
+          <div className="header-content">
+            <h1 className="page-title">Crédito Consignado</h1>
+            <p className="user-name">Maria Justina Linhares</p>
           </div>
 
           {/* ícones de evento */}
@@ -268,59 +381,96 @@ export default function SimplePage() {
             className={`ptt-button ${connected ? "speaking" : "paused"}`}
             onClick={() => connected ? stopConnection() : startConnection()}
           />
+          
+          {/* Footer com gradiente animado */}
+          <div className={`animated-footer ${connected ? "speaking" : ""}`}></div>
           <audio ref={audioRef} autoPlay hidden />
         </div>
       </div>
 
-      <style>{`
+      <style jsx>{`
         .stage {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    overflow: hidden;
-    background-color: blue;
-}
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 100vh;
+          overflow: hidden;
+          background-color: blue;
+        }
 
-/* define as variáveis customizadas para os pontos de origem dos gradientes */
-@property --25-x-position {
-  syntax: '<percentage>';
-  inherits: false;
-  initial-value: 20%;
-}
-@property --25-y-position {
-  syntax: '<percentage>';
-  inherits: false;
-  initial-value: 80%;
-}
-@property --26-x-position {
-  syntax: '<percentage>';
-  inherits: false;
-  initial-value: 80.24350649350647%;
-}
-@property --26-y-position {
-  syntax: '<percentage>';
-  inherits: false;
-  initial-value: 44.80468749999999%;
-}
+        /* Logo do Itaú */
+        .itau-logo {
+          position: absolute;
+          top: 120px;
+          left: 25px;
+          z-index: 10;
+        }
+        
+        /* Header content */
+        .header-content {
+          position: absolute;
+          top: 120px;
+          right: 25px;
+          text-align: right;
+          z-index: 10;
+        }
+        
+        .page-title {
+          font-size: 18px;
+          font-weight: 600;
+          margin: 0;
+          color: #333;
+        }
+        
+        .user-name {
+          font-size: 16px;
+          font-weight: normal;
+          margin: 4px 0 0;
+          color: #666;
+        }
+        
+        /* Footer animado */
+        .animated-footer {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 80px;
+          background: linear-gradient(285deg, #EC7000, #ff9d55, #ffb280, #ff8548, #EC7000);
+          background-size: 400% 400%;
+          border-top-left-radius: 30px;
+          border-top-right-radius: 30px;
+          z-index: 5;
+        }
 
-/* keyframes que animam ambos os gradientes em sincronia */
-@keyframes main {
-  12% {
-    --25-x-position: 15%;
-    --25-y-position: 15%;
-  }
-  19% {
-    --26-x-position: 85%;
-    --26-y-position: 80%;
-  }
-  50% {
-    --25-x-position: 80%;
-    --25-y-position: 15%;
-    --26-x-position: 15%;
-    --26-y-position: 85%;
-  }
-}
+        .animated-footer.speaking {
+          animation: gradient-animation 5s ease infinite;
+        }
+
+        @keyframes gradient-animation {
+          0% {
+            background-position: 0% 50%;
+          }
+          50% {
+            background-position: 100% 50%;
+          }
+          100% {
+            background-position: 0% 50%;
+          }
+        }
+
+        
+        @keyframes pulse-gradient {
+          0% {
+            opacity: 0.85;
+            height: 80px;
+          }
+          100% {
+            opacity: 1;
+            height: calc(80px + var(--speech-intensity, 0) * 0.5px);
+          }
+        }
+        
         /* mockup chapado */
         .phone-mockup {
           position: relative;
@@ -454,41 +604,7 @@ export default function SimplePage() {
           opacity: 0.85;
         }
 
-        /* UI icon */
-        .ui-event-icon {
-          position: absolute;
-          top: 50px; /* Ajustado para ficar abaixo da barra de status */
-          right: 16px;
-          font-size: 2rem;
-          animation: pop .4s ease-out;
-          z-index: 11;
-        }
-        @keyframes pop {
-          from { transform: scale(0); opacity: 0; }
-          to   { transform: scale(1); opacity: 1; }
-        }
-
-        /* camera request bubble */
-        .camera-request-bubble {
-          position: absolute;
-          bottom: -90px;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 80px;
-          height: 80px;
-          background: #fff;
-          border-radius: 40px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 2rem;
-          cursor: pointer;
-          z-index: 11;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-          animation: rise 1.5s ease-out forwards;
-        }
-
-               /* Browser navbar */
+        /* Browser navbar */
         .browser-navbar {
           position: relative;
           width: 100%;
@@ -565,6 +681,39 @@ export default function SimplePage() {
           font-weight: 600;
         }
 
+        /* UI icon */
+        .ui-event-icon {
+          position: absolute;
+          top: 90px; /* Ajustado para ficar abaixo do logo */
+          right: 16px;
+          font-size: 2rem;
+          animation: pop .4s ease-out;
+          z-index: 11;
+        }
+        @keyframes pop {
+          from { transform: scale(0); opacity: 0; }
+          to   { transform: scale(1); opacity: 1; }
+        }
+
+        /* camera request bubble */
+        .camera-request-bubble {
+          position: absolute;
+          bottom: -90px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 80px;
+          height: 80px;
+          background: #fff;
+          border-radius: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 2rem;
+          cursor: pointer;
+          z-index: 11;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+          animation: rise 1.5s ease-out forwards;
+        }
         @keyframes rise {
           from { transform: translate(-50%, 0); }
           to   { transform: translate(-50%, -200px); }
