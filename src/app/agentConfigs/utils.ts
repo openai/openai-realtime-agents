@@ -77,3 +77,4 @@ export const getCurrentRateTool: Tool = {
   name: "get_current_rate",
   description: "Retorna a taxa atual de crédito consignado (em % a.m.) para o Itaú",
 };
+

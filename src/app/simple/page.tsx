@@ -170,6 +170,7 @@ export default function SimplePage() {
 
   return (
     <div className="stage">
+      <div className="blur-backdrop"></div>
       <div className="phone-mockup">
         <div className="button-vol-up" />
         <div className="button-vol-down" />
@@ -197,6 +198,38 @@ export default function SimplePage() {
                 <path d="M22 5v2" strokeWidth="2" strokeLinecap="round"/>
                 <rect x="4" y="4" width="13" height="4" fill="currentColor"/>
               </svg>
+            </div>
+          </div>
+
+          {/* Barra de navegador do browser */}
+          <div className="browser-navbar">
+            <div className="browser-navbar-left">
+              <button className="browser-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
+            <div className="browser-navbar-center">
+              <div className="browser-urlbar">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="browser-lock-icon">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" strokeWidth="2"/>
+                  <path d="M7 11V7a5 5 0 0110 0v4" strokeWidth="2"/>
+                </svg>
+                <span className="browser-url">formalizacao.com.br</span>
+              </div>
+            </div>
+            <div className="browser-navbar-right">
+              <button className="browser-btn">
+                <div className="browser-tab">1</div>
+              </button>
+              <button className="browser-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <circle cx="12" cy="12" r="1" strokeWidth="3"/>
+                  <circle cx="12" cy="5" r="1" strokeWidth="3"/>
+                  <circle cx="12" cy="19" r="1" strokeWidth="3"/>
+                </svg>
+              </button>
             </div>
           </div>
 
@@ -306,7 +339,7 @@ export default function SimplePage() {
         .button-power {
           position: absolute;
           width: 4px;
-          background: #333;
+          background: #e7e7e7;
           border-radius: 2px;
         }
         .button-vol-up { left: -4px; top: 140px; height: 40px; }
@@ -454,6 +487,84 @@ export default function SimplePage() {
           box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
           animation: rise 1.5s ease-out forwards;
         }
+
+               /* Browser navbar */
+        .browser-navbar {
+          position: relative;
+          width: 100%;
+          height: 44px;
+          background-color: #f5f5f5;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 8px;
+          border-bottom: 1px solid rgba(0,0,0,0.1);
+          z-index: 10;
+          margin-top: 40px;
+        }
+
+        .browser-navbar-left, .browser-navbar-right {
+          display: flex;
+          align-items: center;
+        }
+
+        .browser-navbar-center {
+          flex: 1;
+          display: flex;
+          justify-content: center;
+        }
+
+        .browser-urlbar {
+          background-color: #e9e9e9;
+          height: 32px;
+          width: 90%;
+          border-radius: 16px;
+          display: flex;
+          align-items: center;
+          padding: 0 12px;
+          color: #333;
+          font-size: 14px;
+          font-weight: 500;
+        }
+
+        .browser-lock-icon {
+          margin-right: 8px;
+          opacity: 0.7;
+        }
+
+        .browser-url {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .browser-btn {
+          background: none;
+          border: none;
+          width: 36px;
+          height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #333;
+          border-radius: 50%;
+        }
+
+        .browser-btn:active {
+          background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        .browser-tab {
+          width: 24px;
+          height: 24px;
+          border: 1.5px solid #333;
+          border-radius: 6px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 12px;
+          font-weight: 600;
+        }
+
         @keyframes rise {
           from { transform: translate(-50%, 0); }
           to   { transform: translate(-50%, -200px); }
