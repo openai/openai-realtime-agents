@@ -676,7 +676,7 @@ export default function SimplePage() {
           color: #333;
           background: rgba(245, 245, 245, 0.8);
           z-index: 10;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          font-family: 'MinhaFonte', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
         }
         
         .status-bar-time {
