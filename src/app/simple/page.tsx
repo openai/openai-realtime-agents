@@ -329,7 +329,7 @@ export default function SimplePage() {
         .button-power {
           position: absolute;
           width: 4px;
-          background: #333;
+          background:#e7e7e7;
           border-radius: 2px;
         }
         .button-vol-up { left: -4px; top: 140px; height: 40px; }

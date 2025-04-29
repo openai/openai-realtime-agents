@@ -71,9 +71,21 @@ export const openCameraTool: Tool = {
 };
 
 /**
- * Tool para pegar valor correto do consig
+ * Ferramenta para obter saudação baseada no horário atual
  */
-export const getCurrentRateTool: Tool = {
-  name: "get_current_rate",
-  description: "Retorna a taxa atual de crédito consignado (em % a.m.) para o Itaú",
+export const getGreetingTool: Tool = {
+  type: "function",
+  name: "get_greeting",
+  description: "Retorna a saudação adequada baseada no horário local atual",
+  parameters: { type: "object", properties: {}, required: [] },
+};
+
+/**
+ * Ferramenta para obter saudação baseada no horário atual
+ */
+export const getGreetingTool: Tool = {
+  type: "function",
+  name: "get_greeting",
+  description: "Retorna a saudação adequada baseada no horário local atual",
+  parameters: { type: "object", properties: {}, required: [] },
 };
