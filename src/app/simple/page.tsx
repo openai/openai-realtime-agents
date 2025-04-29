@@ -429,35 +429,129 @@ export default function SimplePage() {
           color: #666;
         }
         
-        /* Footer animado */
-        .animated-footer {
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          height: 80px;
-          background: linear-gradient(285deg, #EC7000, #ff9d55, #ffb280, #ff8548, #EC7000);
-          background-size: 400% 400%;
-          border-top-left-radius: 30px;
-          border-top-right-radius: 30px;
-          z-index: 5;
-        }
+/* Completely seamless footer gradient */
+.animated-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 200px; /* Even taller for more gradient space */
+  background: transparent;
+  z-index: 5;
+  overflow: hidden;
+}
 
-        .animated-footer.speaking {
-          animation: gradient-animation 5s ease infinite;
-        }
+/* Create the gradient as a pseudo-element */
+.animated-footer::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 200px;
+  /* Smoother horizontal gradient */
+  background: linear-gradient(
+    to right,
+    #FC6200 0%,
+    rgba(252, 98, 0, 0.7) 20%,
+    rgba(252, 98, 0, 0.5) 40%,
+    rgba(252, 98, 0, 0.3) 60%,
+    rgba(252, 98, 0, 0.1) 80%,
+    rgba(255, 255, 255, 0.9) 100%
+  );
+  /* Create ultra-smooth vertical fade */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 0.0005) 5%,
+    rgba(0, 0, 0, 0.001) 10%,
+    rgba(0, 0, 0, 0.002) 15%,
+    rgba(0, 0, 0, 0.005) 20%,
+    rgba(0, 0, 0, 0.01) 25%,
+    rgba(0, 0, 0, 0.02) 30%,
+    rgba(0, 0, 0, 0.03) 35%,
+    rgba(0, 0, 0, 0.05) 40%,
+    rgba(0, 0, 0, 0.08) 45%,
+    rgba(0, 0, 0, 0.12) 50%,
+    rgba(0, 0, 0, 0.18) 55%,
+    rgba(0, 0, 0, 0.25) 60%,
+    rgba(0, 0, 0, 0.35) 65%,
+    rgba(0, 0, 0, 0.45) 70%,
+    rgba(0, 0, 0, 0.6) 75%,
+    rgba(0, 0, 0, 0.75) 80%,
+    rgba(0, 0, 0, 0.9) 90%,
+    rgba(0, 0, 0, 1) 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 0.0005) 5%,
+    rgba(0, 0, 0, 0.001) 10%,
+    rgba(0, 0, 0, 0.002) 15%,
+    rgba(0, 0, 0, 0.005) 20%,
+    rgba(0, 0, 0, 0.01) 25%,
+    rgba(0, 0, 0, 0.02) 30%,
+    rgba(0, 0, 0, 0.03) 35%,
+    rgba(0, 0, 0, 0.05) 40%,
+    rgba(0, 0, 0, 0.08) 45%,
+    rgba(0, 0, 0, 0.12) 50%,
+    rgba(0, 0, 0, 0.18) 55%,
+    rgba(0, 0, 0, 0.25) 60%,
+    rgba(0, 0, 0, 0.35) 65%,
+    rgba(0, 0, 0, 0.45) 70%,
+    rgba(0, 0, 0, 0.6) 75%,
+    rgba(0, 0, 0, 0.75) 80%,
+    rgba(0, 0, 0, 0.9) 90%,
+    rgba(0, 0, 0, 1) 100%
+  );
+  border-top-left-radius: 30px;
+  border-top-right-radius: 30px;
+  z-index: 1;
+}
 
-        @keyframes gradient-animation {
-          0% {
-            background-position: 0% 50%;
-          }
-          50% {
-            background-position: 100% 50%;
-          }
-          100% {
-            background-position: 0% 50%;
-          }
-        }
+.animated-footer.speaking::after {
+  animation: wave-gradient 5s ease infinite;
+  background-size: 200% 100%;
+}
+
+/* Subtle glow effect when speaking */
+.animated-footer.speaking::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100px;
+  background: radial-gradient(
+    ellipse at center bottom, 
+    rgba(252, 98, 0, 0.15) 0%, 
+    rgba(252, 98, 0, 0) 70%
+  );
+  z-index: 0;
+  opacity: 0;
+  animation: glow-pulse 2s infinite alternate;
+}
+
+@keyframes wave-gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%; 
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes glow-pulse {
+  0% {
+    opacity: 0.2;
+  }
+  100% {
+    opacity: 0.5;
+  }
+}
 
         
         @keyframes pulse-gradient {
