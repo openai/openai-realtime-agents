@@ -29,12 +29,14 @@ export function useHandleServerEvent({
 
   const { logServerEvent } = useEvent();
 
+  // UI events state for rendering icons or other UI triggers
   const [uiEvents, setUiEvents] = useState<{
     name: string;
     icon: string;
     color: string;
   }[]>([]);
 
+  // Debug logs state for inspecting raw events
   const [debugLogs, setDebugLogs] = useState<any[]>([]);
 
   const handleFunctionCall = async (functionCallParams: {
@@ -42,46 +44,22 @@ export function useHandleServerEvent({
     call_id?: string;
     arguments: string;
   }) => {
+    // Log function call for debugging
     console.log("[DEBUG] Function call received:", functionCallParams);
     setDebugLogs((prev) => [...prev, { type: 'function_call', data: functionCallParams }]);
 
-    // UI events handling
+    // Special handling for UI events
     if (functionCallParams.name === "ui_event") {
       const args = JSON.parse(functionCallParams.arguments);
       console.log("[DEBUG] UI Event args:", args);
       setDebugLogs((prev) => [...prev, { type: 'ui_event_args', data: args }]);
+      // Push to uiEvents state for rendering in the UI
       setUiEvents((prev) => [...prev, args]);
+      // Optionally you could send back a confirmation to the agent
       return;
     }
 
-    // Nova lógica para tratamento da saudação baseada no horário
-    if (functionCallParams.name === "get_greeting") {
-      const currentHour = new Date().getHours();
-      let greeting = "";
-      
-      if (currentHour >= 5 && currentHour < 12) {
-        greeting = "Bom dia";
-      } else if (currentHour >= 12 && currentHour < 18) {
-        greeting = "Boa tarde";
-      } else {
-        greeting = "Boa noite";
-      }
-      
-      console.log("[DEBUG] Time-based greeting:", greeting, "Current hour:", currentHour);
-      
-      sendClientEvent({
-        type: "conversation.item.create",
-        item: {
-          type: "function_call_output",
-          call_id: functionCallParams.call_id,
-          output: JSON.stringify({ greeting }),
-        },
-      });
-      sendClientEvent({ type: "response.create" });
-      return;
-    }
-
-    // Tratamento para funções customizadas do agente atual
+    // Existing transferAgents or custom tool logic
     const currentAgent = selectedAgentConfigSet?.find(
       (a) => a.name === selectedAgentName
     );
@@ -102,6 +80,7 @@ export function useHandleServerEvent({
     }
 
     if (functionCallParams.name === "transferAgents") {
+      // ... existing transferAgents logic ...
       const args = JSON.parse(functionCallParams.arguments);
       const destinationAgent = args.destination_agent;
       const newAgentConfig = selectedAgentConfigSet?.find(
@@ -121,7 +100,7 @@ export function useHandleServerEvent({
       return;
     }
 
-    // Fallback para outras funções
+    // Fallback for other function calls
     const simulatedResult = { result: true };
     sendClientEvent({
       type: "conversation.item.create",
@@ -150,6 +129,11 @@ export function useHandleServerEvent({
         }
         break;
 
+      case "conversation.item.created": {
+        // ... existing logic ...
+        break;
+      }
+
       case "response.done":
         if (serverEvent.response?.output) {
           serverEvent.response.output.forEach((outputItem) => {
@@ -174,11 +158,14 @@ export function useHandleServerEvent({
         }
         break;
 
+      // ... other cases remain unchanged ...
+
       default:
         break;
     }
   };
 
+  // Wrap in ref to avoid re-creating on each render
   const handleServerEventRef = useRef(handleServerEvent);
   handleServerEventRef.current = handleServerEvent;
 
