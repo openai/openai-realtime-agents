@@ -71,10 +71,20 @@ export const openCameraTool: Tool = {
 };
 
 /**
+ * Tool para fechar a câmera após a verificação
+ */
+export const closeCameraTool: Tool = {
+  type: "function",
+  name: "close_camera",
+  description:
+    "Fecha a câmera do dispositivo após a verificação estar completa.",
+  parameters: { type: "object", properties: {}, required: [] },
+};
+
+/**
  * Tool para pegar valor correto do consig
  */
 export const getCurrentRateTool: Tool = {
   name: "get_current_rate",
   description: "Retorna a taxa atual de crédito consignado (em % a.m.) para o Itaú",
 };
-
