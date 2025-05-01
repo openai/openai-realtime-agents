@@ -18,6 +18,8 @@ export default function SimplePage() {
   const [currentTime, setCurrentTime] = useState<string>("");
   const [agentIsSpeaking, setAgentIsSpeaking] = useState(false);
   const [speechIntensity, setSpeechIntensity] = useState(0);
+  const [verificationActive, setVerificationActive] = useState(false);
+  const [verificationStep, setVerificationStep] = useState(0);
   
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
@@ -26,6 +28,7 @@ export default function SimplePage() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const intensityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const verificationTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     startConnection();
@@ -47,6 +50,9 @@ export default function SimplePage() {
       clearInterval(clockInterval);
       if (intensityTimerRef.current) {
         clearInterval(intensityTimerRef.current);
+      }
+      if (verificationTimerRef.current) {
+        clearInterval(verificationTimerRef.current);
       }
       if (audioContextRef.current) {
         audioContextRef.current.close();
@@ -98,6 +104,147 @@ export default function SimplePage() {
     }
   };
 
+  // Função segura para enviar mensagens pelo DataChannel
+  const safelySendMessage = (message: any): boolean => {
+    try {
+      if (dcRef.current && dcRef.current.readyState === "open") {
+        dcRef.current.send(JSON.stringify(message));
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.warn("Erro ao enviar mensagem:", err);
+      return false;
+    }
+  };
+
+  // Função atualizada para simular o processo de verificação
+  const startVerificationSequence = () => {
+    if (verificationActive) return; // Evita iniciar mais de uma vez
+    
+    setVerificationActive(true);
+    setVerificationStep(1);
+    
+    // Limpa qualquer timer existente
+    if (verificationTimerRef.current) {
+      clearTimeout(verificationTimerRef.current);
+    }
+    
+    // Determina se é possível enviar mensagens
+    const canSendMessages = dcRef.current && dcRef.current.readyState === "open";
+    if (!canSendMessages) {
+      console.warn("Não é possível iniciar a sequência: DataChannel não está aberto");
+      setVerificationActive(false);
+      return;
+    }
+    
+    // Passo 1: Início da verificação (2 segundos)
+    verificationTimerRef.current = setTimeout(() => {
+      setVerificationStep(2);
+      
+      // Cria um ID único para a mensagem
+      const messageId = uuidv4();
+      
+      // Envia a mensagem "Analisando sua imagem..."
+      safelySendMessage({
+        type: "conversation.item.create",
+        item: {
+          id: messageId,
+          type: "message",
+          role: "assistant",
+          content: [{ type: "text", text: "Analisando sua imagem, só um momento..." }],
+        },
+      });
+      
+      // Passo 2: Verificação em andamento (3 segundos depois)
+      verificationTimerRef.current = setTimeout(() => {
+        setVerificationStep(3);
+        
+        // Cria outro ID único para a segunda mensagem
+        const messageId2 = uuidv4();
+        
+        // Envia a mensagem "Estou verificando os detalhes..."
+        safelySendMessage({
+          type: "conversation.item.create",
+          item: {
+            id: messageId2,
+            type: "message",
+            role: "assistant",
+            content: [{ type: "text", text: "Estou verificando os detalhes. Só mais um pouquinho..." }],
+          },
+        });
+        
+        // Passo 3: Verificação concluída (4 segundos depois)
+        verificationTimerRef.current = setTimeout(() => {
+          setVerificationStep(4);
+          
+          // Cria outro ID único para a terceira mensagem
+          const messageId3 = uuidv4();
+          
+          // Envia a mensagem "Pronto! Verifiquei sua identidade..."
+          safelySendMessage({
+            type: "conversation.item.create",
+            item: {
+              id: messageId3,
+              type: "message",
+              role: "assistant",
+              content: [{ type: "text", text: "Pronto! Verifiquei sua identidade. Agora vamos seguir com o processo." }],
+            },
+          });
+          
+          // Passo 4: Fechamento da câmera (1 segundo depois)
+          verificationTimerRef.current = setTimeout(() => {
+            // Cria um ID para a chamada de função
+            const functionCallId = uuidv4();
+            
+            // Envia a chamada de função close_camera
+            safelySendMessage({
+              type: "conversation.item.create",
+              item: {
+                id: functionCallId,
+                type: "function_call",
+                function: {
+                  name: "close_camera",
+                  arguments: "{}",
+                },
+              },
+            });
+            
+            // Fecha a câmera na UI
+            closeCamera();
+            
+            // Passo 5: Continuação do fluxo (1 segundo depois)
+            verificationTimerRef.current = setTimeout(() => {
+              // Cria um ID para a última mensagem
+              const messageId4 = uuidv4();
+              
+              // Envia a mensagem "Agora vou conferir essas informações..."
+              safelySendMessage({
+                type: "conversation.item.create",
+                item: {
+                  id: messageId4,
+                  type: "message",
+                  role: "assistant",
+                  content: [{ type: "text", text: "Agora vou conferir essas informações no sistema, pode levar uns segundinhos..." }],
+                },
+              });
+              
+              // Finaliza o ciclo de verificação
+              setVerificationActive(false);
+              setVerificationStep(0);
+              
+              // Solicita uma resposta (após 1 segundo)
+              verificationTimerRef.current = setTimeout(() => {
+                safelySendMessage({ type: "response.create" });
+              }, 1000);
+              
+            }, 1000);
+          }, 1000);
+        }, 4000);
+      }, 3000);
+    }, 2000);
+  };
+
   // Quando receber o stream, anexa ao <video>
   useEffect(() => {
     if (cameraStream && videoRef.current) {
@@ -105,8 +252,14 @@ export default function SimplePage() {
       videoRef.current.muted = true;
       videoRef.current.playsInline = true;
       videoRef.current.autoplay = true;
-      videoRef.current.onloadedmetadata = () =>
+      videoRef.current.onloadedmetadata = () => {
         videoRef.current?.play().catch(console.error);
+        
+        // Inicia automaticamente a sequência de verificação depois de garantir que o vídeo está reproduzindo
+        setTimeout(() => {
+          startVerificationSequence();
+        }, 1000);
+      };
     }
   }, [cameraStream]);
 
@@ -120,8 +273,10 @@ export default function SimplePage() {
   }
 
   function closeCamera() {
-    cameraStream?.getTracks().forEach(t => t.stop());
-    setCameraStream(null);
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(t => t.stop());
+      setCameraStream(null);
+    }
   }
 
   function triggerIcon(evt: UIEvent) {
@@ -135,11 +290,13 @@ export default function SimplePage() {
       a.autoplay = true;
       audioRef.current = a;
     }
+    
     try {
       const { pc, dc } = await createRealtimeConnection(
         process.env.NEXT_PUBLIC_OPENAI_API_KEY!,
         audioRef
       );
+      
       pcRef.current = pc;
       dcRef.current = dc;
 
@@ -151,9 +308,29 @@ export default function SimplePage() {
         }
       };
 
+      // Adicionar tratamento de erros mais robusto
+      pc.onerror = (err) => {
+        console.error("PeerConnection erro:", err);
+        setConnected(false);
+        setAgentIsSpeaking(false);
+      };
+      
+      pc.oniceconnectionstatechange = () => {
+        console.log("ICE state change:", pc.iceConnectionState);
+        if (pc.iceConnectionState === "disconnected" || 
+            pc.iceConnectionState === "failed" ||
+            pc.iceConnectionState === "closed") {
+          setConnected(false);
+          setAgentIsSpeaking(false);
+        }
+      };
+
       dc.onopen = () => {
+        console.log("DataChannel aberto");
         setConnected(true);
-        dc.send(JSON.stringify({
+        
+        // Envia a configuração da sessão
+        safelySendMessage({
           type: "session.update",
           session: {
             modalities: ["audio", "text"],
@@ -171,15 +348,17 @@ export default function SimplePage() {
             },
             tools: marleneConfig[0].tools,
           },
-        }));
-        dc.send(JSON.stringify({ type: "response.create" }));
+        });
+        
+        // Inicia a conversa
+        safelySendMessage({ type: "response.create" });
       };
 
       dc.onmessage = e => {
         let msg: any;
         try {
           msg = JSON.parse(e.data);
-        } catch {
+        } catch (err) {
           console.error("Falha ao parsear mensagem RTC:", e.data);
           return;
         }
@@ -192,9 +371,9 @@ export default function SimplePage() {
           setSpeechIntensity(0);
         }
 
-        if (msg.type === "response.done" && Array.isArray(msg.response.output)) {
+        if (msg.type === "response.done" && Array.isArray(msg.response?.output)) {
           msg.response.output.forEach((it: any) => {
-            // solicita o balaozinho de câmera
+            // solicita o balãozinho de câmera
             if (it.type === "function_call" && it.name === "open_camera") {
               setCameraRequests(c => [...c, { id: uuidv4(), left: 50 }]);
             }
@@ -210,8 +389,8 @@ export default function SimplePage() {
               if (args) triggerIcon(args);
             }
 
-            // fechamento automático da câmera
-            if (it.type === "function_call" && it.name === "close_camera") {
+            // fechamento manual da câmera (caso não esteja em verificação)
+            if (it.type === "function_call" && it.name === "close_camera" && !verificationActive) {
               closeCamera();
             }
           });
@@ -225,6 +404,7 @@ export default function SimplePage() {
       };
       
       dc.onclose = () => {
+        console.log("DataChannel fechado");
         setConnected(false);
         setAgentIsSpeaking(false);
       };
@@ -237,19 +417,52 @@ export default function SimplePage() {
   }
 
   function stopConnection() {
-    const dc = dcRef.current, pc = pcRef.current;
-    if (dc?.readyState === "open") {
-      try { dc.send(JSON.stringify({ type: "stop" })); } catch {}
+    // Limpar todos os timers
+    if (verificationTimerRef.current) {
+      clearTimeout(verificationTimerRef.current);
+      verificationTimerRef.current = null;
     }
-    dc?.close();
-    pc?.close();
-    setConnected(false);
-    setAgentIsSpeaking(false);
     
     if (intensityTimerRef.current) {
       clearInterval(intensityTimerRef.current);
       intensityTimerRef.current = null;
     }
+    
+    // Cancelar qualquer verificação em andamento
+    setVerificationActive(false);
+    setVerificationStep(0);
+    
+    // Fechar a câmera
+    closeCamera();
+    
+    // Fechar a conexão
+    const dc = dcRef.current, pc = pcRef.current;
+    if (dc?.readyState === "open") {
+      try { 
+        dc.send(JSON.stringify({ type: "stop" })); 
+      } catch (err) {
+        console.warn("Erro ao enviar mensagem de parada:", err);
+      }
+    }
+    
+    if (dc) {
+      try {
+        dc.close();
+      } catch (err) {
+        console.warn("Erro ao fechar DataChannel:", err);
+      }
+    }
+    
+    if (pc) {
+      try {
+        pc.close();
+      } catch (err) {
+        console.warn("Erro ao fechar PeerConnection:", err);
+      }
+    }
+    
+    setConnected(false);
+    setAgentIsSpeaking(false);
   }
 
   // Calcular a cor do gradiente com base na intensidade
@@ -346,6 +559,27 @@ export default function SimplePage() {
             <p className="user-name">Maria Justina Linhares</p>
           </div>
 
+          {/* Indicador de verificação */}
+          {verificationActive && (
+            <div className="verification-indicator">
+              <div className="verification-step-text">
+                {verificationStep === 1 && "Aguardando análise..."}
+                {verificationStep === 2 && "Analisando documento..."}
+                {verificationStep === 3 && "Verificando identidade..."}
+                {verificationStep === 4 && "Verificação concluída!"}
+              </div>
+              <div className="verification-progress">
+                <div 
+                  className="verification-bar" 
+                  style={{ 
+                    width: `${(verificationStep / 4) * 100}%`,
+                    backgroundColor: verificationStep === 4 ? '#2cb67d' : '#ff8548'
+                  }}
+                ></div>
+              </div>
+            </div>
+          )}
+
           {/* ícones de evento */}
           {uiEvents.map((evt, i) => (
             <div key={i} className="ui-event-icon" style={{ color: evt.color }}>
@@ -372,7 +606,17 @@ export default function SimplePage() {
           {cameraStream && (
             <div className="camera-bubble">
               <video ref={videoRef} className="camera-video" />
-              <button className="camera-close" onClick={closeCamera}>×</button>
+              <button className="camera-close" onClick={() => {
+                // Cancela a verificação se estiver em andamento
+                if (verificationActive) {
+                  if (verificationTimerRef.current) {
+                    clearTimeout(verificationTimerRef.current);
+                  }
+                  setVerificationActive(false);
+                  setVerificationStep(0);
+                }
+                closeCamera();
+              }}>×</button>
             </div>
           )}
 
@@ -389,6 +633,44 @@ export default function SimplePage() {
       </div>
 
       <style jsx>{`
+        /* [...estilos existentes...] */
+
+        /* Novo estilo para o indicador de verificação */
+        .verification-indicator {
+          position: absolute;
+          top: 200px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 80%;
+          text-align: center;
+          z-index: 20;
+          background-color: rgba(255, 255, 255, 0.9);
+          padding: 10px;
+          border-radius: 10px;
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .verification-step-text {
+          font-size: 14px;
+          margin-bottom: 8px;
+          color: #333;
+        }
+
+        .verification-progress {
+          width: 100%;
+          height: 6px;
+          background-color: #e0e0e0;
+          border-radius: 3px;
+          overflow: hidden;
+        }
+
+        .verification-bar {
+          height: 100%;
+          background-color: #ff8548;
+          transition: width 0.5s ease;
+        }
+        
+        /* Resto dos estilos existentes fica aqui... */
         .stage {
           display: flex;
           justify-content: center;
@@ -429,130 +711,129 @@ export default function SimplePage() {
           color: #666;
         }
         
-/* Completely seamless footer gradient */
-.animated-footer {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 200px; /* Even taller for more gradient space */
-  background: transparent;
-  z-index: 5;
-  overflow: hidden;
-}
+        /* Completely seamless footer gradient */
+        .animated-footer {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 200px; /* Even taller for more gradient space */
+          background: transparent;
+          z-index: 5;
+          overflow: hidden;
+        }
 
-/* Create the gradient as a pseudo-element */
-.animated-footer::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 200px;
-  /* Smoother horizontal gradient */
-  background: linear-gradient(
-    to right,
-    #FC6200 0%,
-    rgba(252, 98, 0, 0.7) 20%,
-    rgba(252, 98, 0, 0.5) 40%,
-    rgba(252, 98, 0, 0.3) 60%,
-    rgba(252, 98, 0, 0.1) 80%,
-    rgba(255, 255, 255, 0.9) 100%
-  );
-  /* Create ultra-smooth vertical fade */
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    rgba(0, 0, 0, 0.0005) 5%,
-    rgba(0, 0, 0, 0.001) 10%,
-    rgba(0, 0, 0, 0.002) 15%,
-    rgba(0, 0, 0, 0.005) 20%,
-    rgba(0, 0, 0, 0.01) 25%,
-    rgba(0, 0, 0, 0.02) 30%,
-    rgba(0, 0, 0, 0.03) 35%,
-    rgba(0, 0, 0, 0.05) 40%,
-    rgba(0, 0, 0, 0.08) 45%,
-    rgba(0, 0, 0, 0.12) 50%,
-    rgba(0, 0, 0, 0.18) 55%,
-    rgba(0, 0, 0, 0.25) 60%,
-    rgba(0, 0, 0, 0.35) 65%,
-    rgba(0, 0, 0, 0.45) 70%,
-    rgba(0, 0, 0, 0.6) 75%,
-    rgba(0, 0, 0, 0.75) 80%,
-    rgba(0, 0, 0, 0.9) 90%,
-    rgba(0, 0, 0, 1) 100%
-  );
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    rgba(0, 0, 0, 0.0005) 5%,
-    rgba(0, 0, 0, 0.001) 10%,
-    rgba(0, 0, 0, 0.002) 15%,
-    rgba(0, 0, 0, 0.005) 20%,
-    rgba(0, 0, 0, 0.01) 25%,
-    rgba(0, 0, 0, 0.02) 30%,
-    rgba(0, 0, 0, 0.03) 35%,
-    rgba(0, 0, 0, 0.05) 40%,
-    rgba(0, 0, 0, 0.08) 45%,
-    rgba(0, 0, 0, 0.12) 50%,
-    rgba(0, 0, 0, 0.18) 55%,
-    rgba(0, 0, 0, 0.25) 60%,
-    rgba(0, 0, 0, 0.35) 65%,
-    rgba(0, 0, 0, 0.45) 70%,
-    rgba(0, 0, 0, 0.6) 75%,
-    rgba(0, 0, 0, 0.75) 80%,
-    rgba(0, 0, 0, 0.9) 90%,
-    rgba(0, 0, 0, 1) 100%
-  );
-  border-top-left-radius: 30px;
-  border-top-right-radius: 30px;
-  z-index: 1;
-}
+        /* Create the gradient as a pseudo-element */
+        .animated-footer::after {
+          content: "";
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 200px;
+          /* Smoother horizontal gradient */
+          background: linear-gradient(
+            to right,
+            #FC6200 0%,
+            rgba(252, 98, 0, 0.7) 20%,
+            rgba(252, 98, 0, 0.5) 40%,
+            rgba(252, 98, 0, 0.3) 60%,
+            rgba(252, 98, 0, 0.1) 80%,
+            rgba(255, 255, 255, 0.9) 100%
+          );
+          /* Create ultra-smooth vertical fade */
+          mask-image: linear-gradient(
+            to bottom,
+            transparent 0%,
+            rgba(0, 0, 0, 0.0005) 5%,
+            rgba(0, 0, 0, 0.001) 10%,
+            rgba(0, 0, 0, 0.002) 15%,
+            rgba(0, 0, 0, 0.005) 20%,
+            rgba(0, 0, 0, 0.01) 25%,
+            rgba(0, 0, 0, 0.02) 30%,
+            rgba(0, 0, 0, 0.03) 35%,
+            rgba(0, 0, 0, 0.05) 40%,
+            rgba(0, 0, 0, 0.08) 45%,
+            rgba(0, 0, 0, 0.12) 50%,
+            rgba(0, 0, 0, 0.18) 55%,
+            rgba(0, 0, 0, 0.25) 60%,
+            rgba(0, 0, 0, 0.35) 65%,
+            rgba(0, 0, 0, 0.45) 70%,
+            rgba(0, 0, 0, 0.6) 75%,
+            rgba(0, 0, 0, 0.75) 80%,
+            rgba(0, 0, 0, 0.9) 90%,
+            rgba(0, 0, 0, 1) 100%
+          );
+          -webkit-mask-image: linear-gradient(
+            to bottom,
+            transparent 0%,
+            rgba(0, 0, 0, 0.0005) 5%,
+            rgba(0, 0, 0, 0.001) 10%,
+            rgba(0, 0, 0, 0.002) 15%,
+            rgba(0, 0, 0, 0.005) 20%,
+            rgba(0, 0, 0, 0.01) 25%,
+            rgba(0, 0, 0, 0.02) 30%,
+            rgba(0, 0, 0, 0.03) 35%,
+            rgba(0, 0, 0, 0.05) 40%,
+            rgba(0, 0, 0, 0.08) 45%,
+            rgba(0, 0, 0, 0.12) 50%,
+            rgba(0, 0, 0, 0.18) 55%,
+            rgba(0, 0, 0, 0.25) 60%,
+            rgba(0, 0, 0, 0.35) 65%,
+            rgba(0, 0, 0, 0.45) 70%,
+            rgba(0, 0, 0, 0.6) 75%,
+            rgba(0, 0, 0, 0.75) 80%,
+            rgba(0, 0, 0, 0.9) 90%,
+            rgba(0, 0, 0, 1) 100%
+          );
+          border-top-left-radius: 30px;
+          border-top-right-radius: 30px;
+          z-index: 1;
+        }
 
-.animated-footer.speaking::after {
-  animation: wave-gradient 5s ease infinite;
-  background-size: 200% 100%;
-}
+        .animated-footer.speaking::after {
+          animation: wave-gradient 5s ease infinite;
+          background-size: 200% 100%;
+        }
 
-/* Subtle glow effect when speaking */
-.animated-footer.speaking::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 100px;
-  background: radial-gradient(
-    ellipse at center bottom, 
-    rgba(252, 98, 0, 0.15) 0%, 
-    rgba(252, 98, 0, 0) 70%
-  );
-  z-index: 0;
-  opacity: 0;
-  animation: glow-pulse 2s infinite alternate;
-}
+        /* Subtle glow effect when speaking */
+        .animated-footer.speaking::before {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 100px;
+          background: radial-gradient(
+            ellipse at center bottom, 
+            rgba(252, 98, 0, 0.15) 0%, 
+            rgba(252, 98, 0, 0) 70%
+          );
+          z-index: 0;
+          opacity: 0;
+          animation: glow-pulse 2s infinite alternate;
+        }
 
-@keyframes wave-gradient {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%; 
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
+        @keyframes wave-gradient {
+          0% {
+            background-position: 0% 50%;
+          }
+          50% {
+            background-position: 100% 50%; 
+          }
+          100% {
+            background-position: 0% 50%;
+          }
+        }
 
-@keyframes glow-pulse {
-  0% {
-    opacity: 0.2;
-  }
-  100% {
-    opacity: 0.5;
-  }
-}
-
+        @keyframes glow-pulse {
+          0% {
+            opacity: 0.2;
+          }
+          100% {
+            opacity: 0.5;
+          }
+        }
         
         @keyframes pulse-gradient {
           0% {
