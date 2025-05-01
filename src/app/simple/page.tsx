@@ -20,6 +20,7 @@ export default function SimplePage() {
   const [speechIntensity, setSpeechIntensity] = useState(0);
   const [verificationActive, setVerificationActive] = useState(false);
   const [verificationStep, setVerificationStep] = useState(0);
+  const [messagesDisabled, setMessagesDisabled] = useState(false);
   
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
@@ -29,6 +30,7 @@ export default function SimplePage() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const intensityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const verificationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     startConnection();
@@ -48,13 +50,16 @@ export default function SimplePage() {
       stopConnection(); 
       closeCamera(); 
       clearInterval(clockInterval);
+      
       if (intensityTimerRef.current) {
         clearInterval(intensityTimerRef.current);
       }
+      
       if (verificationTimerRef.current) {
-        clearInterval(verificationTimerRef.current);
+        clearTimeout(verificationTimerRef.current);
       }
-      if (audioContextRef.current) {
+      
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close();
       }
     };
@@ -66,7 +71,7 @@ export default function SimplePage() {
     
     try {
       // Criar contexto de áudio apenas se ainda não existir
-      if (!audioContextRef.current) {
+      if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
         audioContextRef.current = new AudioContext();
       }
       
@@ -110,20 +115,24 @@ export default function SimplePage() {
       if (dcRef.current && dcRef.current.readyState === "open") {
         dcRef.current.send(JSON.stringify(message));
         return true;
+      } else {
+        console.warn("DataChannel não está aberto, mas continuando o fluxo");
+        return false;
       }
-      return false;
     } catch (err) {
       console.warn("Erro ao enviar mensagem:", err);
       return false;
     }
   };
 
-  // Função atualizada para simular o processo de verificação
+  // Função atualizada para simular o processo de verificação natural
   const startVerificationSequence = () => {
     if (verificationActive) return; // Evita iniciar mais de uma vez
     
     setVerificationActive(true);
     setVerificationStep(1);
+    // Desabilita mensagens de texto durante a verificação
+    setMessagesDisabled(true);
     
     // Limpa qualquer timer existente
     if (verificationTimerRef.current) {
@@ -135,110 +144,91 @@ export default function SimplePage() {
     if (!canSendMessages) {
       console.warn("Não é possível iniciar a sequência: DataChannel não está aberto");
       setVerificationActive(false);
+      setMessagesDisabled(false);
       return;
     }
     
-    // Passo 1: Início da verificação (2 segundos)
+    // Passo 1: Marlene fala naturalmente (sem texto)
     verificationTimerRef.current = setTimeout(() => {
       setVerificationStep(2);
       
-      // Cria um ID único para a mensagem
-      const messageId = uuidv4();
-      
-      // Envia a mensagem "Analisando sua imagem..."
-      safelySendMessage({
-        type: "conversation.item.create",
-        item: {
-          id: messageId,
-          type: "message",
-          role: "assistant",
-          content: [{ type: "text", text: "Analisando sua imagem, só um momento..." }],
-        },
-      });
-      
-      // Passo 2: Verificação em andamento (3 segundos depois)
-      verificationTimerRef.current = setTimeout(() => {
-        setVerificationStep(3);
-        
-        // Cria outro ID único para a segunda mensagem
-        const messageId2 = uuidv4();
-        
-        // Envia a mensagem "Estou verificando os detalhes..."
-        safelySendMessage({
+      // Solicita uma resposta do agente, sem mostrar texto
+      try {
+        safelySendMessage({ 
           type: "conversation.item.create",
           item: {
-            id: messageId2,
             type: "message",
-            role: "assistant",
-            content: [{ type: "text", text: "Estou verificando os detalhes. Só mais um pouquinho..." }],
+            role: "user",
+            content: [{ type: "input_text", text: "[VERIFICAÇÃO INICIADA]" }],
           },
         });
+        
+        safelySendMessage({ type: "response.create" });
+      } catch (err) {
+        console.warn("Erro ao solicitar resposta durante verificação:", err);
+      }
+      
+      // Passo 2: Segunda etapa da verificação (3 segundos depois)
+      verificationTimerRef.current = setTimeout(() => {
+        setVerificationStep(3);
         
         // Passo 3: Verificação concluída (4 segundos depois)
         verificationTimerRef.current = setTimeout(() => {
           setVerificationStep(4);
           
-          // Cria outro ID único para a terceira mensagem
-          const messageId3 = uuidv4();
-          
-          // Envia a mensagem "Pronto! Verifiquei sua identidade..."
-          safelySendMessage({
-            type: "conversation.item.create",
-            item: {
-              id: messageId3,
-              type: "message",
-              role: "assistant",
-              content: [{ type: "text", text: "Pronto! Verifiquei sua identidade. Agora vamos seguir com o processo." }],
-            },
-          });
-          
           // Passo 4: Fechamento da câmera (1 segundo depois)
           verificationTimerRef.current = setTimeout(() => {
-            // Cria um ID para a chamada de função
-            const functionCallId = uuidv4();
-            
-            // Envia a chamada de função close_camera
-            safelySendMessage({
-              type: "conversation.item.create",
-              item: {
-                id: functionCallId,
-                type: "function_call",
-                function: {
-                  name: "close_camera",
-                  arguments: "{}",
-                },
-              },
-            });
-            
-            // Fecha a câmera na UI
-            closeCamera();
-            
-            // Passo 5: Continuação do fluxo (1 segundo depois)
-            verificationTimerRef.current = setTimeout(() => {
-              // Cria um ID para a última mensagem
-              const messageId4 = uuidv4();
-              
-              // Envia a mensagem "Agora vou conferir essas informações..."
+            try {
+              // Envia a chamada de função close_camera
               safelySendMessage({
                 type: "conversation.item.create",
                 item: {
-                  id: messageId4,
-                  type: "message",
-                  role: "assistant",
-                  content: [{ type: "text", text: "Agora vou conferir essas informações no sistema, pode levar uns segundinhos..." }],
+                  id: uuidv4(),
+                  type: "function_call",
+                  function: {
+                    name: "close_camera",
+                    arguments: "{}",
+                  },
                 },
               });
               
-              // Finaliza o ciclo de verificação
-              setVerificationActive(false);
-              setVerificationStep(0);
+              // Fecha a câmera na UI independente da resposta
+              closeCamera();
               
-              // Solicita uma resposta (após 1 segundo)
-              verificationTimerRef.current = setTimeout(() => {
+            } catch (error) {
+              console.warn("Erro ao fechar câmera, mas continuando fluxo:", error);
+              closeCamera(); // Garante que a câmera seja fechada mesmo com erro
+            }
+            
+            // Passo 5: Continuação do fluxo (1 segundo depois)
+            verificationTimerRef.current = setTimeout(() => {
+              try {
+                // Solicita uma resposta do agente para continuar o fluxo
+                safelySendMessage({ 
+                  type: "conversation.item.create",
+                  item: {
+                    type: "message",
+                    role: "user",
+                    content: [{ type: "input_text", text: "[VERIFICAÇÃO CONCLUÍDA]" }],
+                  },
+                });
+                
                 safelySendMessage({ type: "response.create" });
-              }, 1000);
-              
+                
+                // Finaliza o ciclo de verificação
+                setVerificationActive(false);
+                setVerificationStep(0);
+                // Reabilita mensagens de texto
+                setMessagesDisabled(false);
+                
+              } catch (err) {
+                console.warn("Erro na etapa final, mas verificação foi concluída:", err);
+                setVerificationActive(false);
+                setVerificationStep(0);
+                setMessagesDisabled(false);
+              }
             }, 1000);
+            
           }, 1000);
         }, 4000);
       }, 3000);
@@ -284,7 +274,24 @@ export default function SimplePage() {
     setTimeout(() => setUiEvents(u => u.slice(1)), 3000);
   }
 
+  // Função melhorada para lidar com desconexões inesperadas
+  const handleUnexpectedDisconnection = () => {
+    // Se estiver em verificação, conclui o fluxo local
+    if (verificationActive) {
+      console.warn("Conexão interrompida durante verificação. Finalizando localmente.");
+      closeCamera();
+      setVerificationActive(false);
+      setVerificationStep(0);
+      setMessagesDisabled(false);
+    } else {
+      setConnected(false);
+      setAgentIsSpeaking(false);
+    }
+  };
+
   async function startConnection() {
+    if (connected) return;
+
     if (!audioRef.current) {
       const a = document.createElement("audio");
       a.autoplay = true;
@@ -310,9 +317,12 @@ export default function SimplePage() {
 
       // Adicionar tratamento de erros mais robusto
       pc.onerror = (err) => {
-        console.error("PeerConnection erro:", err);
-        setConnected(false);
-        setAgentIsSpeaking(false);
+        console.warn("PeerConnection erro - tratando graciosamente:", err);
+        // Só altera o estado se não estiver em verificação
+        if (!verificationActive) {
+          setConnected(false);
+          setAgentIsSpeaking(false);
+        }
       };
       
       pc.oniceconnectionstatechange = () => {
@@ -320,8 +330,7 @@ export default function SimplePage() {
         if (pc.iceConnectionState === "disconnected" || 
             pc.iceConnectionState === "failed" ||
             pc.iceConnectionState === "closed") {
-          setConnected(false);
-          setAgentIsSpeaking(false);
+          handleUnexpectedDisconnection();
         }
       };
 
@@ -363,6 +372,11 @@ export default function SimplePage() {
           return;
         }
 
+        // Salva o sessionId se recebido
+        if (msg.type === "session.created" && msg.session?.id) {
+          sessionIdRef.current = msg.session.id;
+        }
+
         // Detectar quando o agente começa e termina de falar
         if (msg.type === "audio_started") {
           setAgentIsSpeaking(true);
@@ -397,16 +411,18 @@ export default function SimplePage() {
         }
       };
 
-      dc.onerror = ev => {
-        console.error("DataChannel erro", ev);
-        setConnected(false);
-        setAgentIsSpeaking(false);
+      dc.onerror = (ev) => {
+        console.warn("DataChannel erro - tratando graciosamente:", ev);
+        // Não interrompe o fluxo de verificação se estiver ativo
+        if (!verificationActive) {
+          setConnected(false);
+          setAgentIsSpeaking(false);
+        }
       };
       
       dc.onclose = () => {
         console.log("DataChannel fechado");
-        setConnected(false);
-        setAgentIsSpeaking(false);
+        handleUnexpectedDisconnection();
       };
 
     } catch (err) {
@@ -431,6 +447,7 @@ export default function SimplePage() {
     // Cancelar qualquer verificação em andamento
     setVerificationActive(false);
     setVerificationStep(0);
+    setMessagesDisabled(false);
     
     // Fechar a câmera
     closeCamera();
@@ -461,8 +478,18 @@ export default function SimplePage() {
       }
     }
     
+    // Limpar contexto de áudio
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      try {
+        audioContextRef.current.close();
+      } catch (err) {
+        console.warn("Erro ao fechar AudioContext:", err);
+      }
+    }
+    
     setConnected(false);
     setAgentIsSpeaking(false);
+    sessionIdRef.current = null;
   }
 
   // Calcular a cor do gradiente com base na intensidade
@@ -614,6 +641,7 @@ export default function SimplePage() {
                   }
                   setVerificationActive(false);
                   setVerificationStep(0);
+                  setMessagesDisabled(false);
                 }
                 closeCamera();
               }}>×</button>
@@ -627,15 +655,35 @@ export default function SimplePage() {
           />
           
           {/* Footer com gradiente animado */}
-          <div className={`animated-footer ${connected ? "speaking" : ""}`}></div>
+          <div className={`animated-footer ${agentIsSpeaking ? "speaking" : ""}`}></div>
           <audio ref={audioRef} autoPlay hidden />
         </div>
       </div>
 
       <style jsx>{`
-        /* [...estilos existentes...] */
+        /* Estilos gerais */
+        .stage {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 100vh;
+          overflow: hidden;
+          background-color: #f0f0f0;
+          position: relative;
+        }
+        
+        .blur-backdrop {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: radial-gradient(circle at center, rgba(252, 98, 0, 0.1) 0%, rgba(252, 98, 0, 0) 70%);
+          filter: blur(100px);
+          z-index: 0;
+        }
 
-        /* Novo estilo para o indicador de verificação */
+        /* Indicador de verificação */
         .verification-indicator {
           position: absolute;
           top: 200px;
@@ -645,15 +693,16 @@ export default function SimplePage() {
           text-align: center;
           z-index: 20;
           background-color: rgba(255, 255, 255, 0.9);
-          padding: 10px;
+          padding: 12px;
           border-radius: 10px;
-          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
         .verification-step-text {
           font-size: 14px;
           margin-bottom: 8px;
           color: #333;
+          font-weight: 500;
         }
 
         .verification-progress {
@@ -668,16 +717,6 @@ export default function SimplePage() {
           height: 100%;
           background-color: #ff8548;
           transition: width 0.5s ease;
-        }
-        
-        /* Resto dos estilos existentes fica aqui... */
-        .stage {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          height: 100vh;
-          overflow: hidden;
-          background-color: blue;
         }
 
         /* Logo do Itaú */
@@ -856,6 +895,7 @@ export default function SimplePage() {
           box-shadow:
             0 20px 30px rgba(0,0,0,0.25),
             inset 0 0 0 2px rgba(255,255,255,0.05);
+          z-index: 1;
         }
 
         /* side buttons */
@@ -1134,8 +1174,7 @@ export default function SimplePage() {
         .ptt-button {
           position: absolute;
           bottom: 60px;
-          left: 84%;
-          transform: translateX(-50%);
+          right: 30px;
           width: 70px;
           height: 70px;
           border: none;
@@ -1161,15 +1200,15 @@ export default function SimplePage() {
         @keyframes pulse {
           0% {
             box-shadow: 0 0 0 0 rgba(255, 133, 0, 0.5);
-            transform: translateX(-50%) scale(1);
+            transform: scale(1);
           }
           50% {
             box-shadow: 0 0 0 10px rgba(255, 133, 0, 0);
-            transform: translateX(-50%) scale(1.05);
+            transform: scale(1.05);
           }
           100% {
             box-shadow: 0 0 0 0 rgba(255, 133, 0, 0);
-            transform: translateX(-50%) scale(1);
+            transform: scale(1);
           }
         }
       `}</style>
