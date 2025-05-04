@@ -90,12 +90,19 @@ export default function InterviewDetailPage() {
           </Link>
           <h1 className="text-2xl font-bold">Interview Details</h1>
         </div>
-        <button
-          onClick={startInterviewSession}
-          className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-        >
-          Start Interview Session
-        </button>
+        {interview.status !== 'completed' && (
+          <button
+            onClick={startInterviewSession}
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+          >
+            Start Interview Session
+          </button>
+        )}
+        {interview.status === 'completed' && (
+          <div className="bg-green-100 text-green-800 px-4 py-2 rounded-md">
+            This interview has been completed
+          </div>
+        )}
       </div>
 
       <div className="bg-white shadow-md rounded-lg p-6 mb-6">
@@ -107,6 +114,24 @@ export default function InterviewDetailPage() {
                 <dt className="text-sm font-medium text-gray-500">Interview ID</dt>
                 <dd className="font-mono text-sm">{interview.id}</dd>
               </div>
+              <div>
+                <dt className="text-sm font-medium text-gray-500">Status</dt>
+                <dd>
+                  <span className={`px-2 py-1 text-xs rounded-full ${
+                    interview.status === 'completed' 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-blue-100 text-blue-800'
+                  }`}>
+                    {interview.status === 'completed' ? 'Completed' : 'In Progress'}
+                  </span>
+                </dd>
+              </div>
+              {interview.completed_at && (
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">Completed Date</dt>
+                  <dd>{new Date(interview.completed_at).toLocaleString()}</dd>
+                </div>
+              )}
               {interview.admin_notes && (
                 <div>
                   <dt className="text-sm font-medium text-gray-500">Admin Notes</dt>

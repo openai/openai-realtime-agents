@@ -14,10 +14,12 @@ interface InterviewAgentProps {
 const InterviewAgent: React.FC<InterviewAgentProps> = ({ onAgentConfigLoaded }) => {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { setActiveInterviewId } = useTranscript();
+  const { setActiveInterviewId, saveTranscriptData } = useTranscript();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [interviewId, setInterviewId] = useState<string | null>(null);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [completeSuccess, setCompleteSuccess] = useState(false);
 
   useEffect(() => {
     const id = searchParams.get("interviewId");
@@ -79,6 +81,44 @@ const InterviewAgent: React.FC<InterviewAgentProps> = ({ onAgentConfigLoaded }) 
     }
   };
 
+  const completeInterview = async () => {
+    if (!interviewId) return;
+    
+    try {
+      setIsCompleting(true);
+      
+      // First, save the latest transcript data
+      await saveTranscriptData(interviewId);
+      
+      // Then mark the interview as completed
+      const response = await fetch('/api/interviews/complete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ interviewId }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to mark interview as completed');
+      }
+      
+      setCompleteSuccess(true);
+      
+      // Redirect to interview details page after short delay
+      setTimeout(() => {
+        router.push(`/interviews/${interviewId}`);
+      }, 2000);
+      
+    } catch (err: any) {
+      console.error("Error completing interview:", err);
+      setError(err.message || "Failed to complete interview");
+    } finally {
+      setIsCompleting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-4 bg-white rounded-lg shadow-md">
@@ -108,12 +148,31 @@ const InterviewAgent: React.FC<InterviewAgentProps> = ({ onAgentConfigLoaded }) 
     <div className="p-4 bg-white rounded-lg shadow-md">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-medium">Active Interview Session</h3>
-        <Link 
-          href={`/interviews`}
-          className="text-sm text-blue-600 hover:text-blue-800"
-        >
-          Back to Interviews
-        </Link>
+        <div className="flex gap-2">
+          <button
+            onClick={completeInterview}
+            disabled={isCompleting || completeSuccess}
+            className={`text-sm px-3 py-1.5 rounded-md ${
+              completeSuccess 
+                ? 'bg-green-600 text-white cursor-default' 
+                : isCompleting 
+                ? 'bg-gray-300 text-gray-600 cursor-wait' 
+                : 'bg-purple-600 text-white hover:bg-purple-700'
+            }`}
+          >
+            {completeSuccess 
+              ? '✓ Interview Completed' 
+              : isCompleting 
+              ? 'Completing...' 
+              : 'Complete Interview'}
+          </button>
+          <Link 
+            href={`/interviews`}
+            className="text-sm text-blue-600 hover:text-blue-800"
+          >
+            Back to Interviews
+          </Link>
+        </div>
       </div>
       <p className="text-sm text-gray-600 mb-2">
         Interview ID: <span className="font-mono text-xs">{interviewId}</span>
@@ -124,6 +183,13 @@ const InterviewAgent: React.FC<InterviewAgentProps> = ({ onAgentConfigLoaded }) 
       <p className="text-xs text-gray-500 mt-2">
         Transcript will be saved automatically as the interview progresses
       </p>
+      {completeSuccess && (
+        <div className="mt-4 bg-green-50 border border-green-200 p-3 rounded-md">
+          <p className="text-green-700 text-sm">
+            Interview successfully marked as completed. Redirecting to interview details...
+          </p>
+        </div>
+      )}
     </div>
   );
 };
