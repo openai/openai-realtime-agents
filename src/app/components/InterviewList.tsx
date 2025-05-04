@@ -87,19 +87,39 @@ export default function InterviewList() {
               </div>
               <div className="flex space-x-3">
                 <Link 
-                  href={`/interview/${interview.id}`}
+                  href={`/interviews/${interview.id}`}
                   className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors shadow-sm"
                 >
                   View
                 </Link>
                 {interview.status !== "completed" && (
                   <Link 
-                    href={`/conduct/${interview.id}`}
+                    href={`/interviews/${interview.id}`}
                     className="px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors shadow-sm"
                   >
                     Conduct
                   </Link>
                 )}
+                <Link 
+                  href={`/app?interviewId=${interview.id}`}
+                  className="px-4 py-2 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-md transition-colors shadow-sm flex items-center"
+                >
+                  <svg 
+                    className="w-4 h-4 mr-1" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24" 
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth={2} 
+                      d="M13 10V3L4 14h7v7l9-11h-7z" 
+                    />
+                  </svg>
+                  Launch AI
+                </Link>
               </div>
             </div>
             

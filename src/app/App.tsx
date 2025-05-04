@@ -25,6 +25,10 @@ import { createUpdatedAgentConfig } from "./lib/engagementHelpers";
 
 // Agent configs
 import { allAgentSets, defaultAgentSetKey } from "@/app/agentConfigs";
+import { startupInterviewerTemplate } from "@/app/agentConfigs/supportFeedback";
+
+// New import for InterviewAgent
+import InterviewAgent from "./components/InterviewAgent";
 
 function App() {
   const searchParams = useSearchParams();
@@ -36,6 +40,9 @@ function App() {
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
   const [selectedAgentConfigSet, setSelectedAgentConfigSet] =
     useState<AgentConfig[] | null>(null);
+  const [customAgentConfig, setCustomAgentConfig] = useState<AgentConfig | null>(null);
+  
+  const [isInterviewMode, setIsInterviewMode] = useState<boolean>(false);
 
   const [dataChannel, setDataChannel] = useState<RTCDataChannel | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -81,6 +88,13 @@ function App() {
   });
 
   useEffect(() => {
+    const interviewId = searchParams.get("interviewId");
+    setIsInterviewMode(!!interviewId);
+
+    if (interviewId) {
+      return;
+    }
+
     let finalAgentConfig = searchParams.get("agentConfig");
     if (!finalAgentConfig || !allAgentSets[finalAgentConfig]) {
       finalAgentConfig = defaultAgentSetKey;
@@ -98,27 +112,31 @@ function App() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (selectedAgentName && sessionStatus === "DISCONNECTED") {
+    if ((selectedAgentName || customAgentConfig) && sessionStatus === "DISCONNECTED") {
       connectToRealtime();
     }
-  }, [selectedAgentName]);
+  }, [selectedAgentName, customAgentConfig]);
 
   useEffect(() => {
-    if (
-      sessionStatus === "CONNECTED" &&
-      selectedAgentConfigSet &&
-      selectedAgentName
-    ) {
-      const currentAgent = selectedAgentConfigSet.find(
-        (a) => a.name === selectedAgentName
-      );
-      addTranscriptBreadcrumb(
-        `Agent: ${selectedAgentName}`,
-        currentAgent
-      );
-      updateSession(true);
+    if (sessionStatus === "CONNECTED") {
+      if (customAgentConfig) {
+        addTranscriptBreadcrumb(
+          `Interview Agent: ${customAgentConfig.name}`,
+          customAgentConfig
+        );
+        updateSessionWithCustomConfig();
+      } else if (selectedAgentConfigSet && selectedAgentName) {
+        const currentAgent = selectedAgentConfigSet.find(
+          (a) => a.name === selectedAgentName
+        );
+        addTranscriptBreadcrumb(
+          `Agent: ${selectedAgentName}`,
+          currentAgent
+        );
+        updateSession(true);
+      }
     }
-  }, [selectedAgentConfigSet, selectedAgentName, sessionStatus]);
+  }, [selectedAgentConfigSet, selectedAgentName, customAgentConfig, sessionStatus]);
 
   useEffect(() => {
     if (sessionStatus === "CONNECTED") {
@@ -411,20 +429,33 @@ function App() {
       setIsLoadingEngagementData(true);
       setEngagementError(null);
       
-      // Fetch real engagement data from our API
-      fetch(`/api/engagement?id=08ea46fc-f85f-4176-a139-54caa44fda7e`)
+      // Check for interview ID in URL parameters
+      const searchParams = new URLSearchParams(window.location.search);
+      const interviewId = searchParams.get('interviewId');
+      
+      // Determine which API endpoint to use based on available parameters
+      const apiUrl = interviewId 
+        ? `/api/engagement?interviewId=${interviewId}` 
+        : `/api/engagement?id=08ea46fc-f85f-4176-a139-54caa44fda7e`; // Fallback to hardcoded ID
+      
+      // Fetch real data from our API
+      fetch(apiUrl)
         .then(res => {
           if (!res.ok) {
-            throw new Error(`Failed to fetch engagement data: ${res.status}`);
+            throw new Error(`Failed to fetch data: ${res.status}`);
           }
           return res.json();
         })
         .then(data => {
+          console.log("Received data for agent configuration:", data);
           setEngagementData(data);
           
-          // Update agent config with real data
-          const originalAgent = selectedAgentConfigSet.find(a => a.name === "startupInterviewer");
-          const updatedAgent = createUpdatedAgentConfig(originalAgent, data);
+          // If we have interview data, use the template for better customization
+          const baseAgent = interviewId && startupInterviewerTemplate 
+            ? startupInterviewerTemplate 
+            : selectedAgentConfigSet.find(a => a.name === "startupInterviewer");
+          
+          const updatedAgent = createUpdatedAgentConfig(baseAgent, data);
           
           if (updatedAgent) {
             // Replace the agent with our data-filled version
@@ -432,16 +463,30 @@ function App() {
               prevSet?.map(a => a.name === "startupInterviewer" ? updatedAgent : a) || null
             );
             
+            // Construct a descriptive breadcrumb based on available data
+            const company = data.company?.business_name || "Unknown Company";
+            const engagement = data.engagement?.title || "Unknown Engagement";
+            const person = data.person 
+              ? `${data.person.first_name} ${data.person.last_name}` 
+              : "Unknown Contact";
+              
             addTranscriptBreadcrumb(
-              `Updated Agent: ${selectedAgentName} with real data`,
-              { engagement: data.engagement.id, company: data.company.business_name }
+              `Updated Agent: ${selectedAgentName}`,
+              { 
+                interview: data.interview?.id || "N/A",
+                company,
+                engagement,
+                person,
+                questions: data.questions?.length || 0,
+                usingTemplate: !!interviewId
+              }
             );
           }
           
           setIsLoadingEngagementData(false);
         })
         .catch(err => {
-          console.error("Error fetching engagement data:", err);
+          console.error("Error fetching data:", err);
           setEngagementError(err.message);
           setIsLoadingEngagementData(false);
           
@@ -454,6 +499,46 @@ function App() {
   }, [selectedAgentName, selectedAgentConfigSet]);
 
   const agentSetKey = searchParams.get("agentConfig") || "default";
+
+  // New function to update session with custom agent config
+  const updateSessionWithCustomConfig = (shouldTriggerResponse: boolean = true) => {
+    if (!customAgentConfig || !dcRef.current) return;
+
+    const eventObj = {
+      type: "configuration",
+      tool_choice: isPTTActive ? "auto" : "none",
+      agent_config: customAgentConfig,
+      voice: {
+        voice_id: customAgentConfig.voice_id || "shimmer",
+        model: "playht-v2",
+        settings: {
+          stability: 0.5,
+          similarity_boost: 0.75,
+          style: 0.0,
+          use_speaker_boost: true,
+        },
+      },
+      asr: {
+        model: "whisper-large-v3",
+        semantic_partial_results: true,
+        semantic_vad: {
+          enabled: true,
+          max_pause_duration_ms: 500,
+          min_pause_duration_ms: 200,
+          patience_duration_ms: 750,
+          eagerness: 0.9,
+        },
+      },
+      execution_mode: shouldTriggerResponse ? "autonomous" : "manual",
+    };
+
+    sendClientEvent(eventObj, "update_session");
+  };
+
+  // Function to handle receiving a custom agent config from InterviewAgent
+  const handleAgentConfigLoaded = (config: AgentConfig) => {
+    setCustomAgentConfig(config);
+  };
 
   return (
     <div className="text-base flex flex-col h-screen bg-gray-100 text-gray-800 relative">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import CompanySelector from "@/app/components/CompanySelector";
 import ContactSelector from "@/app/components/ContactSelector";
@@ -22,6 +22,11 @@ export default function CreateInterviewPage() {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Create a ref to store form values without re-rendering
+  const questionRefs = useRef<Array<{textRef: HTMLInputElement | null, contextRef: HTMLTextAreaElement | null}>>(
+    questions.map(() => ({ textRef: null, contextRef: null }))
+  );
 
   // Generate interview name based on selections
   useEffect(() => {
@@ -65,27 +70,31 @@ export default function CreateInterviewPage() {
   };
 
   const addQuestion = () => {
+    // Update the questions array
     setQuestions([
       ...questions,
       { ordinal: questions.length + 1, text: "", context: "" }
     ]);
-  };
-
-  const updateQuestion = (index: number, field: string, value: string) => {
-    const updatedQuestions = [...questions];
-    updatedQuestions[index] = { ...updatedQuestions[index], [field]: value };
-    setQuestions(updatedQuestions);
+    
+    // Update the refs array to match
+    questionRefs.current = [
+      ...questionRefs.current,
+      { textRef: null, contextRef: null }
+    ];
   };
 
   const removeQuestion = (index: number) => {
     if (questions.length > 1) {
+      // Update questions array
       const updatedQuestions = questions.filter((_, i) => i !== index);
-      // Recalculate ordinals
       const reorderedQuestions = updatedQuestions.map((q, i) => ({
         ...q,
         ordinal: i + 1
       }));
       setQuestions(reorderedQuestions);
+      
+      // Update refs array
+      questionRefs.current = questionRefs.current.filter((_, i) => i !== index);
     }
   };
 
@@ -106,7 +115,7 @@ export default function CreateInterviewPage() {
     setSelectedPerson(person);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     setError(null);
@@ -118,7 +127,18 @@ export default function CreateInterviewPage() {
       return;
     }
 
-    if (questions.some(q => !q.text.trim())) {
+    // Collect the current values from the refs
+    const currentQuestions = questions.map((q, index) => {
+      const refs = questionRefs.current[index];
+      return {
+        ordinal: q.ordinal,
+        text: refs.textRef?.value || "",
+        context: refs.contextRef?.value || ""
+      };
+    });
+
+    // Validate question text
+    if (currentQuestions.some(q => !q.text.trim())) {
       setError("All questions must have text");
       setIsSubmitting(false);
       return;
@@ -132,7 +152,7 @@ export default function CreateInterviewPage() {
         },
         body: JSON.stringify({
           adminNotes,
-          questions,
+          questions: currentQuestions,
           companyId: selectedCompany?.id,
           personId: selectedPerson?.id,
           engagementId: selectedEngagement?.id || null
@@ -294,8 +314,12 @@ export default function CreateInterviewPage() {
                     <input
                       type="text"
                       id={`question-${index}`}
-                      value={question.text}
-                      onChange={(e) => updateQuestion(index, "text", e.target.value)}
+                      defaultValue={question.text}
+                      ref={el => {
+                        if (questionRefs.current[index]) {
+                          questionRefs.current[index].textRef = el;
+                        }
+                      }}
                       className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       placeholder="e.g., How would you describe your experience with this support engagement?"
                     />
@@ -307,8 +331,12 @@ export default function CreateInterviewPage() {
                     </label>
                     <textarea
                       id={`context-${index}`}
-                      value={question.context}
-                      onChange={(e) => updateQuestion(index, "context", e.target.value)}
+                      defaultValue={question.context}
+                      ref={el => {
+                        if (questionRefs.current[index]) {
+                          questionRefs.current[index].contextRef = el;
+                        }
+                      }}
                       rows={3}
                       className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Context or additional information for the interviewer"
