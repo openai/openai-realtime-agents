@@ -7,14 +7,22 @@ import ContactSelector from "@/app/components/ContactSelector";
 import EngagementSelector from "@/app/components/EngagementSelector";
 import SupportPersonSelector from "@/app/components/SupportPersonSelector";
 import { Company, Person, SupportEngagement } from "@/app/lib/types";
+import { defaultInterviewQuestions } from "@/app/lib/defaultInterviewQuestions";
 
 export default function CreateInterviewPage() {
   const router = useRouter();
   const [adminNotes, setAdminNotes] = useState("");
   const [isAdminNotesManuallyEdited, setIsAdminNotesManuallyEdited] = useState(false);
-  const [questions, setQuestions] = useState([
-    { ordinal: 1, text: "", context: "" }
-  ]);
+  const [questions, setQuestions] = useState(() => 
+    // Initialize with default questions if available, otherwise start with an empty question
+    defaultInterviewQuestions.length > 0 
+      ? defaultInterviewQuestions.map(q => ({ 
+          ordinal: q.order, 
+          text: q.text, 
+          context: q.context || "" 
+        }))
+      : [{ ordinal: 1, text: "", context: "" }]
+  );
   
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [selectedEngagement, setSelectedEngagement] = useState<SupportEngagement | null>(null);
