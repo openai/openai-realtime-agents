@@ -33,16 +33,21 @@ const InterviewAgent: React.FC<InterviewAgentProps> = ({ onAgentConfigLoaded }) 
     try {
       setLoading(true);
       setError(null);
+      console.log("Loading interview data for ID:", id);
 
       const interviewData = await getInterviewWithRelations(id);
       
       if (!interviewData) {
+        console.error("Failed to load interview data, result was null");
         setError("Failed to load interview data");
         setLoading(false);
         return;
       }
 
+      console.log("Interview data loaded successfully:", interviewData);
+
       if (!interviewData.questions || interviewData.questions.length === 0) {
+        console.error("Interview has no questions");
         setError("This interview has no questions");
         setLoading(false);
         return;
@@ -50,6 +55,7 @@ const InterviewAgent: React.FC<InterviewAgentProps> = ({ onAgentConfigLoaded }) 
 
       // Create agent config based on interview data
       const agentConfig = createInterviewAgentConfig(interviewData);
+      console.log("Agent config created:", agentConfig.name);
       
       // Pass the config to parent component
       onAgentConfigLoaded(agentConfig);

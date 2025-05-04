@@ -92,6 +92,9 @@ function App() {
     setIsInterviewMode(!!interviewId);
 
     if (interviewId) {
+      // In interview mode, don't set up agent configs directly
+      // InterviewAgent component will handle the setup
+      console.log("Interview mode detected, ID:", interviewId);
       return;
     }
 
@@ -176,7 +179,7 @@ function App() {
       if (!audioElementRef.current) {
         audioElementRef.current = document.createElement("audio");
       }
-      audioElementRef.current.playbackRate = 1.25;
+      audioElementRef.current.playbackRate = 1.5;
       audioElementRef.current.autoplay = isAudioPlaybackEnabled;
 
       const { pc, dc } = await createRealtimeConnection(
@@ -275,7 +278,12 @@ function App() {
         voice: "shimmer",
         input_audio_format: "pcm16",
         output_audio_format: "pcm16",
-        input_audio_transcription: { model: "whisper-1" },
+        input_audio_transcription: { 
+          model: "gpt-4o-mini-transcribe"
+        },
+        input_audio_noise_reduction: {
+          type: "near_field"
+        },
         turn_detection: turnDetection,
         tools,
       },
@@ -413,7 +421,7 @@ function App() {
 
   useEffect(() => {
     if (audioElementRef.current) {
-      audioElementRef.current.playbackRate = 1.25;
+      audioElementRef.current.playbackRate = 1.5;
       if (isAudioPlaybackEnabled) {
         audioElementRef.current.play().catch((err) => {
           console.warn("Autoplay may be blocked by browser:", err);
@@ -505,34 +513,33 @@ function App() {
     if (!customAgentConfig || !dcRef.current) return;
 
     const eventObj = {
-      type: "configuration",
-      tool_choice: isPTTActive ? "auto" : "none",
-      agent_config: customAgentConfig,
-      voice: {
-        voice_id: customAgentConfig.voice_id || "shimmer",
-        model: "playht-v2",
-        settings: {
-          stability: 0.5,
-          similarity_boost: 0.75,
-          style: 0.0,
-          use_speaker_boost: true,
+      type: "session.update",
+      session: {
+        modalities: ["text", "audio"],
+        instructions: customAgentConfig.instructions,
+        voice: "shimmer",
+        input_audio_format: "pcm16",
+        output_audio_format: "pcm16",
+        input_audio_transcription: { 
+          model: "gpt-4o-mini-transcribe"
         },
-      },
-      asr: {
-        model: "whisper-large-v3",
-        semantic_partial_results: true,
-        semantic_vad: {
-          enabled: true,
-          max_pause_duration_ms: 500,
-          min_pause_duration_ms: 200,
-          patience_duration_ms: 750,
-          eagerness: 0.9,
+        input_audio_noise_reduction: {
+          type: "near_field"
         },
-      },
-      execution_mode: shouldTriggerResponse ? "autonomous" : "manual",
+        turn_detection: isPTTActive ? null : {
+          type: "semantic_vad",
+          eagerness: "high",
+          create_response: true,
+        },
+        tools: customAgentConfig.tools || [],
+      }
     };
 
     sendClientEvent(eventObj, "update_session");
+    
+    if (shouldTriggerResponse) {
+      sendSimulatedUserMessage("hi");
+    }
   };
 
   // Function to handle receiving a custom agent config from InterviewAgent
@@ -558,55 +565,25 @@ function App() {
           </div>
         </div>
         <div className="flex items-center">
-          <label className="flex items-center text-base gap-1 mr-2 font-medium">
-            Scenario
-          </label>
-          <div className="relative inline-block">
-            <select
-              value={agentSetKey}
-              onChange={handleAgentChange}
-              className="appearance-none border border-gray-300 rounded-lg text-base px-2 py-1 pr-8 cursor-pointer font-normal focus:outline-none"
-            >
-              {Object.keys(allAgentSets).map((agentKey) => (
-                <option key={agentKey} value={agentKey}>
-                  {agentKey}
-                </option>
-              ))}
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-gray-600">
-              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M5.23 7.21a.75.75 0 011.06.02L10 10.44l3.71-3.21a.75.75 0 111.04 1.08l-4.25 3.65a.75.75 0 01-1.04 0L5.21 8.27a.75.75 0 01.02-1.06z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
-          </div>
-
-          {agentSetKey && (
-            <div className="flex items-center ml-6">
+          {!isInterviewMode && (
+            <>
               <label className="flex items-center text-base gap-1 mr-2 font-medium">
-                Agent
+                Scenario
               </label>
               <div className="relative inline-block">
                 <select
-                  value={selectedAgentName}
-                  onChange={handleSelectedAgentChange}
+                  value={agentSetKey}
+                  onChange={handleAgentChange}
                   className="appearance-none border border-gray-300 rounded-lg text-base px-2 py-1 pr-8 cursor-pointer font-normal focus:outline-none"
                 >
-                  {selectedAgentConfigSet?.map(agent => (
-                    <option key={agent.name} value={agent.name}>
-                      {agent.name}
+                  {Object.keys(allAgentSets).map((agentKey) => (
+                    <option key={agentKey} value={agentKey}>
+                      {agentKey}
                     </option>
                   ))}
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-gray-600">
-                  <svg
-                    className="h-4 w-4"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
+                  <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                     <path
                       fillRule="evenodd"
                       d="M5.23 7.21a.75.75 0 011.06.02L10 10.44l3.71-3.21a.75.75 0 111.04 1.08l-4.25 3.65a.75.75 0 01-1.04 0L5.21 8.27a.75.75 0 01.02-1.06z"
@@ -615,10 +592,53 @@ function App() {
                   </svg>
                 </div>
               </div>
-            </div>
+
+              {agentSetKey && (
+                <div className="flex items-center ml-6">
+                  <label className="flex items-center text-base gap-1 mr-2 font-medium">
+                    Agent
+                  </label>
+                  <div className="relative inline-block">
+                    <select
+                      value={selectedAgentName}
+                      onChange={handleSelectedAgentChange}
+                      className="appearance-none border border-gray-300 rounded-lg text-base px-2 py-1 pr-8 cursor-pointer font-normal focus:outline-none"
+                    >
+                      {selectedAgentConfigSet?.map(agent => (
+                        <option key={agent.name} value={agent.name}>
+                          {agent.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-gray-600">
+                      <svg
+                        className="h-4 w-4"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M5.23 7.21a.75.75 0 011.06.02L10 10.44l3.71-3.21a.75.75 0 111.04 1.08l-4.25 3.65a.75.75 0 01-1.04 0L5.21 8.27a.75.75 0 01.02-1.06z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+          {isInterviewMode && (
+            <div className="text-sm text-blue-700">Interview Mode</div>
           )}
         </div>
       </div>
+
+      {isInterviewMode ? (
+        <div className="container mx-auto px-4 py-2">
+          <InterviewAgent onAgentConfigLoaded={handleAgentConfigLoaded} />
+        </div>
+      ) : null}
 
       <div className="flex flex-1 gap-2 px-2 overflow-hidden relative">
         <Transcript
