@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import Image from "next/image";
 import { Person } from "../lib/types";
 
 interface SupportPersonSelectorProps {
@@ -195,9 +196,11 @@ export default function SupportPersonSelector({
         <div className="flex items-center justify-between bg-amber-50 p-3 rounded-md">
           <div className="flex items-center gap-3">
             {selectedPerson.photo ? (
-              <img 
-                src={selectedPerson.photo} 
-                alt={`${selectedPerson.first_name} ${selectedPerson.last_name}`} 
+              <Image
+                src={selectedPerson.photo}
+                alt={`${selectedPerson.first_name} ${selectedPerson.last_name}`}
+                width={32}
+                height={32}
                 className="w-8 h-8 object-cover rounded-full"
               />
             ) : (
@@ -276,9 +279,11 @@ export default function SupportPersonSelector({
                     tabIndex={-1}
                   >
                     {person.photo ? (
-                      <img 
-                        src={person.photo} 
-                        alt=""
+                      <Image
+                        src={person.photo}
+                        alt={`${person.first_name} ${person.last_name}`}
+                        width={32}
+                        height={32}
                         className="w-8 h-8 object-cover rounded-full"
                       />
                     ) : (

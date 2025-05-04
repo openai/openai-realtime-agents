@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import supabaseServer from "@/app/lib/supabase-server";
-import { v4 as uuidv4 } from "uuid";
 
 export async function POST(request: NextRequest) {
   try {

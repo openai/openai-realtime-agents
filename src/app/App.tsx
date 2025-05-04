@@ -59,7 +59,7 @@ function App() {
   const [isAudioPlaybackEnabled, setIsAudioPlaybackEnabled] =
     useState<boolean>(true);
 
-  const [engagementData, setEngagementData] = useState<any>(null);
+  const [, setEngagementData] = useState<any>(null);
   const [isLoadingEngagementData, setIsLoadingEngagementData] = useState<boolean>(false);
   const [engagementError, setEngagementError] = useState<string | null>(null);
 

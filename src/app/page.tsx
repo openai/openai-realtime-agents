@@ -1,7 +1,4 @@
 import React from "react";
-import { TranscriptProvider } from "@/app/contexts/TranscriptContext";
-import { EventProvider } from "@/app/contexts/EventContext";
-import App from "./App";
 import Link from "next/link";
 
 export default function HomePage() {
@@ -32,7 +29,7 @@ export default function HomePage() {
           <div className="block bg-white shadow-md rounded-lg p-6">
             <h2 className="text-xl font-semibold text-gray-800 mb-2">AI Agent Settings</h2>
             <p className="text-gray-600 mb-4">
-              Configure the AI interviewer's behavior, voice, and question flow for optimal feedback collection.
+              Configure the AI interviewer&apos;s behavior, voice, and question flow for optimal feedback collection.
             </p>
             <Link 
               href="/app"

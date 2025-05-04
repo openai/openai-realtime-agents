@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import Image from "next/image";
 import { Company } from "../lib/types";
 
 interface CompanySelectorProps {
@@ -170,9 +171,11 @@ export default function CompanySelector({
         <div className="flex items-center justify-between bg-blue-50 p-3 rounded-md">
           <div className="flex items-center gap-3">
             {selectedCompany.logo && (
-              <img 
-                src={selectedCompany.logo} 
-                alt={selectedCompany.business_name} 
+              <Image
+                src={selectedCompany.logo}
+                alt={selectedCompany.business_name}
+                width={32}
+                height={32}
                 className="w-8 h-8 object-contain rounded-sm"
               />
             )}
@@ -245,9 +248,11 @@ export default function CompanySelector({
                     tabIndex={-1}
                   >
                     {company.logo ? (
-                      <img 
-                        src={company.logo} 
-                        alt=""
+                      <Image
+                        src={company.logo}
+                        alt={company.business_name}
+                        width={32}
+                        height={32}
                         className="w-8 h-8 object-contain rounded-sm"
                       />
                     ) : (

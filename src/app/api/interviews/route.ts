@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import supabaseServer from "@/app/lib/supabase-server";
 
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
+  void _request;
   try {
     console.log("Fetching interviews from Supabase using service role key...");
     

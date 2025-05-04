@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Person } from "../lib/types";
+import Image from "next/image";
 
 interface ContactSelectorProps {
   companyId: string | null;
@@ -190,9 +191,11 @@ export default function ContactSelector({
         <div className="flex items-center justify-between bg-green-50 p-3 rounded-md">
           <div className="flex items-center gap-3">
             {selectedContact.photo ? (
-              <img 
-                src={selectedContact.photo} 
-                alt={`${selectedContact.first_name} ${selectedContact.last_name}`} 
+              <Image
+                src={selectedContact.photo}
+                alt={`${selectedContact.first_name} ${selectedContact.last_name}`}
+                width={32}
+                height={32}
                 className="w-8 h-8 object-cover rounded-full"
               />
             ) : (
@@ -271,9 +274,11 @@ export default function ContactSelector({
                     tabIndex={-1}
                   >
                     {contact.photo ? (
-                      <img 
-                        src={contact.photo} 
-                        alt=""
+                      <Image
+                        src={contact.photo}
+                        alt={`${contact.first_name} ${contact.last_name}`}
+                        width={32}
+                        height={32}
                         className="w-8 h-8 object-cover rounded-full"
                       />
                     ) : (

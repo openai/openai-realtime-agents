@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import supabaseServer from "@/app/lib/supabase-server";
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
+  void _request;
   try {
     // Get support engagements
     const { data: engagements, error } = await supabaseServer

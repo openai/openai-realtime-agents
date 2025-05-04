@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import supabase from "@/app/lib/supabase";
 import { getInterviewWithRelations } from "@/app/lib/interviewAgentHelper";
 import InterviewConnectForm from "@/app/components/InterviewConnectForm";
 
