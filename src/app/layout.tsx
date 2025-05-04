@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
+import MainNav from "./components/MainNav";
+
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Realtime API Agents",
-  description: "A demo app from OpenAI.",
+  title: "Volta Research Interviews",
+  description: "Conduct research interviews for support engagements",
 };
 
 export default function RootLayout({
@@ -13,7 +17,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`antialiased`}>{children}</body>
+      <body className={`${inter.className} bg-white text-gray-900`}>
+        <MainNav />
+        <main>{children}</main>
+      </body>
     </html>
   );
 }

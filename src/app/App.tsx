@@ -21,6 +21,7 @@ import { useHandleServerEvent } from "./hooks/useHandleServerEvent";
 
 // Utilities
 import { createRealtimeConnection } from "./lib/realtimeConnection";
+import { createUpdatedAgentConfig } from "./lib/engagementHelpers";
 
 // Agent configs
 import { allAgentSets, defaultAgentSetKey } from "@/app/agentConfigs";
@@ -50,6 +51,10 @@ function App() {
   const [isPTTUserSpeaking, setIsPTTUserSpeaking] = useState<boolean>(false);
   const [isAudioPlaybackEnabled, setIsAudioPlaybackEnabled] =
     useState<boolean>(true);
+
+  const [engagementData, setEngagementData] = useState<any>(null);
+  const [isLoadingEngagementData, setIsLoadingEngagementData] = useState<boolean>(false);
+  const [engagementError, setEngagementError] = useState<string | null>(null);
 
   const sendClientEvent = (eventObj: any, eventNameSuffix = "") => {
     if (dcRef.current && dcRef.current.readyState === "open") {
@@ -153,6 +158,7 @@ function App() {
       if (!audioElementRef.current) {
         audioElementRef.current = document.createElement("audio");
       }
+      audioElementRef.current.playbackRate = 1.25;
       audioElementRef.current.autoplay = isAudioPlaybackEnabled;
 
       const { pc, dc } = await createRealtimeConnection(
@@ -235,10 +241,8 @@ function App() {
     const turnDetection = isPTTActive
       ? null
       : {
-          type: "server_vad",
-          threshold: 0.5,
-          prefix_padding_ms: 300,
-          silence_duration_ms: 200,
+          type: "semantic_vad",
+          eagerness: "high",
           create_response: true,
         };
 
@@ -250,7 +254,7 @@ function App() {
       session: {
         modalities: ["text", "audio"],
         instructions,
-        voice: "coral",
+        voice: "shimmer",
         input_audio_format: "pcm16",
         output_audio_format: "pcm16",
         input_audio_transcription: { model: "whisper-1" },
@@ -391,6 +395,7 @@ function App() {
 
   useEffect(() => {
     if (audioElementRef.current) {
+      audioElementRef.current.playbackRate = 1.25;
       if (isAudioPlaybackEnabled) {
         audioElementRef.current.play().catch((err) => {
           console.warn("Autoplay may be blocked by browser:", err);
@@ -400,6 +405,53 @@ function App() {
       }
     }
   }, [isAudioPlaybackEnabled]);
+
+  useEffect(() => {
+    if (selectedAgentName === "startupInterviewer" && selectedAgentConfigSet) {
+      setIsLoadingEngagementData(true);
+      setEngagementError(null);
+      
+      // Fetch real engagement data from our API
+      fetch(`/api/engagement?id=08ea46fc-f85f-4176-a139-54caa44fda7e`)
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`Failed to fetch engagement data: ${res.status}`);
+          }
+          return res.json();
+        })
+        .then(data => {
+          setEngagementData(data);
+          
+          // Update agent config with real data
+          const originalAgent = selectedAgentConfigSet.find(a => a.name === "startupInterviewer");
+          const updatedAgent = createUpdatedAgentConfig(originalAgent, data);
+          
+          if (updatedAgent) {
+            // Replace the agent with our data-filled version
+            setSelectedAgentConfigSet(prevSet => 
+              prevSet?.map(a => a.name === "startupInterviewer" ? updatedAgent : a) || null
+            );
+            
+            addTranscriptBreadcrumb(
+              `Updated Agent: ${selectedAgentName} with real data`,
+              { engagement: data.engagement.id, company: data.company.business_name }
+            );
+          }
+          
+          setIsLoadingEngagementData(false);
+        })
+        .catch(err => {
+          console.error("Error fetching engagement data:", err);
+          setEngagementError(err.message);
+          setIsLoadingEngagementData(false);
+          
+          addTranscriptBreadcrumb(
+            `Error loading data for ${selectedAgentName}`,
+            { error: err.message }
+          );
+        });
+    }
+  }, [selectedAgentName, selectedAgentConfigSet]);
 
   const agentSetKey = searchParams.get("agentConfig") || "default";
 
@@ -510,6 +562,18 @@ function App() {
         isAudioPlaybackEnabled={isAudioPlaybackEnabled}
         setIsAudioPlaybackEnabled={setIsAudioPlaybackEnabled}
       />
+
+      {isLoadingEngagementData && (
+        <div className="absolute top-16 right-4 bg-blue-100 text-blue-800 px-4 py-2 rounded-md text-sm">
+          Loading engagement data...
+        </div>
+      )}
+      
+      {engagementError && (
+        <div className="absolute top-16 right-4 bg-red-100 text-red-800 px-4 py-2 rounded-md text-sm">
+          Error: {engagementError}
+        </div>
+      )}
     </div>
   );
 }

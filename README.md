@@ -17,6 +17,23 @@ You should be able to use this repo to prototype your own multi-agent realtime v
 - Start the server with `npm run dev`
 - Open your browser to [http://localhost:3000](http://localhost:3000) to see the app. It should automatically connect to the `simpleExample` Agent Set.
 
+## Supabase Integration
+
+This demo app includes integration with Supabase for retrieving real support engagement data. To use this functionality:
+
+1. Create a Supabase project at [https://supabase.com](https://supabase.com)
+2. Set up your database with the following tables:
+   - `companies` - Information about companies receiving support
+   - `support_engagements` - Details about support engagements
+
+3. Update your `.env.development.local` file with your Supabase credentials:
+```
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+4. The app will automatically fetch and use real data when you select the "startupInterviewer" agent.
+
 ## Configuring Agents
 Configuration in `src/app/agentConfigs/simpleExample.ts`
 ```javascript
