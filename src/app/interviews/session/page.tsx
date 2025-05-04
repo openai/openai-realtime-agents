@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import InterviewExperience from "@/app/components/InterviewExperience";
 import InterviewAgent from "@/app/components/InterviewAgent";
@@ -8,14 +8,14 @@ import { useEvent } from "@/app/contexts/EventContext";
 import { useTranscript } from "@/app/contexts/TranscriptContext";
 import Link from "next/link";
 
-export default function InterviewSessionPage() {
+function InterviewSessionContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const interviewId = searchParams.get("id");
-  const { transcriptItems, addTranscriptBreadcrumb } = useTranscript();
+  const { transcriptItems } = useTranscript();
   const { logClientEvent } = useEvent();
   
-  const [sessionStatus, setSessionStatus] = useState<string>("DISCONNECTED");
+  const [sessionStatus] = useState<string>("DISCONNECTED");
   const [isAgentSpeaking, setIsAgentSpeaking] = useState(false);
   const [agentConfigLoaded, setAgentConfigLoaded] = useState(false);
 
@@ -91,7 +91,7 @@ export default function InterviewSessionPage() {
             {/* Hidden InterviewAgent to handle connection */}
             <div className="hidden">
               <InterviewAgent 
-                onAgentConfigLoaded={(_config) => {
+                onAgentConfigLoaded={() => {
                   handleAgentConfigLoaded();
                   // The App component will get the config through its own mechanisms
                 }}
@@ -148,5 +148,13 @@ export default function InterviewSessionPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function InterviewSessionPage() {
+  return (
+    <Suspense fallback={null}>
+      <InterviewSessionContent />
+    </Suspense>
   );
 } 

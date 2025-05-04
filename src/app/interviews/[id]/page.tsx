@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { getInterviewWithRelations } from "@/app/lib/interviewAgentHelper";
+import { getInterviewWithRelationsClient as getInterviewWithRelations } from "@/app/lib/interviewClientHelper";
 import InterviewConnectForm from "@/app/components/InterviewConnectForm";
 
 export default function InterviewDetailPage() {

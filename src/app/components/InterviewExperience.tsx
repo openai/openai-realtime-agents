@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useTranscript } from "@/app/contexts/TranscriptContext";
-import { getInterviewWithRelations } from "@/app/lib/interviewAgentHelper";
+import { getInterviewWithRelationsClient as getInterviewWithRelations } from "@/app/lib/interviewClientHelper";
 
 interface InterviewExperienceProps {
   interviewId: string;

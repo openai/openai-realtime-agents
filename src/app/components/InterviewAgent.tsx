@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AgentConfig } from "@/app/types";
-import { getInterviewWithRelations, createInterviewAgentConfig } from "@/app/lib/interviewAgentHelper";
+import { createInterviewAgentConfig } from "@/app/lib/createInterviewConfig";
+import { getInterviewWithRelationsClient as getInterviewWithRelations } from "@/app/lib/interviewClientHelper";
 import { useTranscript } from "@/app/contexts/TranscriptContext";
 import Link from "next/link";
 
@@ -145,52 +146,54 @@ const InterviewAgent: React.FC<InterviewAgentProps> = ({ onAgentConfigLoaded }) 
   }
 
   return (
-    <div className="p-4 bg-white rounded-lg shadow-md">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-medium">Active Interview Session</h3>
-        <div className="flex gap-2">
-          <button
-            onClick={completeInterview}
-            disabled={isCompleting || completeSuccess}
-            className={`text-sm px-3 py-1.5 rounded-md ${
-              completeSuccess 
-                ? 'bg-green-600 text-white cursor-default' 
+    <Suspense fallback={null}>
+      <div className="p-4 bg-white rounded-lg shadow-md">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium">Active Interview Session</h3>
+          <div className="flex gap-2">
+            <button
+              onClick={completeInterview}
+              disabled={isCompleting || completeSuccess}
+              className={`text-sm px-3 py-1.5 rounded-md ${
+                completeSuccess 
+                  ? 'bg-green-600 text-white cursor-default' 
+                  : isCompleting 
+                  ? 'bg-gray-300 text-gray-600 cursor-wait' 
+                  : 'bg-purple-600 text-white hover:bg-purple-700'
+              }`}
+            >
+              {completeSuccess 
+                ? '✓ Interview Completed' 
                 : isCompleting 
-                ? 'bg-gray-300 text-gray-600 cursor-wait' 
-                : 'bg-purple-600 text-white hover:bg-purple-700'
-            }`}
-          >
-            {completeSuccess 
-              ? '✓ Interview Completed' 
-              : isCompleting 
-              ? 'Completing...' 
-              : 'Complete Interview'}
-          </button>
-          <Link 
-            href={`/interviews`}
-            className="text-sm text-blue-600 hover:text-blue-800"
-          >
-            Back to Interviews
-          </Link>
+                ? 'Completing...' 
+                : 'Complete Interview'}
+            </button>
+            <Link 
+              href={`/interviews`}
+              className="text-sm text-blue-600 hover:text-blue-800"
+            >
+              Back to Interviews
+            </Link>
+          </div>
         </div>
+        <p className="text-sm text-gray-600 mb-2">
+          Interview ID: <span className="font-mono text-xs">{interviewId}</span>
+        </p>
+        <p className="text-green-600 text-sm">
+          ✓ Interview data loaded successfully
+        </p>
+        <p className="text-xs text-gray-500 mt-2">
+          Transcript will be saved automatically as the interview progresses
+        </p>
+        {completeSuccess && (
+          <div className="mt-4 bg-green-50 border border-green-200 p-3 rounded-md">
+            <p className="text-green-700 text-sm">
+              Interview successfully marked as completed. Redirecting to interview details...
+            </p>
+          </div>
+        )}
       </div>
-      <p className="text-sm text-gray-600 mb-2">
-        Interview ID: <span className="font-mono text-xs">{interviewId}</span>
-      </p>
-      <p className="text-green-600 text-sm">
-        ✓ Interview data loaded successfully
-      </p>
-      <p className="text-xs text-gray-500 mt-2">
-        Transcript will be saved automatically as the interview progresses
-      </p>
-      {completeSuccess && (
-        <div className="mt-4 bg-green-50 border border-green-200 p-3 rounded-md">
-          <p className="text-green-700 text-sm">
-            Interview successfully marked as completed. Redirecting to interview details...
-          </p>
-        </div>
-      )}
-    </div>
+    </Suspense>
   );
 };
 
