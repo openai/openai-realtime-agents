@@ -232,6 +232,42 @@ export default function InterviewDetailPage() {
           />
         </div>
       </div>
+
+      {interview.interview_data && interview.interview_data.messages && interview.interview_data.messages.length > 0 && (
+        <div className="bg-white shadow-md rounded-lg p-6 mb-6">
+          <h2 className="text-lg font-medium mb-4">Interview Transcript</h2>
+          <p className="text-sm text-gray-500 mb-3">
+            Last updated: {new Date(interview.interview_data.metadata.last_updated).toLocaleString()}
+          </p>
+          
+          <div className="space-y-4 max-h-96 overflow-y-auto p-2">
+            {interview.interview_data.messages.map((message: any) => (
+              <div 
+                key={message.id} 
+                className={`p-3 rounded-lg ${
+                  message.role === 'assistant' 
+                    ? 'bg-blue-50 border-l-4 border-blue-400' 
+                    : 'bg-gray-50 border-l-4 border-gray-400'
+                }`}
+              >
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-medium">
+                    {message.role === 'assistant' ? 'Agent' : 'User'}
+                  </span>
+                  <span className="text-xs text-gray-500">{message.timestamp}</span>
+                </div>
+                <p className="whitespace-pre-wrap">{message.content}</p>
+              </div>
+            ))}
+          </div>
+          
+          <div className="mt-4 text-center">
+            <p className="text-sm text-gray-500">
+              Total messages: {interview.interview_data.metadata.message_count}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

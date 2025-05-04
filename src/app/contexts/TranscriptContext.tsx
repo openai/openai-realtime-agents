@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, FC, PropsWithChildren } from "react";
+import React, { createContext, useContext, useState, FC, PropsWithChildren, useEffect, useCallback } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { TranscriptItem } from "@/app/types";
 
@@ -11,12 +11,17 @@ type TranscriptContextValue = {
   addTranscriptBreadcrumb: (title: string, data?: Record<string, any>) => void;
   toggleTranscriptItemExpand: (itemId: string) => void;
   updateTranscriptItemStatus: (itemId: string, newStatus: "IN_PROGRESS" | "DONE") => void;
+  saveTranscriptData: (interviewId: string) => Promise<void>;
+  setActiveInterviewId: (id: string | null) => void;
 };
 
 const TranscriptContext = createContext<TranscriptContextValue | undefined>(undefined);
 
 export const TranscriptProvider: FC<PropsWithChildren> = ({ children }) => {
   const [transcriptItems, setTranscriptItems] = useState<TranscriptItem[]>([]);
+  const [activeInterviewId, setActiveInterviewId] = useState<string | null>(null);
+  const [saveTimerId, setSaveTimerId] = useState<NodeJS.Timeout | null>(null);
+  const [lastSaveTime, setLastSaveTime] = useState<number>(0);
 
   function newTimestampPretty(): string {
     return new Date().toLocaleTimeString([], {
@@ -97,6 +102,84 @@ export const TranscriptProvider: FC<PropsWithChildren> = ({ children }) => {
     );
   };
 
+  // Function to save transcript data to the database
+  const saveTranscriptData = useCallback(async (interviewId: string) => {
+    if (!interviewId || transcriptItems.length === 0) return;
+    
+    try {
+      // Filter out system messages and information only relevant to the UI
+      const messages = transcriptItems
+        .filter(item => !item.isHidden && item.type === "MESSAGE")
+        .map(item => ({
+          id: item.itemId,
+          role: item.role,
+          content: item.title,
+          timestamp: item.timestamp,
+          created_at: item.createdAtMs,
+          status: item.status
+        }));
+      
+      // Format data for saving
+      const dataToSave = {
+        messages,
+        metadata: {
+          last_updated: Date.now(),
+          message_count: messages.length
+        }
+      };
+      
+      const response = await fetch('/api/interviews/save-data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          interviewId,
+          transcriptData: dataToSave
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Failed to save transcript data:", errorData);
+        return;
+      }
+      
+      setLastSaveTime(Date.now());
+      console.log(`Transcript saved for interview ${interviewId}`);
+    } catch (error) {
+      console.error("Error saving transcript data:", error);
+    }
+  }, [transcriptItems]);
+
+  // Set up auto-save when active interview is set and transcript changes
+  useEffect(() => {
+    // Clear any existing timer
+    if (saveTimerId) {
+      clearTimeout(saveTimerId);
+      setSaveTimerId(null);
+    }
+    
+    // If no active interview, don't set up auto-save
+    if (!activeInterviewId) return;
+    
+    // Don't save too frequently - set minimum interval to 5 seconds
+    const timeSinceLastSave = Date.now() - lastSaveTime;
+    const saveDelay = Math.max(5000 - timeSinceLastSave, 0);
+    
+    // Set up a timer to save transcript data
+    const timer = setTimeout(() => {
+      saveTranscriptData(activeInterviewId);
+    }, saveDelay);
+    
+    setSaveTimerId(timer);
+    
+    // Clean up timer on unmount
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [activeInterviewId, transcriptItems, saveTranscriptData, lastSaveTime]);
+
   return (
     <TranscriptContext.Provider
       value={{
@@ -106,6 +189,8 @@ export const TranscriptProvider: FC<PropsWithChildren> = ({ children }) => {
         addTranscriptBreadcrumb,
         toggleTranscriptItemExpand,
         updateTranscriptItemStatus,
+        saveTranscriptData,
+        setActiveInterviewId
       }}
     >
       {children}

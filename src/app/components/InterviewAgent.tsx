@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AgentConfig } from "@/app/types";
 import { getInterviewWithRelations, createInterviewAgentConfig } from "@/app/lib/interviewAgentHelper";
+import { useTranscript } from "@/app/contexts/TranscriptContext";
 import Link from "next/link";
 
 interface InterviewAgentProps {
@@ -13,6 +14,7 @@ interface InterviewAgentProps {
 const InterviewAgent: React.FC<InterviewAgentProps> = ({ onAgentConfigLoaded }) => {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { setActiveInterviewId } = useTranscript();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [interviewId, setInterviewId] = useState<string | null>(null);
@@ -26,8 +28,17 @@ const InterviewAgent: React.FC<InterviewAgentProps> = ({ onAgentConfigLoaded }) 
     }
 
     setInterviewId(id);
+    
+    // Set the active interview ID in the TranscriptContext
+    setActiveInterviewId(id);
+    
     loadInterviewData(id);
-  }, [searchParams]);
+    
+    // Cleanup function to clear active interview ID when component unmounts
+    return () => {
+      setActiveInterviewId(null);
+    };
+  }, [searchParams, setActiveInterviewId]);
 
   const loadInterviewData = async (id: string) => {
     try {
@@ -109,6 +120,9 @@ const InterviewAgent: React.FC<InterviewAgentProps> = ({ onAgentConfigLoaded }) 
       </p>
       <p className="text-green-600 text-sm">
         ✓ Interview data loaded successfully
+      </p>
+      <p className="text-xs text-gray-500 mt-2">
+        Transcript will be saved automatically as the interview progresses
       </p>
     </div>
   );

@@ -33,7 +33,7 @@ import InterviewAgent from "./components/InterviewAgent";
 function App() {
   const searchParams = useSearchParams();
 
-  const { transcriptItems, addTranscriptMessage, addTranscriptBreadcrumb } =
+  const { transcriptItems, addTranscriptMessage, addTranscriptBreadcrumb, saveTranscriptData } =
     useTranscript();
   const { logClientEvent, logServerEvent } = useEvent();
 
@@ -220,6 +220,18 @@ function App() {
       pcRef.current.close();
       pcRef.current = null;
     }
+    
+    // If in interview mode, save transcript data before disconnecting
+    if (isInterviewMode) {
+      const interviewId = searchParams.get("interviewId");
+      if (interviewId) {
+        console.log("Saving transcript data before disconnecting...");
+        saveTranscriptData(interviewId).catch(err => {
+          console.error("Error saving transcript on disconnect:", err);
+        });
+      }
+    }
+    
     setDataChannel(null);
     setSessionStatus("DISCONNECTED");
     setIsPTTUserSpeaking(false);
@@ -366,6 +378,17 @@ function App() {
 
   const onToggleConnection = () => {
     if (sessionStatus === "CONNECTED" || sessionStatus === "CONNECTING") {
+      // If in interview mode, save transcript data when disconnecting
+      if (isInterviewMode) {
+        const interviewId = searchParams.get("interviewId");
+        if (interviewId) {
+          console.log("Saving transcript data before disconnecting...");
+          saveTranscriptData(interviewId).catch(err => {
+            console.error("Error saving transcript on disconnect:", err);
+          });
+        }
+      }
+      
       disconnectFromRealtime();
       setSessionStatus("DISCONNECTED");
     } else {
