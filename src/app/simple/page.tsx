@@ -6,7 +6,7 @@ import "@/app/styles/simple-page-styles.css";
 import { ConnectionProvider } from "./contexts/ConnectionContext";
 import { CameraProvider } from "./contexts/CameraContext";
 import { VerificationProvider } from "./contexts/VerificationContext";
-import { UIProvider } from "./contexts/UIProvider";
+import { UIProvider } from "./contexts/UIContext"; // Correção aqui, era UIProvider agora é UIContext
 import PhoneMockup from "./components/PhoneMockup";
 
 export default function SimplePage() {
