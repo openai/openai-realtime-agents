@@ -88,17 +88,17 @@
 	position: relative;
 	top: -8px;
 }
-/* Footer animado contido na área da tela do telefone */
 .animated-footer {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 3px; /* Muito fino */
+  height: 6px;
   width: 100%;
   background: transparent;
-  z-index: 5;
-  pointer-events: none; /* Não interfere com interações */
+  z-index: 15;
+  pointer-events: none;
+  overflow: hidden; /* Ensure the gradient is contained */
 }
 
 /* Gradiente base */
@@ -108,10 +108,15 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: 3px;
-  /* Cor padrão - transparente quando ninguém está falando */
+  height: 100%;
   background: transparent;
-  transition: opacity 0.3s ease;
+  
+  /* Transitions much slower for smoother changes */
+  transition: 
+    opacity 0.8s ease-in-out, 
+    background-color 1.2s ease-in-out,
+    background 1.2s ease-in-out;
+  
   opacity: 0;
 }
 
@@ -121,12 +126,12 @@
   background: linear-gradient(
     to right,
     #FC6200 0%,
-    rgba(252, 98, 0, 0.8) 25%,
-    rgba(252, 98, 0, 0.6) 50%,
-    rgba(252, 98, 0, 0.4) 75%,
-    rgba(252, 98, 0, 0.2) 100%
+    rgba(252, 98, 0, 0.9) 25%,
+    rgba(252, 98, 0, 0.7) 50%,
+    rgba(252, 98, 0, 0.5) 75%,
+    rgba(252, 98, 0, 0.3) 100%
   );
-  animation: wave-gradient 2s ease infinite;
+  animation: wave-gradient 3s ease-in-out infinite; /* Slower animation */
   background-size: 200% 100%;
 }
 
@@ -136,15 +141,16 @@
   background: linear-gradient(
     to right,
     #0066cc 0%,
-    rgba(0, 102, 204, 0.8) 25%,
-    rgba(0, 102, 204, 0.6) 50%,
-    rgba(0, 102, 204, 0.4) 75%,
-    rgba(0, 102, 204, 0.2) 100%
+    rgba(0, 102, 204, 0.9) 25%,
+    rgba(0, 102, 204, 0.7) 50%,
+    rgba(0, 102, 204, 0.5) 75%,
+    rgba(0, 102, 204, 0.3) 100%
   );
-  animation: wave-gradient 2s ease infinite;
+  animation: wave-gradient 3s ease-in-out infinite; /* Slower animation */
   background-size: 200% 100%;
 }
 
+/* Slower, smoother wave animation */
 @keyframes wave-gradient {
   0% {
     background-position: 0% 50%;

@@ -1,5 +1,5 @@
 // src/app/simple/contexts/UIContext.tsx
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { UIEvent, CameraRequest } from '../types';
 import { useConnection } from './ConnectionContext';
 
@@ -9,13 +9,13 @@ interface UIContextType {
   cameraRequests: CameraRequest[];
   currentTime: string;
   agentIsSpeaking: boolean;
-  userIsSpeaking: boolean; // Adicionado
+  userIsSpeaking: boolean;
   speechIntensity: number;
   addUIEvent: (event: UIEvent) => void;
   addCameraRequest: (left: number) => string;
   removeCameraRequest: (id: string) => void;
   setSpeechIntensity: (intensity: number) => void;
-  setUserIsSpeaking: (isSpeaking: boolean) => void; // Adicionado
+  setUserIsSpeaking: (isSpeaking: boolean) => void;
   isAudioPlaybackEnabled: boolean;
   setIsAudioPlaybackEnabled: (enabled: boolean) => void;
 }
@@ -29,16 +29,54 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   const [cameraRequests, setCameraRequests] = useState<CameraRequest[]>([]);
   const [currentTime, setCurrentTime] = useState<string>('');
   const [agentIsSpeaking, setAgentIsSpeaking] = useState<boolean>(false);
-  const [userIsSpeaking, setUserIsSpeaking] = useState<boolean>(false); // Adicionado
+  const [userIsSpeaking, setUserIsSpeaking] = useState<boolean>(false);
   const [speechIntensity, setSpeechIntensity] = useState<number>(0);
   const [isAudioPlaybackEnabled, setIsAudioPlaybackEnabled] = useState<boolean>(true);
   
+  // Debounce timers to prevent rapid state changes
+  const agentSpeakingTimerRef = useRef<number | null>(null);
+  const userSpeakingTimerRef = useRef<number | null>(null);
+  
   const { onAgentMessage } = useConnection();
   
-  // Log quando o status de reprodução de áudio muda
-  useEffect(() => {
-    console.log("Status da reprodução de áudio:", isAudioPlaybackEnabled ? "ATIVADO" : "DESATIVADO");
-  }, [isAudioPlaybackEnabled]);
+  // Debounced state setters
+  const setAgentSpeakingDebounced = (isSpeaking: boolean, delay: number = 300) => {
+    // Clear any pending timer
+    if (agentSpeakingTimerRef.current !== null) {
+      clearTimeout(agentSpeakingTimerRef.current);
+      agentSpeakingTimerRef.current = null;
+    }
+    
+    if (!isSpeaking && agentIsSpeaking) {
+      // If turning off agent speaking, delay the transition
+      agentSpeakingTimerRef.current = window.setTimeout(() => {
+        setAgentIsSpeaking(false);
+      }, delay);
+    } else if (isSpeaking && !agentIsSpeaking) {
+      // If turning on agent speaking, do it immediately but turn off user speaking
+      setAgentIsSpeaking(true);
+      setUserIsSpeaking(false);
+    }
+  };
+  
+  const setUserSpeakingDebounced = (isSpeaking: boolean, delay: number = 300) => {
+    // Clear any pending timer
+    if (userSpeakingTimerRef.current !== null) {
+      clearTimeout(userSpeakingTimerRef.current);
+      userSpeakingTimerRef.current = null;
+    }
+    
+    if (!isSpeaking && userIsSpeaking) {
+      // If turning off user speaking, delay the transition
+      userSpeakingTimerRef.current = window.setTimeout(() => {
+        setUserIsSpeaking(false);
+      }, delay);
+    } else if (isSpeaking && !userIsSpeaking) {
+      // If turning on user speaking, do it immediately but turn off agent speaking
+      setUserIsSpeaking(true);
+      setAgentIsSpeaking(false);
+    }
+  };
   
   // Atualizar o relógio a cada minuto
   useEffect(() => {
@@ -55,6 +93,50 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     return () => clearInterval(clockInterval);
   }, []);
   
+  // Função para simular alternância de fala para debug - com transições mais suaves
+  useEffect(() => {
+    // Para testar, simule a alternância entre falantes a cada 6 segundos (mais lento)
+    const testInterval = setInterval(() => {
+      if (agentIsSpeaking) {
+        // Se o agente está falando, simule o usuário falando
+        console.log("DEBUG: Simulando usuário falando");
+        setAgentSpeakingDebounced(false, 800); // Fade out longer
+        
+        // Wait for fade out before starting the user speaking
+        setTimeout(() => {
+          setUserSpeakingDebounced(true);
+        }, 1000);
+      } else if (userIsSpeaking) {
+        // Se o usuário está falando, simule o agente falando
+        console.log("DEBUG: Simulando agente falando");
+        setUserSpeakingDebounced(false, 800);
+        
+        // Wait for fade out before starting the agent speaking
+        setTimeout(() => {
+          setAgentSpeakingDebounced(true);
+        }, 1000);
+      } else {
+        // Se ninguém está falando, comece com o agente
+        console.log("DEBUG: Iniciando ciclo com agente falando");
+        setAgentSpeakingDebounced(true);
+      }
+    }, 6000); // Alternar a cada 6 segundos para uma demonstração mais natural
+    
+    return () => clearInterval(testInterval);
+  }, [agentIsSpeaking, userIsSpeaking]);
+  
+  // Cleanup debounce timers on unmount
+  useEffect(() => {
+    return () => {
+      if (agentSpeakingTimerRef.current !== null) {
+        clearTimeout(agentSpeakingTimerRef.current);
+      }
+      if (userSpeakingTimerRef.current !== null) {
+        clearTimeout(userSpeakingTimerRef.current);
+      }
+    };
+  }, []);
+  
   // Subscrever para mensagens do agente
   useEffect(() => {
     if (!onAgentMessage) return () => {};
@@ -62,27 +144,27 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     const unsubscribe = onAgentMessage((msg) => {
       // Detectar quando o agente começa e termina de falar
       if (msg.type === 'audio_started') {
-        setAgentIsSpeaking(true);
         console.log("🎤 Agente começou a falar");
+        setAgentSpeakingDebounced(true);
       } else if (msg.type === 'audio_ended') {
-        setAgentIsSpeaking(false);
-        setSpeechIntensity(0);
         console.log("🔇 Agente terminou de falar");
+        setAgentSpeakingDebounced(false, 800); // Slower fade-out
+        setSpeechIntensity(0);
       } else if (msg.type === 'output_audio_buffer.started') {
-        setAgentIsSpeaking(true);
         console.log("🔊 Buffer de áudio de saída iniciado");
+        setAgentSpeakingDebounced(true);
       } else if (msg.type === 'output_audio_buffer.stopped') {
-        setAgentIsSpeaking(false);
         console.log("🔇 Buffer de áudio de saída parado");
+        setAgentSpeakingDebounced(false, 800); // Slower fade-out
       } else if (msg.type === 'input_audio_buffer.started') {
         // Quando o microfone do usuário estiver ativo
-        setUserIsSpeaking(true);
         console.log("🎙️ Usuário começou a falar");
+        setUserSpeakingDebounced(true);
       } else if (msg.type === 'input_audio_buffer.stopped' || 
                  msg.type === 'input_audio_buffer.clear') {
         // Quando o microfone do usuário for desativado
-        setUserIsSpeaking(false);
         console.log("🔇 Usuário terminou de falar");
+        setUserSpeakingDebounced(false, 800); // Slower fade-out
       }
       
       // Processar chamadas de função
