@@ -45,7 +45,7 @@ export default function InterviewList() {
         await navigator.share({ title: "Volta Interview", url });
         setCopiedInterviewId(id);
         return;
-      } catch (err) {
+      } catch {
         // user cancelled or share failed, fall back below
       }
     }
@@ -57,8 +57,8 @@ export default function InterviewList() {
         setCopiedInterviewId(id);
         setTimeout(() => setCopiedInterviewId(null), 2000);
         return;
-      } catch (err) {
-        console.warn("Clipboard API failed, falling back", err);
+      } catch {
+        console.warn("Clipboard API failed, falling back");
       }
     }
 
@@ -75,7 +75,7 @@ export default function InterviewList() {
       document.body.removeChild(textarea);
       setCopiedInterviewId(id);
       setTimeout(() => setCopiedInterviewId(null), 2000);
-    } catch (err) {
+    } catch {
       alert(`Copy this link: ${url}`);
     }
   };
