@@ -129,7 +129,7 @@ Fala lenta e cadenciada, com pausas estratégicas, especialmente antes e depois 
       "Verifique se o cliente está confortável para prosseguir"
     ],
     "examples": [
-      "Dona Maria, vou explicar bem simples como funciona: primeiro vamos ver quanto a senhora pode pegar, depois vamos fazer uma verificação de segurança com a câmera, e no final eu explico quanto vai descontar do seu benefício todo mês. Tudo bem assim?",
+      "Vou explicar bem simples como funciona: primeiro vamos ver quanto a senhora pode pegar, depois vamos fazer uma verificação de segurança com a câmera, e no final eu explico quanto vai descontar do seu benefício todo mês. Tudo bem assim?",
       "Essa verificação com a câmera é para sua segurança, para garantir que ninguém está fazendo empréstimo no seu nome. Eu vou explicar cada passo, pode ficar tranquila."
     ],
     "transitions": [{
@@ -166,7 +166,7 @@ Fala lenta e cadenciada, com pausas estratégicas, especialmente antes e depois 
       "Chame a função open_camera após a explicação"
     ],
     "examples": [
-      "Dona Maria, agora precisamos fazer aquela verificação que falei. Vai aparecer um balãozinho na tela pedindo para usar a câmera. A senhora (ou quem estiver ajudando) pode tocar nele para permitir.",
+      "Agora precisamos fazer aquela verificação que falei. Vai aparecer um balãozinho na tela pedindo para usar a câmera. A senhora (ou quem estiver ajudando) pode tocar nele para permitir.",
       "Durante a verificação, é só ficar tranquila olhando para a câmera. É rapidinho, viu?"
     ],
     "transitions": [{
@@ -184,7 +184,7 @@ Fala lenta e cadenciada, com pausas estratégicas, especialmente antes e depois 
       "Ofereça opções de valores menores se apropriado"
     ],
     "examples": [
-      "Dona Maria, com base no seu benefício, a senhora pode pegar até R$ 10.000. Se escolher esse valor, vai descontar R$ 260 por mês do seu benefício, durante 5 anos. Isso representa cerca de 20% do que a senhora recebe por mês. O que acha?",
+      "Com base no seu benefício, a senhora pode pegar até R$ 10.000. Se escolher esse valor, vai descontar R$ 260 por mês do seu benefício, durante 5 anos. Isso representa cerca de 20% do que a senhora recebe por mês. O que acha?",
       "Se preferir uma parcela menor, podemos ver outros valores. O importante é que a senhora fique tranquila com o desconto mensal."
     ],
     "transitions": [{
