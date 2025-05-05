@@ -9,11 +9,13 @@ interface UIContextType {
   cameraRequests: CameraRequest[];
   currentTime: string;
   agentIsSpeaking: boolean;
+  userIsSpeaking: boolean; // Adicionado
   speechIntensity: number;
   addUIEvent: (event: UIEvent) => void;
   addCameraRequest: (left: number) => string;
   removeCameraRequest: (id: string) => void;
   setSpeechIntensity: (intensity: number) => void;
+  setUserIsSpeaking: (isSpeaking: boolean) => void; // Adicionado
   isAudioPlaybackEnabled: boolean;
   setIsAudioPlaybackEnabled: (enabled: boolean) => void;
 }
@@ -27,6 +29,7 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   const [cameraRequests, setCameraRequests] = useState<CameraRequest[]>([]);
   const [currentTime, setCurrentTime] = useState<string>('');
   const [agentIsSpeaking, setAgentIsSpeaking] = useState<boolean>(false);
+  const [userIsSpeaking, setUserIsSpeaking] = useState<boolean>(false); // Adicionado
   const [speechIntensity, setSpeechIntensity] = useState<number>(0);
   const [isAudioPlaybackEnabled, setIsAudioPlaybackEnabled] = useState<boolean>(true);
   
@@ -71,6 +74,15 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       } else if (msg.type === 'output_audio_buffer.stopped') {
         setAgentIsSpeaking(false);
         console.log("🔇 Buffer de áudio de saída parado");
+      } else if (msg.type === 'input_audio_buffer.started') {
+        // Quando o microfone do usuário estiver ativo
+        setUserIsSpeaking(true);
+        console.log("🎙️ Usuário começou a falar");
+      } else if (msg.type === 'input_audio_buffer.stopped' || 
+                 msg.type === 'input_audio_buffer.clear') {
+        // Quando o microfone do usuário for desativado
+        setUserIsSpeaking(false);
+        console.log("🔇 Usuário terminou de falar");
       }
       
       // Processar chamadas de função
@@ -123,6 +135,7 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     cameraRequests,
     currentTime,
     agentIsSpeaking,
+    userIsSpeaking,
     speechIntensity,
     isAudioPlaybackEnabled,
     setIsAudioPlaybackEnabled,
@@ -130,6 +143,7 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     addCameraRequest,
     removeCameraRequest,
     setSpeechIntensity,
+    setUserIsSpeaking,
   };
   
   return (

@@ -106,3 +106,16 @@ export interface LoggedEvent {
   eventName: string;
   eventData: Record<string, any>; // can have arbitrary objects logged
 }
+
+// Tipos de eventos da UI
+export interface UIEvent {
+  name: string;
+  icon: string;
+  color: string;
+}
+
+// Solicitações de câmera
+export interface CameraRequest {
+  id: string;
+  left: number;
+}

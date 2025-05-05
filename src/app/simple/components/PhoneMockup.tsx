@@ -4,7 +4,6 @@ import StatusBar from './StatusBar';
 import BrowserNavbar from './BrowserNavbar';
 import CameraView from './CameraView';
 import VerificationProgress from './VerificationProgress';
-import PushToTalkButton from './PushToTalkButton';
 import AnimatedFooter from './AnimatedFooter';
 import { useUI } from '../contexts/UIContext';
 import { useCamera } from '../contexts/CameraContext';
@@ -92,10 +91,7 @@ const PhoneMockup: React.FC = () => {
           <CameraView videoRef={videoRef} />
         )}
         
-        {/* Botão PTT */}
-        <PushToTalkButton />
-        
-        {/* Footer com gradiente animado */}
+        {/* Footer com animação */}
         <AnimatedFooter />
       </div>
     </div>

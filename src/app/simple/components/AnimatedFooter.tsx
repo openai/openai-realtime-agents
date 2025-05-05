@@ -3,13 +3,15 @@ import React from 'react';
 import { useUI } from '../contexts/UIContext';
 
 const AnimatedFooter: React.FC = () => {
-  const { agentIsSpeaking, speechIntensity } = useUI();
+  const { agentIsSpeaking, userIsSpeaking } = useUI();
+  
+  // Determina a classe de acordo com quem está falando
+  const speakingClass = agentIsSpeaking 
+    ? "agent-speaking" 
+    : (userIsSpeaking ? "user-speaking" : "");
   
   return (
-    <div 
-      className={`animated-footer ${agentIsSpeaking ? "speaking" : ""}`}
-      style={agentIsSpeaking ? { '--speech-intensity': speechIntensity } as React.CSSProperties : undefined}
-    />
+    <div className={`animated-footer ${speakingClass}`} />
   );
 };
 
