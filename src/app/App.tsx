@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 
 import Image from "next/image";
@@ -10,6 +10,7 @@ import Image from "next/image";
 import Transcript from "./components/Transcript";
 import Events from "./components/Events";
 import BottomToolbar from "./components/BottomToolbar";
+import InterviewExperience from "@/app/components/InterviewExperience";
 
 // Types
 import { AgentConfig, SessionStatus } from "@/app/types";
@@ -32,6 +33,7 @@ import InterviewAgent from "./components/InterviewAgent";
 
 function App() {
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const { transcriptItems, addTranscriptMessage, addTranscriptBreadcrumb, saveTranscriptData } =
     useTranscript();
@@ -62,6 +64,28 @@ function App() {
   const [, setEngagementData] = useState<any>(null);
   const [isLoadingEngagementData, setIsLoadingEngagementData] = useState<boolean>(false);
   const [engagementError, setEngagementError] = useState<string | null>(null);
+
+  // Candidate view flag based on query param
+  const isCandidateView = searchParams.get("candidate") === "1";
+  const interviewId = searchParams.get("interviewId");
+
+  // Track when agent is currently speaking for visualization purposes
+  const [isAgentSpeaking, setIsAgentSpeaking] = useState<boolean>(false);
+
+  // Monitor transcript for assistant messages in progress
+  useEffect(() => {
+    if (transcriptItems.length === 0) return;
+
+    const latestAssistantMessage = [...transcriptItems]
+      .reverse()
+      .find((item) => item.role === "assistant" && !item.isHidden);
+
+    if (latestAssistantMessage && latestAssistantMessage.status === "IN_PROGRESS") {
+      setIsAgentSpeaking(true);
+    } else {
+      setIsAgentSpeaking(false);
+    }
+  }, [transcriptItems]);
 
   const sendClientEvent = (eventObj: any, eventNameSuffix = "") => {
     if (dcRef.current && dcRef.current.readyState === "open") {
@@ -570,10 +594,21 @@ function App() {
     setCustomAgentConfig(config);
   };
 
+  // Redirect to thank-you when interview ends (session disconnected in candidate view)
+  useEffect(() => {
+    if (isCandidateView && sessionStatus === "DISCONNECTED" && isInterviewMode) {
+      const timer = setTimeout(() => {
+        router.push("/i/thank-you");
+      }, 500); // 500ms debounce to avoid premature redirects
+      return () => clearTimeout(timer);
+    }
+  }, [sessionStatus, isCandidateView, isInterviewMode, router]);
+
   return (
     <div className="text-base flex flex-col h-screen bg-gray-100 text-gray-800 relative">
       <div className="p-5 text-lg font-semibold flex justify-between items-center">
         <div className="flex items-center">
+          {!isCandidateView && (
           <div onClick={() => window.location.reload()} style={{ cursor: 'pointer' }}>
             <Image
               src="/openai-logomark.svg"
@@ -583,10 +618,16 @@ function App() {
               className="mr-2"
             />
           </div>
+          )}
           <div>
-            Realtime API <span className="text-gray-500">Agents</span>
+            {!isCandidateView ? (
+              <>Realtime API <span className="text-gray-500">Agents</span></>
+            ) : (
+              <>Volta Research</>
+            )}
           </div>
         </div>
+        {!isCandidateView && (
         <div className="flex items-center">
           {!isInterviewMode && (
             <>
@@ -655,28 +696,49 @@ function App() {
             <div className="text-sm text-blue-700">Interview Mode</div>
           )}
         </div>
+        )}
       </div>
 
       {isInterviewMode ? (
-        <div className="container mx-auto px-4 py-2">
-          <InterviewAgent onAgentConfigLoaded={handleAgentConfigLoaded} />
-        </div>
+        isCandidateView ? (
+          <div className="hidden">
+            <InterviewAgent onAgentConfigLoaded={handleAgentConfigLoaded} />
+          </div>
+        ) : (
+          <div className="container mx-auto px-4 py-2">
+            <InterviewAgent onAgentConfigLoaded={handleAgentConfigLoaded} />
+          </div>
+        )
       ) : null}
 
       <div className="flex flex-1 gap-2 px-2 overflow-hidden relative">
-        <Transcript
-          userText={userText}
-          setUserText={setUserText}
-          onSendMessage={handleSendTextMessage}
-          canSend={
-            sessionStatus === "CONNECTED" &&
-            dcRef.current?.readyState === "open"
-          }
-        />
-
-        <Events isExpanded={isEventsPaneExpanded} />
+        {!isCandidateView ? (
+          <>
+            <Transcript
+              userText={userText}
+              setUserText={setUserText}
+              onSendMessage={handleSendTextMessage}
+              canSend={
+                sessionStatus === "CONNECTED" &&
+                dcRef.current?.readyState === "open"
+              }
+            />
+            <Events isExpanded={isEventsPaneExpanded} />
+          </>
+        ) : (
+          interviewId && (
+            <div className="w-full max-w-2xl mx-auto h-[520px]">
+            <InterviewExperience
+              interviewId={interviewId}
+              isAgentSpeaking={isAgentSpeaking}
+              sessionStatus={sessionStatus}
+            />
+            </div>
+          )
+        )}
       </div>
 
+      {!isCandidateView && (
       <BottomToolbar
         sessionStatus={sessionStatus}
         onToggleConnection={onToggleConnection}
@@ -690,6 +752,7 @@ function App() {
         isAudioPlaybackEnabled={isAudioPlaybackEnabled}
         setIsAudioPlaybackEnabled={setIsAudioPlaybackEnabled}
       />
+      )}
 
       {isLoadingEngagementData && (
         <div className="absolute top-16 right-4 bg-blue-100 text-blue-800 px-4 py-2 rounded-md text-sm">

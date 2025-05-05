@@ -67,21 +67,21 @@ export async function getInterviewWithRelations(interviewId: string): Promise<In
       .from('companies')
       .select('business_name, description, date_established, traction_level, province')
       .eq('id', interview.company_id)
-      .single() : { data: null },
+      .maybeSingle() : { data: null },
     
     // Get person
     interview.person_id ? supabaseServer
       .from('people')
       .select('first_name, last_name, title')
       .eq('id', interview.person_id)
-      .single() : { data: null },
+      .maybeSingle() : { data: null },
     
     // Get support engagement
     interview.support_engagement_id ? supabaseServer
       .from('support_engagements')
       .select('title, description, date_identified, status, support_type')
       .eq('id', interview.support_engagement_id)
-      .single() : { data: null },
+      .maybeSingle() : { data: null },
     
     // Get questions
     supabaseServer

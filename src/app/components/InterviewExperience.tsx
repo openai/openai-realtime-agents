@@ -23,6 +23,7 @@ const InterviewExperience: React.FC<InterviewExperienceProps> = ({
   const [questionHistory, setQuestionHistory] = useState<string[]>([]);
   const visualizerRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number | null>(null);
+  const [hasFirstQuestionBeenAsked, setHasFirstQuestionBeenAsked] = useState(false);
 
   // Load interview data
   useEffect(() => {
@@ -125,39 +126,39 @@ const InterviewExperience: React.FC<InterviewExperienceProps> = ({
     };
   }, [isAgentSpeaking]);
 
-  // Question tracking effect
+  // Question tracking effect – track progress without causing infinite re-renders
   useEffect(() => {
     if (!interview || !interview.questions || transcriptItems.length === 0) return;
     
     const questions = interview.questions.map((q: any) => q.text.toLowerCase());
     const lastUserMessages = transcriptItems
-      .filter(item => item.role === 'assistant' && !item.isHidden)
-      .map(item => item.title)
+      .filter((item) => item.role === "assistant" && !item.isHidden)
+      .map((item) => item.title)
       .slice(-5)
-      .join(' ')
+      .join(" ")
       .toLowerCase();
     
-    // Simple detection to match question context in recent messages
     for (let i = 0; i < questions.length; i++) {
-      const questionKeywords = questions[i].split(' ')
-        .filter((word: string) => word.length > 4) // Only use substantial words
-        .slice(0, 5); // Limit to first 5 keywords
+      const questionKeywords = questions[i]
+        .split(" ")
+        .filter((word: string) => word.length > 4)
+        .slice(0, 5);
       
       const matchCount = questionKeywords.filter((keyword: string) => 
         lastUserMessages.includes(keyword)
       ).length;
       
-      // If we have a match with at least 2 keywords and it's not the current question
-      if (matchCount >= 2 && i !== currentQuestionIndex) {
+      if (matchCount >= 2 && i === currentQuestionIndex + 1) {
         setCurrentQuestionIndex(i);
-        // Add to history if not already there
-        if (!questionHistory.includes(questions[i])) {
-          setQuestionHistory(prev => [...prev, questions[i]]);
-        }
+        setQuestionHistory((prev) => {
+          if (prev.includes(questions[i])) return prev;
+          return [...prev, questions[i]];
+        });
+        if (i === 0) setHasFirstQuestionBeenAsked(true);
         break;
       }
     }
-  }, [transcriptItems, interview, currentQuestionIndex, questionHistory]);
+  }, [transcriptItems, interview]);
 
   if (loading) {
     return (
@@ -205,12 +206,17 @@ const InterviewExperience: React.FC<InterviewExperienceProps> = ({
       
       {/* Question Tracker */}
       <div className="p-6 border-b">
+        {!hasFirstQuestionBeenAsked ? (
+          <div className="text-center text-gray-600 py-8">
+            The agent is preparing to begin the interview. Please listen for instructions.
+          </div>
+        ) : (
+          <>
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-md font-medium text-gray-700">Current Discussion</h3>
             <span className="text-sm text-gray-500">Question {currentQuestionIndex + 1} of {interview.questions.length}</span>
           </div>
-          
           <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
             <p className="text-indigo-900 font-medium">{interview.questions[currentQuestionIndex].text}</p>
             {interview.questions[currentQuestionIndex].context && (
@@ -218,7 +224,6 @@ const InterviewExperience: React.FC<InterviewExperienceProps> = ({
             )}
           </div>
         </div>
-
         {/* Progress indicator */}
         <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
           <div 
@@ -226,7 +231,6 @@ const InterviewExperience: React.FC<InterviewExperienceProps> = ({
             style={{ width: `${((currentQuestionIndex + 1) / interview.questions.length) * 100}%` }}
           ></div>
         </div>
-        
         {/* Question history */}
         {questionHistory.length > 0 && (
           <div>
@@ -239,6 +243,8 @@ const InterviewExperience: React.FC<InterviewExperienceProps> = ({
               ))}
             </div>
           </div>
+            )}
+          </>
         )}
       </div>
       
@@ -268,6 +274,9 @@ const InterviewExperience: React.FC<InterviewExperienceProps> = ({
                 </svg>
               </div>
             )}
+          </div>
+          <div className="mt-3 text-xs text-gray-500 text-center px-2">
+            All information collected is considered <span className="font-semibold">confidential</span> and will not be shared with anyone outside the authorized Volta team you are working with.
           </div>
         </div>
       </div>

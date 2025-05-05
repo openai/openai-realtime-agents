@@ -64,17 +64,17 @@ export async function getInterviewWithRelationsClient(interviewId: string): Prom
       .from('companies')
       .select('business_name, description, date_established, traction_level, province')
       .eq('id', interview.company_id)
-      .single() : { data: null },
+      .maybeSingle() : { data: null },
     interview.person_id ? supabase
       .from('people')
       .select('first_name, last_name, title')
       .eq('id', interview.person_id)
-      .single() : { data: null },
+      .maybeSingle() : { data: null },
     interview.support_engagement_id ? supabase
       .from('support_engagements')
       .select('title, description, date_identified, status, support_type')
       .eq('id', interview.support_engagement_id)
-      .single() : { data: null },
+      .maybeSingle() : { data: null },
     supabase
       .from('questions')
       .select('id, text, ordinal, context')

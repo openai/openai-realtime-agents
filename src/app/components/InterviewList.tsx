@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { Interview } from "../lib/types";
-import Link from "next/link";
+import NextLink from "next/link";
+import { Link as LinkIcon } from "lucide-react";
 
 export default function InterviewList() {
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [copiedInterviewId, setCopiedInterviewId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchInterviews = async () => {
@@ -32,6 +34,17 @@ export default function InterviewList() {
     fetchInterviews();
   }, []);
 
+  const handleCopyLink = (inviteToken: string, id: string) => {
+    if (!inviteToken) return;
+    const url = `${window.location.origin}/i/${inviteToken}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedInterviewId(id);
+      setTimeout(() => setCopiedInterviewId(null), 2000);
+    }).catch(err => {
+      console.error('Failed to copy link:', err);
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center p-8 bg-white rounded-lg shadow">
@@ -53,12 +66,12 @@ export default function InterviewList() {
     return (
       <div className="bg-gray-50 border border-gray-200 text-gray-800 p-8 rounded-lg shadow text-center">
         <p className="mb-4">No interviews found. Create an interview to get started.</p>
-        <Link 
+        <NextLink 
           href="/interviews/create" 
           className="inline-block px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
         >
           Create New Interview
-        </Link>
+        </NextLink>
       </div>
     );
   }
@@ -86,21 +99,21 @@ export default function InterviewList() {
                 </p>
               </div>
               <div className="flex space-x-3">
-                <Link 
+                <NextLink 
                   href={`/interviews/${interview.id}`}
                   className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors shadow-sm"
                 >
                   View
-                </Link>
+                </NextLink>
                 {interview.status !== "completed" && (
-                  <Link 
+                  <NextLink 
                     href={`/interviews/${interview.id}`}
                     className="px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors shadow-sm"
                   >
                     Conduct
-                  </Link>
+                  </NextLink>
                 )}
-                <Link 
+                <NextLink 
                   href={`/app?interviewId=${interview.id}`}
                   className="px-4 py-2 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-md transition-colors shadow-sm flex items-center"
                 >
@@ -119,7 +132,14 @@ export default function InterviewList() {
                     />
                   </svg>
                   Launch AI
-                </Link>
+                </NextLink>
+                <button
+                  onClick={() => handleCopyLink(interview.invite_token, interview.id)}
+                  className="px-4 py-2 text-sm bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-md transition-colors shadow-sm flex items-center"
+                >
+                  <LinkIcon className="w-4 h-4 mr-1" />
+                  {copiedInterviewId === interview.id ? 'Copied!' : 'Share Link'}
+                </button>
               </div>
             </div>
             

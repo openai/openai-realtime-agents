@@ -12,8 +12,11 @@ export async function middleware(req: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession()
 
-  // If user is not logged in and trying to access a protected route, redirect them to login
-  if (!session && !req.nextUrl.pathname.startsWith('/login')) {
+  // Allow public access to interview invite links and the app page used for interview sessions
+  const isPublicInviteRoute = req.nextUrl.pathname.startsWith('/i');
+  const isPublicAppRoute = req.nextUrl.pathname.startsWith('/app');
+
+  if (!session && !req.nextUrl.pathname.startsWith('/login') && !isPublicInviteRoute && !isPublicAppRoute) {
     const redirectUrl = req.nextUrl.clone()
     redirectUrl.pathname = '/login'
     return NextResponse.redirect(redirectUrl)
