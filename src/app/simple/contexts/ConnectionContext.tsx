@@ -89,17 +89,24 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         audioRef.current = document.createElement('audio');
         audioRef.current.autoplay = true;
         
-        // Test audio element
-        audioRef.current.style.display = 'none';
+        // Configurações adicionais para garantir reprodução de áudio
+        audioRef.current.volume = 1.0; // Volume máximo
+        audioRef.current.muted = false;
+        audioRef.current.controls = true; // Para depuração
+        audioRef.current.style.position = 'fixed';
+        audioRef.current.style.bottom = '0';
+        audioRef.current.style.right = '0';
+        audioRef.current.style.zIndex = '1000';
+        
+        // Adicionar ao DOM para garantir que funcione
         document.body.appendChild(audioRef.current);
         
-        audioRef.current.oncanplaythrough = () => {
-          console.log("Audio can play through");
-        };
+        // Eventos de debug para áudio
+        audioRef.current.onplay = () => console.log("🔊 Áudio iniciou a reprodução!");
+        audioRef.current.oncanplay = () => console.log("🔊 Áudio pode ser reproduzido!");
+        audioRef.current.onerror = (e) => console.error("❌ Erro no elemento de áudio:", e);
         
-        audioRef.current.onerror = (e) => {
-          console.error("Audio element error:", e);
-        };
+        console.log("Elemento de áudio criado e anexado ao DOM:", audioRef.current);
       }
       
       // Criar conexão WebRTC
@@ -154,8 +161,18 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         });
         
         console.log('Creating initial response');
-        // Inicia a conversa
+        // Inicia a conversa automaticamente
         sendMessage({ type: "response.create" });
+        
+        // Forçar a reprodução de áudio depois que a sessão estiver configurada
+        setTimeout(() => {
+          if (audioRef.current) {
+            console.log("Tentando reproduzir áudio após DataChannel aberto");
+            audioRef.current.play()
+              .then(() => console.log("Reprodução de áudio bem-sucedida após configuração"))
+              .catch(err => console.error("Erro ao reproduzir áudio após configuração:", err));
+          }
+        }, 1000);
       };
       
       dc.onmessage = (e) => {
@@ -166,8 +183,22 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           // Log audio events explicitly
           if (message.type === 'audio_started') {
             console.log('AUDIO STARTED EVENT RECEIVED');
+            // Tenta reproduzir o áudio quando o evento audio_started é recebido
+            if (audioRef.current) {
+              audioRef.current.play()
+                .then(() => console.log("Reprodução de áudio iniciada após evento audio_started"))
+                .catch(err => console.error("Erro ao reproduzir áudio após evento audio_started:", err));
+            }
           } else if (message.type === 'audio_ended') {
             console.log('AUDIO ENDED EVENT RECEIVED');
+          } else if (message.type === 'output_audio_buffer.started') {
+            console.log('OUTPUT AUDIO BUFFER STARTED - áudio deve estar tocando agora');
+            // Forçar a reprodução de áudio novamente
+            if (audioRef.current) {
+              audioRef.current.play()
+                .then(() => console.log("Reprodução de áudio iniciada após output_audio_buffer.started"))
+                .catch(err => console.error("Erro ao reproduzir áudio após output_audio_buffer.started:", err));
+            }
           }
           
           // Extrair sessionId se disponível
@@ -240,6 +271,16 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     }
     
+    // Parar áudio se estiver reproduzindo
+    if (audioRef.current) {
+      try {
+        audioRef.current.pause();
+        audioRef.current.srcObject = null;
+      } catch (err) {
+        console.warn('Error stopping audio:', err);
+      }
+    }
+    
     // Atualizar o estado
     dispatch({ type: 'DISCONNECTED' });
     console.log("Disconnected successfully");
@@ -274,10 +315,71 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   };
   
-  // Limpar na desmontagem
+  // Conectar automaticamente quando o componente for montado
   useEffect(() => {
+    // Inicia a conexão automaticamente após um curto atraso
+    const timer = setTimeout(() => {
+      console.log("Iniciando conexão automática...");
+      connect();
+    }, 1000);
+    
+    // Limpar na desmontagem
     return () => {
+      clearTimeout(timer);
       disconnect();
+    };
+  }, []);
+  
+  // Adicionar monitor de áudio para depuração
+  useEffect(() => {
+    // Adiciona botão de teste de áudio
+    const testButton = document.createElement('button');
+    testButton.textContent = "TESTAR ÁUDIO";
+    testButton.style.position = 'fixed';
+    testButton.style.bottom = '50px';
+    testButton.style.left = '10px';
+    testButton.style.zIndex = '9999';
+    testButton.style.padding = '10px';
+    testButton.style.backgroundColor = '#ff6200';
+    testButton.style.color = 'white';
+    testButton.style.border = 'none';
+    testButton.style.borderRadius = '5px';
+    testButton.style.cursor = 'pointer';
+    
+    testButton.onclick = () => {
+      // Crie um som de teste
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); // valor em hertz
+      oscillator.connect(audioCtx.destination);
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 1); // Toca por 1 segundo
+      
+      console.log("Teste de áudio iniciado");
+      
+      // Tente também reproduzir o áudio no elemento atual
+      if (audioRef.current) {
+        console.log("Status do elemento de áudio:", {
+          srcObject: audioRef.current.srcObject ? "presente" : "ausente",
+          paused: audioRef.current.paused,
+          muted: audioRef.current.muted,
+          volume: audioRef.current.volume
+        });
+        
+        if (audioRef.current.srcObject) {
+          audioRef.current.play()
+            .then(() => console.log("Reprodução de áudio do WebRTC bem-sucedida"))
+            .catch(e => console.error("Erro ao reproduzir áudio do WebRTC:", e));
+        }
+      }
+    };
+    
+    document.body.appendChild(testButton);
+    return () => {
+      if (document.body.contains(testButton)) {
+        document.body.removeChild(testButton);
+      }
     };
   }, []);
   
@@ -292,7 +394,23 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   return (
     <ConnectionContext.Provider value={contextValue}>
       {children}
-      <audio ref={audioRef} hidden />
+      {/* Elemento de áudio visível para depuração */}
+      <audio 
+        ref={(el) => { 
+          if (el && !audioRef.current) {
+            audioRef.current = el;
+            console.log("Elemento de áudio referenciado via JSX");
+          }
+        }} 
+        controls 
+        style={{
+          position: 'fixed',
+          bottom: '10px',
+          right: '10px',
+          zIndex: 1000,
+          height: '30px'
+        }}
+      />
     </ConnectionContext.Provider>
   );
 };

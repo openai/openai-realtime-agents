@@ -14,6 +14,8 @@ interface UIContextType {
   addCameraRequest: (left: number) => string;
   removeCameraRequest: (id: string) => void;
   setSpeechIntensity: (intensity: number) => void;
+  isAudioPlaybackEnabled: boolean;
+  setIsAudioPlaybackEnabled: (enabled: boolean) => void;
 }
 
 // Criar o contexto
@@ -26,8 +28,14 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   const [currentTime, setCurrentTime] = useState<string>('');
   const [agentIsSpeaking, setAgentIsSpeaking] = useState<boolean>(false);
   const [speechIntensity, setSpeechIntensity] = useState<number>(0);
+  const [isAudioPlaybackEnabled, setIsAudioPlaybackEnabled] = useState<boolean>(true);
   
   const { onAgentMessage } = useConnection();
+  
+  // Log quando o status de reprodução de áudio muda
+  useEffect(() => {
+    console.log("Status da reprodução de áudio:", isAudioPlaybackEnabled ? "ATIVADO" : "DESATIVADO");
+  }, [isAudioPlaybackEnabled]);
   
   // Atualizar o relógio a cada minuto
   useEffect(() => {
@@ -46,13 +54,23 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   
   // Subscrever para mensagens do agente
   useEffect(() => {
+    if (!onAgentMessage) return () => {};
+    
     const unsubscribe = onAgentMessage((msg) => {
       // Detectar quando o agente começa e termina de falar
       if (msg.type === 'audio_started') {
         setAgentIsSpeaking(true);
+        console.log("🎤 Agente começou a falar");
       } else if (msg.type === 'audio_ended') {
         setAgentIsSpeaking(false);
         setSpeechIntensity(0);
+        console.log("🔇 Agente terminou de falar");
+      } else if (msg.type === 'output_audio_buffer.started') {
+        setAgentIsSpeaking(true);
+        console.log("🔊 Buffer de áudio de saída iniciado");
+      } else if (msg.type === 'output_audio_buffer.stopped') {
+        setAgentIsSpeaking(false);
+        console.log("🔇 Buffer de áudio de saída parado");
       }
       
       // Processar chamadas de função
@@ -106,6 +124,8 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     currentTime,
     agentIsSpeaking,
     speechIntensity,
+    isAudioPlaybackEnabled,
+    setIsAudioPlaybackEnabled,
     addUIEvent,
     addCameraRequest,
     removeCameraRequest,

@@ -1,3 +1,4 @@
+// src/app/lib/realtimeConnection.ts
 import { RefObject } from "react";
 
 export async function createRealtimeConnection(
@@ -11,7 +12,24 @@ export async function createRealtimeConnection(
   pc.ontrack = (e) => {
     console.log("Track received from server");
     if (audioElement.current) {
+      // Configurar o elemento de áudio
       audioElement.current.srcObject = e.streams[0];
+      
+      // Eventos para depuração
+      audioElement.current.onplay = () => console.log("🔊 Áudio começou a reproduzir!");
+      audioElement.current.onplaying = () => console.log("🎵 Áudio está tocando!");
+      audioElement.current.onpause = () => console.log("⏸️ Áudio pausado");
+      audioElement.current.onended = () => console.log("🏁 Áudio terminou");
+      audioElement.current.onerror = (err) => console.error("❌ Erro no elemento de áudio:", err);
+      
+      // Tenta iniciar a reprodução automaticamente
+      audioElement.current.play()
+        .then(() => console.log("Reprodução de áudio iniciada com sucesso na conexão inicial"))
+        .catch(err => {
+          console.error("Erro ao iniciar reprodução de áudio na conexão inicial:", err);
+          console.log("O navegador pode estar bloqueando o áudio automático. Aguardando interação do usuário.");
+        });
+      
       console.log("Audio track attached to audio element");
     } else {
       console.warn("No audio element available to attach track");

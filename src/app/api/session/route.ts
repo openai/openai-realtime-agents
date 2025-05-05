@@ -1,7 +1,19 @@
+// src/app/api/session/route.ts
 import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
+    console.log("Tentando obter sessão com a chave:", 
+                process.env.OPENAI_API_KEY ? "Chave presente" : "Chave ausente");
+    
+    if (!process.env.OPENAI_API_KEY) {
+      console.error("OPENAI_API_KEY não está configurada nas variáveis de ambiente!");
+      return NextResponse.json(
+        { error: "API key não configurada" },
+        { status: 500 }
+      );
+    }
+    
     const response = await fetch(
       "https://api.openai.com/v1/realtime/sessions",
       {
@@ -15,12 +27,28 @@ export async function GET() {
         }),
       }
     );
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Erro na resposta da API da OpenAI:", response.status, errorText);
+      return NextResponse.json(
+        { error: `API OpenAI retornou ${response.status}: ${errorText}` },
+        { status: response.status }
+      );
+    }
+    
     const data = await response.json();
+    console.log("Resposta da API:", JSON.stringify(data, null, 2));
+    
+    if (!data.client_secret?.value) {
+      console.error("Resposta da API não contém client_secret.value:", data);
+    }
+    
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error in /session:", error);
+    console.error("Erro detalhado em /session:", error);
     return NextResponse.json(
-      { error: "Internal Server Error" },
+      { error: "Internal Server Error", details: error.message },
       { status: 500 }
     );
   }

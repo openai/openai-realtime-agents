@@ -1,5 +1,5 @@
 // src/app/simple/components/PushToTalkButton.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useConnection } from '../contexts/ConnectionContext';
 import { useUI } from '../contexts/UIContext';
 
@@ -8,10 +8,21 @@ const PushToTalkButton: React.FC = () => {
   const { agentIsSpeaking } = useUI();
   const isConnected = state.status === 'connected';
   
+  // Não precisamos mais de uma conexão iniciada manualmente
+  // Agora a conexão é iniciada automaticamente no ConnectionContext
+  
+  // No entanto, mantemos o botão para mostrar o status e para desconectar se necessário
   return (
     <button
       className={`ptt-button ${isConnected ? (agentIsSpeaking ? "speaking" : "") : "paused"}`}
-      onClick={() => isConnected ? disconnect() : connect()}
+      onClick={() => {
+        if (isConnected) {
+          disconnect();
+        } else {
+          connect();
+        }
+      }}
+      title={isConnected ? "Desconectar" : "Reconectar"}
     />
   );
 };
