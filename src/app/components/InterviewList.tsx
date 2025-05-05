@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { Interview } from "../lib/types";
 import NextLink from "next/link";
-import { Link as LinkIcon } from "lucide-react";
+import { Link as LinkIcon, MoreVertical } from "lucide-react";
 
 export default function InterviewList() {
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [copiedInterviewId, setCopiedInterviewId] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchInterviews = async () => {
@@ -34,15 +35,53 @@ export default function InterviewList() {
     fetchInterviews();
   }, []);
 
-  const handleCopyLink = (inviteToken: string, id: string) => {
+  const handleCopyLink = async (inviteToken: string, id: string) => {
     if (!inviteToken) return;
     const url = `${window.location.origin}/i/${inviteToken}`;
-    navigator.clipboard.writeText(url).then(() => {
+
+    // Try Web Share API first (better UX on mobile)
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Volta Interview", url });
+        setCopiedInterviewId(id);
+        return;
+      } catch (err) {
+        // user cancelled or share failed, fall back below
+      }
+    }
+
+    // Clipboard API (requires secure context)
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(url);
+        setCopiedInterviewId(id);
+        setTimeout(() => setCopiedInterviewId(null), 2000);
+        return;
+      } catch (err) {
+        console.warn("Clipboard API failed, falling back", err);
+      }
+    }
+
+    // Fallback to textarea + execCommand
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.value = url;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
       setCopiedInterviewId(id);
       setTimeout(() => setCopiedInterviewId(null), 2000);
-    }).catch(err => {
-      console.error('Failed to copy link:', err);
-    });
+    } catch (err) {
+      alert(`Copy this link: ${url}`);
+    }
+  };
+
+  const toggleMenu = (id: string) => {
+    setOpenMenuId((prev) => (prev === id ? null : id));
   };
 
   if (loading) {
@@ -98,48 +137,40 @@ export default function InterviewList() {
                   </span>
                 </p>
               </div>
-              <div className="flex space-x-3">
-                <NextLink 
-                  href={`/interviews/${interview.id}`}
-                  className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors shadow-sm"
-                >
-                  View
-                </NextLink>
-                {interview.status !== "completed" && (
-                  <NextLink 
-                    href={`/interviews/${interview.id}`}
-                    className="px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors shadow-sm"
-                  >
-                    Conduct
-                  </NextLink>
-                )}
-                <NextLink 
-                  href={`/app?interviewId=${interview.id}`}
-                  className="px-4 py-2 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-md transition-colors shadow-sm flex items-center"
-                >
-                  <svg 
-                    className="w-4 h-4 mr-1" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24" 
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round" 
-                      strokeWidth={2} 
-                      d="M13 10V3L4 14h7v7l9-11h-7z" 
-                    />
-                  </svg>
-                  Launch AI
-                </NextLink>
+              <div className="relative">
                 <button
-                  onClick={() => handleCopyLink(interview.invite_token, interview.id)}
-                  className="px-4 py-2 text-sm bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-md transition-colors shadow-sm flex items-center"
+                  onClick={() => toggleMenu(interview.id)}
+                  className="p-2 rounded-full hover:bg-gray-200 text-gray-600"
                 >
-                  <LinkIcon className="w-4 h-4 mr-1" />
-                  {copiedInterviewId === interview.id ? 'Copied!' : 'Share Link'}
+                  <MoreVertical className="w-5 h-5" />
                 </button>
+
+                {openMenuId === interview.id && (
+                  <div className="absolute right-0 mt-2 w-40 bg-white border border-gray-200 rounded-md shadow-lg z-20">
+                    <NextLink
+                      href={`/interviews/${interview.id}`}
+                      className="block px-4 py-2 text-sm hover:bg-gray-100 text-gray-700"
+                    >
+                      View Details
+                    </NextLink>
+                    <NextLink
+                      href={`/app?interviewId=${interview.id}`}
+                      className="block px-4 py-2 text-sm hover:bg-gray-100 text-gray-700"
+                    >
+                      Launch AI
+                    </NextLink>
+                    <button
+                      onClick={() => {
+                        handleCopyLink(interview.invite_token, interview.id);
+                        setOpenMenuId(null);
+                      }}
+                      className="flex w-full px-4 py-2 text-sm hover:bg-gray-100 text-gray-700 items-center gap-2"
+                    >
+                      <LinkIcon className="w-4 h-4" />
+                      {copiedInterviewId === interview.id ? 'Copied!' : 'Share Link'}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
             
