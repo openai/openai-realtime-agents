@@ -1,6 +1,48 @@
 // File: src/app/agentConfigs/marlene.ts
 import { AgentConfig } from "@/app/types";
-import { injectTransferTools, uiEventTool, openCameraTool, closeCameraTool } from "./utils";
+import { injectTransferTools } from "./utils";
+
+// Define UI event tool
+const uiEventTool = {
+  type: "function",
+  name: "ui_event",
+  description: "Triggers UI events in the client interface",
+  parameters: {
+    type: "object",
+    properties: {
+      name: {
+        type: "string",
+        description: "Name of the event"
+      },
+      icon: {
+        type: "string",
+        description: "Icon to display"
+      },
+      color: {
+        type: "string",
+        description: "Color of the icon"
+      }
+    },
+    required: ["name", "icon", "color"]
+  }
+};
+
+// Define camera tools
+const openCameraTool = {
+  type: "function",
+  name: "open_camera",
+  description:
+    "Pede permissão ao usuário e ativa a câmera do dispositivo para verificação. Use em um momento natural da conversa, após explicar a necessidade.",
+  parameters: { type: "object", properties: {}, required: [] },
+};
+
+const closeCameraTool = {
+  type: "function",
+  name: "close_camera",
+  description:
+    "Fecha a câmera do dispositivo após a verificação estar completa.",
+  parameters: { type: "object", properties: {}, required: [] },
+};
 
 const marlene: AgentConfig = {
   name: "marlene",
@@ -227,195 +269,198 @@ Sempre que precisar explicar conceitos financeiros, use analogias do cotidiano:
     closeCameraTool,
   ],
   toolLogic: {
-toolLogic: {
-  verifyCustomerInfo: ({ customerName, benefitNumber }) => {
-    console.log(`[toolLogic] Verificando cliente: ${customerName}, benefício: ${benefitNumber || "não fornecido"}`);
+    verifyCustomerInfo: ({ customerName, benefitNumber }) => {
+      console.log(`[toolLogic] Verificando cliente: ${customerName}, benefício: ${benefitNumber || "não fornecido"}`);
+      
+      // Simulação simples de verificação
+      return {
+        isVerified: true,
+        customerInfo: {
+          fullName: customerName || "Cliente",
+          benefitType: "Aposentadoria por Tempo de Contribuição",
+          availableLimit: "R$ 15.000,00",
+          benefitValue: 1800, // Valor do benefício para cálculos
+          // Simplificado para facilitar compreensão
+          marginPercent: 30,
+          marginValue: 540 // 30% de 1800
+        }
+      };
+    },
     
-    // Simulação simples de verificação
-    return {
-      isVerified: true,
-      customerInfo: {
-        fullName: customerName || "Cliente",
-        benefitType: "Aposentadoria por Tempo de Contribuição",
-        availableLimit: "R$ 15.000,00",
-        benefitValue: 1800, // Valor do benefício para cálculos
-        // Simplificado para facilitar compreensão
-        marginPercent: 30,
-        marginValue: 540 // 30% de 1800
+    simulateLoan: ({ desiredAmount, benefitValue = 1800 }) => {
+      console.log(`[toolLogic] Simulando empréstimo: valor desejado: ${desiredAmount || "não especificado"}`);
+      
+      // Cálculo simplificado para facilitar compreensão
+      const amount = desiredAmount || 10000; // Valor padrão
+      const rate = 0.018; // 1.8% a.m.
+      const term = 60; // 5 anos (60 meses)
+      
+      // Cálculo simplificado da parcela
+      const monthlyPayment = Math.round(amount * (rate * Math.pow(1 + rate, term)) / 
+                            (Math.pow(1 + rate, term) - 1));
+      
+      // Impacto no benefício (para facilitar compreensão)
+      const impactPercent = Math.round((monthlyPayment / benefitValue) * 100);
+      
+      return {
+        loanAmount: `R$ ${amount.toLocaleString('pt-BR')}`,
+        installments: term,
+        monthlyPayment: `R$ ${monthlyPayment.toLocaleString('pt-BR')}`,
+        impactOnBenefit: `${impactPercent}%`,
+        remainingBenefit: `R$ ${(benefitValue - monthlyPayment).toLocaleString('pt-BR')}`,
+        // Explicação simplificada
+        simplifiedExplanation: `De um benefício de R$ ${benefitValue}, 
+                              R$ ${monthlyPayment} serão para o empréstimo e 
+                              R$ ${benefitValue - monthlyPayment} continuarão vindo normalmente todo mês`
+      };
+    },
+    
+    handleCameraError: ({ errorType, alternativeMethod }) => {
+      console.log(`[toolLogic] Tratando erro de câmera: ${errorType}`);
+      
+      const errorMessages = {
+        "permission_denied": "parece que não conseguimos permissão para usar a câmera",
+        "device_unavailable": "parece que a câmera não está disponível no momento",
+        "timeout": "a verificação demorou mais que o esperado",
+        "other": "estamos tendo um problema com a verificação"
+      };
+      
+      const alternativeMethods = {
+        "try_again": {
+          message: "Podemos tentar novamente. Às vezes é só tocar de novo no botão da câmera.",
+          steps: ["Vamos tentar mais uma vez", "Toque no botão da câmera quando aparecer"]
+        },
+        "phone_verification": {
+          message: "Podemos enviar um código por mensagem para o seu celular.",
+          steps: ["Vou enviar um código de 5 números para seu celular", "Quando receber, me diga quais são os números"]
+        },
+        "in_person_verification": {
+          message: "Podemos fazer a verificação aqui mesmo com seus documentos.",
+          steps: ["Vou precisar ver seu documento com foto", "É só um minutinho para confirmar"]
+        }
+      };
+      
+      return {
+        errorHandled: true,
+        userMessage: `Dona Maria, ${errorMessages[errorType]}. Não se preocupe, temos um jeito mais fácil.`,
+        alternativeProcess: alternativeMethods[alternativeMethod || "phone_verification"],
+        // Simula envio de código se for verificação por telefone
+        verificationCode: alternativeMethod === "phone_verification" ? "12345" : null
+      };
+    },
+    
+    includeCompanion: ({ hasCompanion, relationshipType }) => {
+      console.log(`[toolLogic] Ajustando para acompanhante: ${hasCompanion}, tipo: ${relationshipType || "não especificado"}`);
+      
+      if (!hasCompanion) {
+        return {
+          adjustedStrategy: "direct_communication",
+          suggestions: [
+            "Use linguagem ainda mais simples e visual",
+            "Ofereça ajuda frequentemente para interações digitais",
+            "Verifique compreensão com mais frequência"
+          ]
+        };
       }
-    };
+      
+      // Estratégias específicas por tipo de relação
+      const strategies = {
+        "filho(a)": {
+          role: "mediador_principal",
+          approach: "Inclua nas explicações, mas mantenha as decisões com o beneficiário",
+          suggestedPrompts: [
+            "Seu/Sua filho(a) está acompanhando, então vou explicar para vocês dois",
+            "A senhora pode pedir ajuda dele(a) para a parte da câmera"
+          ]
+        },
+        "cônjuge": {
+          role: "parceiro_decisão",
+          approach: "Trate como decisão conjunta, direcione-se a ambos igualmente",
+          suggestedPrompts: [
+            "Os dois estão de acordo com esses valores?",
+            "Vocês preferem uma parcela menor?"
+          ]
+        },
+        "neto(a)": {
+          role: "suporte_tecnológico",
+          approach: "Utilize para auxílio tecnológico, mas direcione decisões ao idoso",
+          suggestedPrompts: [
+            "Seu/Sua neto(a) pode ajudar com a câmera, mas quero confirmar se a senhora está de acordo"
+          ]
+        },
+        "default": {
+          role: "auxiliar",
+          approach: "Reconheça presença, mas foque comunicação no beneficiário",
+          suggestedPrompts: [
+            "Que bom que a senhora veio com alguém, isso ajuda",
+            "Vou explicar para a senhora, e se tiver dúvida pode perguntar também"
+          ]
+        }
+      };
+      
+      return {
+        adjustedStrategy: "companion_included",
+        companionStrategy: strategies[relationshipType] || strategies["default"],
+        verificationRecommendation: "Ainda assim, verifique consentimento direto do beneficiário"
+      };
+    },
+    
+    simplifyFinancialExplanation: ({ concept, context }) => {
+      console.log(`[toolLogic] Simplificando explicação: ${concept}, contexto: ${context || "geral"}`);
+      
+      // Analogias e explicações adequadas para baixa alfabetização e letramento financeiro
+      const explanations = {
+        "juros": {
+          simple: "É como um aluguel que a senhora paga por usar o dinheiro do banco",
+          visual: "Imagine que a senhora pediu R$ 100 emprestado do vizinho. Quando devolver, dá R$ 100 e mais R$ 2 de agradecimento. Esses R$ 2 são como os juros",
+          audio: "Os juros são um valor a mais que a senhora paga por pegar emprestado. Como quando pede açúcar emprestado e devolve o açúcar e mais um pouquinho de agradecimento"
+        },
+        "parcela": {
+          simple: "É quanto vai ser descontado do seu benefício todo mês",
+          visual: "É como a conta de luz que vem todo mês, com valor parecido",
+          audio: "A parcela é o dinheirinho que sai do seu benefício todo mês, antes de chegar na sua mão ou no banco"
+        },
+        "prazo": {
+          simple: "É por quanto tempo a senhora vai pagar a parcela",
+          visual: "Como um calendário onde a senhora marca 60 meses (5 anos) pagando um pouquinho cada mês",
+          audio: "O prazo é o tempo que a senhora vai ficar pagando. Se for 60 meses, são 5 anos pagando um pouquinho todo mês"
+        },
+        "margem_consignavel": {
+          simple: "É a parte do seu benefício que a lei permite usar para pagar empréstimos",
+          visual: "Imagine que o benefício é um bolo. A lei diz que só podemos usar 30% do bolo para pagar empréstimos. O resto precisa ficar para a senhora usar no dia a dia",
+          audio: "A margem é uma parte do seu benefício que pode ser usada para o empréstimo. A lei não deixa usar todo o benefício, para garantir que sempre sobra dinheiro para a senhora viver"
+        },
+        "valor_total": {
+          simple: "É tudo que a senhora vai pagar até o final, somando todas as parcelas",
+          visual: "Se a senhora paga R$ 200 por mês, durante 60 meses, o total é R$ 12.000",
+          audio: "O valor total é a soma de todas as parcelinhas que a senhora vai pagar do começo até o fim do empréstimo"
+        }
+      };
+      
+      // Formatos de comunicação adaptados
+      const formats = {
+        simple: explanations[concept]?.simple || "Não tenho uma explicação simplificada para esse conceito",
+        visual: explanations[concept]?.visual || "Não tenho uma explicação visual para esse conceito",
+        audio: explanations[concept]?.audio || "Não tenho uma explicação em áudio para esse conceito",
+        // Combinação recomendada para maior compreensão
+        combined: explanations[concept] ? `${explanations[concept].simple}. ${explanations[concept].visual}` : 
+                  "Não tenho uma explicação para esse conceito"
+      };
+      
+      return {
+        concept: concept,
+        recommendedExplanation: formats.combined,
+        visualExplanation: formats.visual,
+        audioExplanation: formats.audio,
+        // Ícones para representação visual (para baixa alfabetização)
+        associatedIcon: concept === "juros" ? "💰➕" : 
+                      concept === "parcela" ? "📆💵" :
+                      concept === "prazo" ? "🗓️" :
+                      concept === "margem_consignavel" ? "🍰✂️" :
+                      concept === "valor_total" ? "💵💵💵" : "❓"
+      };
+    }
   },
-  
-  simulateLoan: ({ desiredAmount, benefitValue = 1800 }) => {
-    console.log(`[toolLogic] Simulando empréstimo: valor desejado: ${desiredAmount || "não especificado"}`);
-    
-    // Cálculo simplificado para facilitar compreensão
-    const amount = desiredAmount || 10000; // Valor padrão
-    const rate = 0.018; // 1.8% a.m.
-    const term = 60; // 5 anos (60 meses)
-    
-    // Cálculo simplificado da parcela
-    const monthlyPayment = Math.round(amount * (rate * Math.pow(1 + rate, term)) / 
-                          (Math.pow(1 + rate, term) - 1));
-    
-    // Impacto no benefício (para facilitar compreensão)
-    const impactPercent = Math.round((monthlyPayment / benefitValue) * 100);
-    
-    return {
-      loanAmount: `R$ ${amount.toLocaleString('pt-BR')}`,
-      installments: term,
-      monthlyPayment: `R$ ${monthlyPayment.toLocaleString('pt-BR')}`,
-      impactOnBenefit: `${impactPercent}%`,
-      remainingBenefit: `R$ ${(benefitValue - monthlyPayment).toLocaleString('pt-BR')}`,
-      // Explicação simplificada
-      simplifiedExplanation: `De um benefício de R$ ${benefitValue}, 
-                             R$ ${monthlyPayment} serão para o empréstimo e 
-                             R$ ${benefitValue - monthlyPayment} continuarão vindo normalmente todo mês`
-    };
-  }
-},
-handleCameraError: ({ errorType, alternativeMethod }) => {
-  console.log(`[toolLogic] Tratando erro de câmera: ${errorType}`);
-  
-  const errorMessages = {
-    "permission_denied": "parece que não conseguimos permissão para usar a câmera",
-    "device_unavailable": "parece que a câmera não está disponível no momento",
-    "timeout": "a verificação demorou mais que o esperado",
-    "other": "estamos tendo um problema com a verificação"
-  };
-  
-  const alternativeMethods = {
-    "try_again": {
-      message: "Podemos tentar novamente. Às vezes é só tocar de novo no botão da câmera.",
-      steps: ["Vamos tentar mais uma vez", "Toque no botão da câmera quando aparecer"]
-    },
-    "phone_verification": {
-      message: "Podemos enviar um código por mensagem para o seu celular.",
-      steps: ["Vou enviar um código de 5 números para seu celular", "Quando receber, me diga quais são os números"]
-    },
-    "in_person_verification": {
-      message: "Podemos fazer a verificação aqui mesmo com seus documentos.",
-      steps: ["Vou precisar ver seu documento com foto", "É só um minutinho para confirmar"]
-    }
-  };
-  
-  return {
-    errorHandled: true,
-    userMessage: `Dona Maria, ${errorMessages[errorType]}. Não se preocupe, temos um jeito mais fácil.`,
-    alternativeProcess: alternativeMethods[alternativeMethod || "phone_verification"],
-    // Simula envio de código se for verificação por telefone
-    verificationCode: alternativeMethod === "phone_verification" ? "12345" : null
-  };
-},
-includeCompanion: ({ hasCompanion, relationshipType }) => {
-  console.log(`[toolLogic] Ajustando para acompanhante: ${hasCompanion}, tipo: ${relationshipType || "não especificado"}`);
-  
-  if (!hasCompanion) {
-    return {
-      adjustedStrategy: "direct_communication",
-      suggestions: [
-        "Use linguagem ainda mais simples e visual",
-        "Ofereça ajuda frequentemente para interações digitais",
-        "Verifique compreensão com mais frequência"
-      ]
-    };
-  }
-  
-  // Estratégias específicas por tipo de relação
-  const strategies = {
-    "filho(a)": {
-      role: "mediador_principal",
-      approach: "Inclua nas explicações, mas mantenha as decisões com o beneficiário",
-      suggestedPrompts: [
-        "Seu/Sua filho(a) está acompanhando, então vou explicar para vocês dois",
-        "A senhora pode pedir ajuda dele(a) para a parte da câmera"
-      ]
-    },
-    "cônjuge": {
-      role: "parceiro_decisão",
-      approach: "Trate como decisão conjunta, direcione-se a ambos igualmente",
-      suggestedPrompts: [
-        "Os dois estão de acordo com esses valores?",
-        "Vocês preferem uma parcela menor?"
-      ]
-    },
-    "neto(a)": {
-      role: "suporte_tecnológico",
-      approach: "Utilize para auxílio tecnológico, mas direcione decisões ao idoso",
-      suggestedPrompts: [
-        "Seu/Sua neto(a) pode ajudar com a câmera, mas quero confirmar se a senhora está de acordo"
-      ]
-    },
-    "default": {
-      role: "auxiliar",
-      approach: "Reconheça presença, mas foque comunicação no beneficiário",
-      suggestedPrompts: [
-        "Que bom que a senhora veio com alguém, isso ajuda",
-        "Vou explicar para a senhora, e se tiver dúvida pode perguntar também"
-      ]
-    }
-  };
-  
-  return {
-    adjustedStrategy: "companion_included",
-    companionStrategy: strategies[relationshipType] || strategies["default"],
-    verificationRecommendation: "Ainda assim, verifique consentimento direto do beneficiário"
-  };
-},
-simplifyFinancialExplanation: ({ concept, context }) => {
-  console.log(`[toolLogic] Simplificando explicação: ${concept}, contexto: ${context || "geral"}`);
-  
-  // Analogias e explicações adequadas para baixa alfabetização e letramento financeiro
-  const explanations = {
-    "juros": {
-      simple: "É como um aluguel que a senhora paga por usar o dinheiro do banco",
-      visual: "Imagine que a senhora pediu R$ 100 emprestado do vizinho. Quando devolver, dá R$ 100 e mais R$ 2 de agradecimento. Esses R$ 2 são como os juros",
-      audio: "Os juros são um valor a mais que a senhora paga por pegar emprestado. Como quando pede açúcar emprestado e devolve o açúcar e mais um pouquinho de agradecimento"
-    },
-    "parcela": {
-      simple: "É quanto vai ser descontado do seu benefício todo mês",
-      visual: "É como a conta de luz que vem todo mês, com valor parecido",
-      audio: "A parcela é o dinheirinho que sai do seu benefício todo mês, antes de chegar na sua mão ou no banco"
-    },
-    "prazo": {
-      simple: "É por quanto tempo a senhora vai pagar a parcela",
-      visual: "Como um calendário onde a senhora marca 60 meses (5 anos) pagando um pouquinho cada mês",
-      audio: "O prazo é o tempo que a senhora vai ficar pagando. Se for 60 meses, são 5 anos pagando um pouquinho todo mês"
-    },
-    "margem_consignavel": {
-      simple: "É a parte do seu benefício que a lei permite usar para pagar empréstimos",
-      visual: "Imagine que o benefício é um bolo. A lei diz que só podemos usar 30% do bolo para pagar empréstimos. O resto precisa ficar para a senhora usar no dia a dia",
-      audio: "A margem é uma parte do seu benefício que pode ser usada para o empréstimo. A lei não deixa usar todo o benefício, para garantir que sempre sobra dinheiro para a senhora viver"
-    },
-    "valor_total": {
-      simple: "É tudo que a senhora vai pagar até o final, somando todas as parcelas",
-      visual: "Se a senhora paga R$ 200 por mês, durante 60 meses, o total é R$ 12.000",
-      audio: "O valor total é a soma de todas as parcelinhas que a senhora vai pagar do começo até o fim do empréstimo"
-    }
-  };
-  
-  // Formatos de comunicação adaptados
-  const formats = {
-    simple: explanations[concept].simple,
-    visual: explanations[concept].visual,
-    audio: explanations[concept].audio,
-    // Combinação recomendada para maior compreensão
-    combined: `${explanations[concept].simple}. ${explanations[concept].visual}`
-  };
-  
-  return {
-    concept: concept,
-    recommendedExplanation: formats.combined,
-    visualExplanation: formats.visual,
-    audioExplanation: formats.audio,
-    // Ícones para representação visual (para baixa alfabetização)
-    associatedIcon: concept === "juros" ? "💰➕" : 
-                  concept === "parcela" ? "📆💵" :
-                  concept === "prazo" ? "🗓️" :
-                  concept === "margem_consignavel" ? "🍰✂️" :
-                  concept === "valor_total" ? "💵💵💵" : "❓"
-  };
-},
   downstreamAgents: []
 };
 
