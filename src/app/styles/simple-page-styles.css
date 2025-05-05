@@ -476,17 +476,17 @@
 
 /* camera preview */
 .camera-bubble {
-  position: absolute;
-  bottom: 100px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 160px;
-  height: 140px;
-  border-radius: 16px;
-  overflow: hidden;
-  z-index: 12;
-  box-shadow: 0 8px 16px rgba(0,0,0,0.3);
-  animation: float 3s ease-in-out infinite;
+    position: absolute;
+    bottom: 180px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 180px;
+    height: 280px;
+    border-radius: 16px;
+    overflow: hidden;
+    z-index: 12;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+    animation: float 3s ease-in-out infinite;
 }
 @keyframes float {
   0%,100% { transform: translate(-50%, 0); }
