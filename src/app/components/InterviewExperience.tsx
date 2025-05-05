@@ -148,13 +148,21 @@ const InterviewExperience: React.FC<InterviewExperienceProps> = ({
         lastUserMessages.includes(keyword)
       ).length;
       
-      if (matchCount >= 2 && i === currentQuestionIndex + 1) {
+      // Detect the very first question (index 0) as well as subsequent questions.
+      //  - If we haven't recognised any question yet, allow i === 0 to trigger.
+      //  - For later questions, keep the sequential safeguard (i === currentQuestionIndex + 1).
+      const isFirstQuestionMatch = !hasFirstQuestionBeenAsked && i === 0;
+      const isNextSequentialMatch = i === currentQuestionIndex + 1;
+
+      if (matchCount >= 2 && (isFirstQuestionMatch || isNextSequentialMatch)) {
         setCurrentQuestionIndex(i);
         setQuestionHistory((prev) => {
           if (prev.includes(questions[i])) return prev;
           return [...prev, questions[i]];
         });
-        if (i === 0) setHasFirstQuestionBeenAsked(true);
+        if (isFirstQuestionMatch) {
+          setHasFirstQuestionBeenAsked(true);
+        }
         break;
       }
     }
