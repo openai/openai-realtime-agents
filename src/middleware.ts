@@ -15,8 +15,9 @@ export async function middleware(req: NextRequest) {
   // Allow public access to interview invite links and the app page used for interview sessions
   const isPublicInviteRoute = req.nextUrl.pathname.startsWith('/i');
   const isPublicAppRoute = req.nextUrl.pathname.startsWith('/app');
+  const isAuthCallbackRoute = req.nextUrl.pathname.startsWith('/auth/callback')
 
-  if (!session && !req.nextUrl.pathname.startsWith('/login') && !isPublicInviteRoute && !isPublicAppRoute) {
+  if (!session && !req.nextUrl.pathname.startsWith('/login') && !isPublicInviteRoute && !isPublicAppRoute && !isAuthCallbackRoute) {
     const redirectUrl = req.nextUrl.clone()
     redirectUrl.pathname = '/login'
     return NextResponse.redirect(redirectUrl)

@@ -23,6 +23,7 @@ export function LoginForm({
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [magicLinkSent, setMagicLinkSent] = useState(false)
   const router = useRouter()
   const supabase = getSupabaseClient()
 
@@ -48,6 +49,29 @@ export function LoginForm({
       router.push("/")
     } catch (err: any) {
       setError(err.message || "Failed to login")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleMagicLink = async () => {
+    if (!email) {
+      setError("Please enter your email to receive a magic link")
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+      if (error) throw error
+      setMagicLinkSent(true)
+    } catch (err: any) {
+      setError(err.message || "Failed to send magic link")
     } finally {
       setLoading(false)
     }
@@ -91,6 +115,15 @@ export function LoginForm({
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Logging in..." : "Login"}
+              </Button>
+              <Button
+                variant="outline"
+                type="button"
+                className="w-full"
+                onClick={handleMagicLink}
+                disabled={loading}
+              >
+                {magicLinkSent ? "Magic link sent!" : "Send magic link"}
               </Button>
             </div>
           </form>
