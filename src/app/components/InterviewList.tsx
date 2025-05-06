@@ -39,17 +39,6 @@ export default function InterviewList() {
     if (!inviteToken) return;
     const url = `${window.location.origin}/i/${inviteToken}`;
 
-    // Try Web Share API first (better UX on mobile)
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: "Volta Interview", url });
-        setCopiedInterviewId(id);
-        return;
-      } catch {
-        // user cancelled or share failed, fall back below
-      }
-    }
-
     // Clipboard API (requires secure context)
     if (navigator.clipboard?.writeText) {
       try {
@@ -185,7 +174,7 @@ export default function InterviewList() {
                       className="flex w-full px-4 py-2 text-sm hover:bg-gray-100 text-gray-700 items-center gap-2"
                     >
                       <LinkIcon className="w-4 h-4" />
-                      {copiedInterviewId === interview.id ? 'Copied!' : 'Share Link'}
+                      {copiedInterviewId === interview.id ? 'Copied!' : 'Copy Link'}
                     </button>
                     <button
                       onClick={() => {
