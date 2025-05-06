@@ -103,12 +103,29 @@ function App() {
     }
   };
 
+  // React when agent marks interview complete
+  const handleFunctionResult = (name: string, result: any) => {
+    if (
+      name === "markInterviewCompleted" &&
+      result?.success &&
+      isCandidateView &&
+      isInterviewMode
+    ) {
+      // Give slight delay for disconnect then redirect
+      setTimeout(() => {
+        router.push("/i/thank-you");
+      }, 300);
+    }
+  };
+
   const handleServerEventRef = useHandleServerEvent({
     setSessionStatus,
     selectedAgentName,
     selectedAgentConfigSet,
     sendClientEvent,
     setSelectedAgentName,
+    customAgentConfig,
+    onFunctionResult: handleFunctionResult,
   });
 
   useEffect(() => {
@@ -215,6 +232,11 @@ function App() {
 
       dc.addEventListener("open", () => {
         logClientEvent({}, "data_channel.open");
+        if (customAgentConfig) {
+          updateSessionWithCustomConfig(false);
+        } else if (selectedAgentConfigSet && selectedAgentName) {
+          updateSession(false);
+        }
       });
       dc.addEventListener("close", () => {
         logClientEvent({}, "data_channel.close");

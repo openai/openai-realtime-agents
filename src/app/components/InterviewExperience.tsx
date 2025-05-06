@@ -130,39 +130,35 @@ const InterviewExperience: React.FC<InterviewExperienceProps> = ({
   useEffect(() => {
     if (!interview || !interview.questions || transcriptItems.length === 0) return;
     
-    const questions = interview.questions.map((q: any) => q.text.toLowerCase());
-    const lastUserMessages = transcriptItems
-      .filter((item) => item.role === "assistant" && !item.isHidden)
-      .map((item) => item.title)
-      .slice(-5)
-      .join(" ")
-      .toLowerCase();
-    
-    for (let i = 0; i < questions.length; i++) {
-      const questionKeywords = questions[i]
-        .split(" ")
-        .filter((word: string) => word.length > 4)
-        .slice(0, 5);
-      
-      const matchCount = questionKeywords.filter((keyword: string) => 
-        lastUserMessages.includes(keyword)
-      ).length;
-      
-      // Detect the very first question (index 0) as well as subsequent questions.
-      //  - If we haven't recognised any question yet, allow i === 0 to trigger.
-      //  - For later questions, keep the sequential safeguard (i === currentQuestionIndex + 1).
-      const isFirstQuestionMatch = !hasFirstQuestionBeenAsked && i === 0;
-      const isNextSequentialMatch = i === currentQuestionIndex + 1;
+    const normalize = (s: string) =>
+      s.toLowerCase().replace(/[^\w\s]/g, "");
 
-      if (matchCount >= 2 && (isFirstQuestionMatch || isNextSequentialMatch)) {
+    const lastAssistantMsg = [...transcriptItems]
+      .reverse()
+      .find((item) => item.role === "assistant" && !item.isHidden);
+
+    if (!lastAssistantMsg) return;
+
+    const msgNorm = normalize(lastAssistantMsg.title || "");
+
+    for (let i = 0; i < interview.questions.length; i++) {
+      const qNorm = normalize(interview.questions[i].text);
+      const words = qNorm.split(/\s+/).filter(Boolean);
+      if (words.length === 0) continue;
+
+      const overlap = words.filter((w) => msgNorm.includes(w)).length;
+      const ratio = overlap / words.length;
+
+      const isFirstQuestionMatch = !hasFirstQuestionBeenAsked && i === 0;
+      const isNextSequential = i === currentQuestionIndex + 1;
+
+      if ((ratio >= 0.6 && (isFirstQuestionMatch || isNextSequential))) {
         setCurrentQuestionIndex(i);
         setQuestionHistory((prev) => {
-          if (prev.includes(questions[i])) return prev;
-          return [...prev, questions[i]];
+          if (prev.includes(interview.questions[i].text.toLowerCase())) return prev;
+          return [...prev, interview.questions[i].text.toLowerCase()];
         });
-        if (isFirstQuestionMatch) {
-          setHasFirstQuestionBeenAsked(true);
-        }
+        if (isFirstQuestionMatch) setHasFirstQuestionBeenAsked(true);
         break;
       }
     }

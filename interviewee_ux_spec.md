@@ -39,6 +39,12 @@ Trigger: Client detects assistant's **final** message + session disconnect → s
 Action:
 * After 500 ms debounce, if `isCandidateView && isInterviewMode && sessionStatus === DISCONNECTED` → `router.push("/i/thank-you")`.
 
+_New in v2 – agent-driven completion_
+
+* When the agent reaches its `wrap_up` conversation state it calls the function `markInterviewCompleted` with `{ "interview_id": <uuid> }`.
+* The front-end handles this function call (via `toolLogic`) which hits `POST /api/interviews/complete` and updates the DB.
+* The subsequent disconnect triggers the existing redirect logic above.
+
 ### Thank-You screen (`/i/thank-you`)
 * Large headline: "Thank you for your time!"
 * Sub-text: "You may now close this tab or return to Volta."

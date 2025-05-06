@@ -11,7 +11,9 @@ export interface UseHandleServerEventParams {
   selectedAgentConfigSet: AgentConfig[] | null;
   sendClientEvent: (eventObj: any, eventNameSuffix?: string) => void;
   setSelectedAgentName: (name: string) => void;
+  customAgentConfig?: AgentConfig | null;
   shouldForceResponse?: boolean;
+  onFunctionResult?: (name: string, result: any) => void;
 }
 
 export function useHandleServerEvent({
@@ -20,6 +22,8 @@ export function useHandleServerEvent({
   selectedAgentConfigSet,
   sendClientEvent,
   setSelectedAgentName,
+  customAgentConfig,
+  onFunctionResult,
 }: UseHandleServerEventParams) {
   const {
     transcriptItems,
@@ -39,7 +43,7 @@ export function useHandleServerEvent({
     const args = JSON.parse(functionCallParams.arguments);
     const currentAgent = selectedAgentConfigSet?.find(
       (a) => a.name === selectedAgentName
-    );
+    ) || customAgentConfig || null;
 
     addTranscriptBreadcrumb(`function call: ${functionCallParams.name}`, args);
 
@@ -60,6 +64,10 @@ export function useHandleServerEvent({
         },
       });
       sendClientEvent({ type: "response.create" });
+
+      if (onFunctionResult) {
+        onFunctionResult(functionCallParams.name, fnResult);
+      }
     } else if (functionCallParams.name === "transferAgents") {
       const destinationAgent = args.destination_agent;
       const newAgentConfig =

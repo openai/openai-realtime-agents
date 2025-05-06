@@ -9,19 +9,34 @@ import SupportPersonSelector from "@/app/components/SupportPersonSelector";
 import { Company, Person, SupportEngagement } from "@/app/lib/types";
 import { defaultInterviewQuestions } from "@/app/lib/defaultInterviewQuestions";
 
+// Local type for question state with a stable id
+interface QuestionState {
+  id: string; // Stable unique identifier to use as React key
+  ordinal: number;
+  text: string;
+  context: string;
+}
+
 export default function CreateInterviewPage() {
   const router = useRouter();
   const [adminNotes, setAdminNotes] = useState("");
   const [isAdminNotesManuallyEdited, setIsAdminNotesManuallyEdited] = useState(false);
-  const [questions, setQuestions] = useState(() => 
-    // Initialize with default questions if available, otherwise start with an empty question
-    defaultInterviewQuestions.length > 0 
-      ? defaultInterviewQuestions.map(q => ({ 
-          ordinal: q.order, 
-          text: q.text, 
-          context: q.context || "" 
+  const [questions, setQuestions] = useState<QuestionState[]>(() =>
+    defaultInterviewQuestions.length > 0
+      ? defaultInterviewQuestions.map((q) => ({
+          id: crypto.randomUUID(),
+          ordinal: q.order,
+          text: q.text,
+          context: q.context || "",
         }))
-      : [{ ordinal: 1, text: "", context: "" }]
+      : [
+          {
+            id: crypto.randomUUID(),
+            ordinal: 1,
+            text: "",
+            context: "",
+          },
+        ]
   );
   
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
@@ -81,7 +96,12 @@ export default function CreateInterviewPage() {
     // Update the questions array
     setQuestions([
       ...questions,
-      { ordinal: questions.length + 1, text: "", context: "" }
+      {
+        id: crypto.randomUUID(),
+        ordinal: questions.length + 1,
+        text: "",
+        context: "",
+      },
     ]);
     
     // Update the refs array to match
@@ -97,7 +117,7 @@ export default function CreateInterviewPage() {
       const updatedQuestions = questions.filter((_, i) => i !== index);
       const reorderedQuestions = updatedQuestions.map((q, i) => ({
         ...q,
-        ordinal: i + 1
+        ordinal: i + 1,
       }));
       setQuestions(reorderedQuestions);
       
@@ -300,7 +320,7 @@ export default function CreateInterviewPage() {
 
           <div className="space-y-6">
             {questions.map((question, index) => (
-              <div key={index} className="bg-white p-5 rounded-md border border-gray-200 shadow-sm">
+              <div key={question.id} className="bg-white p-5 rounded-md border border-gray-200 shadow-sm">
                 <div className="flex justify-between items-start mb-3">
                   <div className="font-medium text-gray-900">Question {question.ordinal}</div>
                   {questions.length > 1 && (

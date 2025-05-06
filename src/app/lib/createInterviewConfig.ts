@@ -32,6 +32,7 @@ export interface InterviewWithRelations {
 
 import { startupInterviewerTemplate } from "@/app/agentConfigs/supportFeedback";
 import { AgentConfig } from "@/app/types";
+import { Tool } from "@/app/types";
 
 export function createInterviewAgentConfig(interview: InterviewWithRelations): AgentConfig {
   const agentConfig = { ...startupInterviewerTemplate };
@@ -102,8 +103,51 @@ export function createInterviewAgentConfig(interview: InterviewWithRelations): A
     instructions = instructions.replace(new RegExp(key, "g"), value);
   });
 
+  // Append clear guidance for marking interview complete via tool call
+  instructions += `\n\n# Post-Interview Action\nAfter you have thanked the interviewee and ended the conversation, call the function \\"markInterviewCompleted\\" with the argument:\n\n\u0060\u0060\u0060json\n{ \"interview_id\": \"${interview.id}\" }\n\u0060\u0060\u0060\n`;
+
+  // Define the tool the agent can call
+  const markCompleteTool: Tool = {
+    type: "function",
+    name: "markInterviewCompleted",
+    description: "Mark the interview as completed in the backend database.",
+    parameters: {
+      type: "object",
+      properties: {
+        interview_id: {
+          type: "string",
+          description: "The UUID of the interview to mark completed",
+        },
+      },
+      required: ["interview_id"],
+    },
+  };
+
+  // Tool logic for the function call (client-side) – fetches our API route
+  const toolLogic = {
+    markInterviewCompleted: async (args: { interview_id: string }) => {
+      try {
+        const res = await fetch("/api/interviews/complete", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ interviewId: args.interview_id }),
+        });
+        if (!res.ok) {
+          return { success: false, error: await res.text() };
+        }
+        return { success: true };
+      } catch (err: any) {
+        return { success: false, error: err?.message || "network_error" };
+      }
+    },
+  };
+
   return {
     ...agentConfig,
     instructions,
+    tools: [...(agentConfig.tools || []), markCompleteTool],
+    toolLogic,
   };
 } 

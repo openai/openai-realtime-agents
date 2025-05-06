@@ -80,6 +80,24 @@ export default function InterviewList() {
     }
   };
 
+  const handleDeleteInterview = async (id: string) => {
+    const confirmDelete = window.confirm("Are you sure you want to delete this interview? This action cannot be undone.");
+    if (!confirmDelete) return;
+
+    try {
+      const res = await fetch(`/api/interviews/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete interview");
+      }
+      // Optimistically remove from list
+      setInterviews((prev) => prev.filter((int) => int.id !== id));
+    } catch (err: any) {
+      alert(err.message || "Failed to delete interview");
+      console.error("Delete interview error", err);
+    }
+  };
+
   const toggleMenu = (id: string) => {
     setOpenMenuId((prev) => (prev === id ? null : id));
   };
@@ -168,6 +186,15 @@ export default function InterviewList() {
                     >
                       <LinkIcon className="w-4 h-4" />
                       {copiedInterviewId === interview.id ? 'Copied!' : 'Share Link'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setOpenMenuId(null);
+                        handleDeleteInterview(interview.id);
+                      }}
+                      className="flex w-full px-4 py-2 text-sm hover:bg-gray-100 text-red-600 items-center gap-2"
+                    >
+                      Delete Interview
                     </button>
                   </div>
                 )}
