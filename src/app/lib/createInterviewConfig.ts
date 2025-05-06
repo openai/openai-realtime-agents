@@ -74,7 +74,7 @@ export function createInterviewAgentConfig(interview: InterviewWithRelations): A
   const replacements: Record<string, string> = {
     "{{COMPANY_NAME}}": interview.company?.business_name || "the company",
     "{{PERSON_NAME}}": interview.person
-      ? `${interview.person.first_name} ${interview.person.last_name}`
+      ? `${interview.person.first_name}`
       : "the interviewee",
     "{{SUPPORT_TYPE}}": interview.support_engagement?.support_type || "support",
     "{{ENGAGEMENT_TITLE}}": interview.support_engagement?.title || "Support Engagement",

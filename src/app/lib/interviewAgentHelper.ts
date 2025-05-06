@@ -144,7 +144,7 @@ export function createInterviewAgentConfig(interview: InterviewWithRelations): A
   // Prepare replacement values
   const replacements: Record<string, string> = {
     '{{COMPANY_NAME}}': interview.company?.business_name || 'the company',
-    '{{PERSON_NAME}}': interview.person ? `${interview.person.first_name} ${interview.person.last_name}` : 'the interviewee',
+    '{{PERSON_NAME}}': interview.person ? `${interview.person.first_name}` : 'the interviewee',
     '{{SUPPORT_TYPE}}': interview.support_engagement?.support_type || 'support',
     '{{ENGAGEMENT_TITLE}}': interview.support_engagement?.title || 'Support Engagement',
     '{{ENGAGEMENT_DATE}}': interview.support_engagement?.date_identified || 'recent date',
