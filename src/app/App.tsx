@@ -25,6 +25,8 @@ import { createRealtimeConnection } from "./lib/realtimeConnection";
 // Agent configs
 import { allAgentSets, defaultAgentSetKey } from "@/app/agentConfigs";
 
+export const dynamic = 'force-dynamic';
+
 function App() {
   const searchParams = useSearchParams();
 
@@ -235,12 +237,12 @@ function App() {
     const turnDetection = isPTTActive
       ? null
       : {
-          type: "server_vad",
-          threshold: 0.5,
-          prefix_padding_ms: 300,
-          silence_duration_ms: 200,
-          create_response: true,
-        };
+        type: "server_vad",
+        threshold: 0.5,
+        prefix_padding_ms: 300,
+        silence_duration_ms: 200,
+        create_response: true,
+      };
 
     const instructions = currentAgent?.instructions || "";
     const tools = currentAgent?.tools || [];
