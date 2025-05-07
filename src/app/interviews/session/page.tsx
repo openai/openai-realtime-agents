@@ -46,6 +46,26 @@ function InterviewSessionContent() {
     logClientEvent({}, "interview_config_loaded");
   };
 
+  // Redirect to thank-you page after disconnect if interview marked completed
+  useEffect(() => {
+    if (sessionStatus !== "DISCONNECTED") return;
+
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`/api/interviews/${interviewId}`);
+        const data = await res.json();
+        if (data?.status === "completed") {
+          router.push("/i/thank-you");
+        }
+      } catch (err) {
+        console.error("Failed to fetch interview status", err);
+      }
+    };
+
+    const timer = setTimeout(checkStatus, 500);
+    return () => clearTimeout(timer);
+  }, [sessionStatus, interviewId, router]);
+
   // You may implement session status handling in the future
 
   // If no interview ID provided, show error

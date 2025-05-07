@@ -621,15 +621,27 @@ function App() {
     setCustomAgentConfig(config);
   };
 
-  // Redirect to thank-you when interview ends (session disconnected in candidate view)
+  // Redirect to thank-you only when interview is marked complete
   useEffect(() => {
     if (isCandidateView && sessionStatus === "DISCONNECTED" && isInterviewMode) {
-      const timer = setTimeout(() => {
-        router.push("/i/thank-you");
-      }, 500); // 500ms debounce to avoid premature redirects
-      return () => clearTimeout(timer);
+      const interviewId = searchParams.get("interviewId");
+      if (!interviewId) return;
+      
+      const checkStatus = async () => {
+        try {
+          const res = await fetch(`/api/interviews/${interviewId}`);
+          const data = await res.json();
+          if (data?.status === "completed") {
+            router.push("/i/thank-you");
+          }
+        } catch (err) {
+          console.error("Failed to check interview status", err);
+        }
+      };
+      
+      checkStatus();
     }
-  }, [sessionStatus, isCandidateView, isInterviewMode, router]);
+  }, [sessionStatus, isCandidateView, isInterviewMode, router, searchParams]);
 
   return (
     <div className="text-base flex flex-col h-screen bg-gray-100 text-gray-800 relative">

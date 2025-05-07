@@ -34,4 +34,28 @@ export async function DELETE(_req: NextRequest, { params }: any) {
     console.error("Error in DELETE /api/interviews/[id]", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
+}
+
+export async function GET(_req: NextRequest, { params }: any) {
+  try {
+    const interviewId = params.id;
+    if (!interviewId) {
+      return NextResponse.json({ error: "Interview ID is required" }, { status: 400 });
+    }
+
+    const { data: interview, error } = await supabaseServer
+      .from("interviews")
+      .select("id, status")
+      .eq("id", interviewId)
+      .single();
+
+    if (error || !interview) {
+      return NextResponse.json({ error: "Interview not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(interview);
+  } catch (err) {
+    console.error("Error in GET /api/interviews/[id]", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 } 
