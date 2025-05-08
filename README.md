@@ -49,6 +49,66 @@ export default agents;
 
 This fully specifies the agent set that was used in the interaction shown in the screenshot above.
 
+### Sequence Diagram of CustomerServiceRetail Flow
+
+This diagram illustrates the interaction flow defined in `src/app/agentConfigs/customerServiceRetail/`.
+
+<details>
+<summary><strong>Show CustomerServiceRetail Flow Diagram</strong></summary>
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant WebClient as Next.js Client
+    participant NextAPI as /api/session
+    participant RealtimeAPI as OpenAI Realtime API
+    participant AgentManager as Agents (authentication, returns, sales, simulatedHuman)
+    participant o1mini as "o1-mini" (Escalation Model)
+
+    Note over WebClient: User navigates to ?agentConfig=customerServiceRetail
+    User->>WebClient: Open Page
+    WebClient->>NextAPI: GET /api/session
+    NextAPI->>RealtimeAPI: POST /v1/realtime/sessions
+    RealtimeAPI->>NextAPI: Returns ephemeral session
+    NextAPI->>WebClient: Returns ephemeral token (JSON)
+
+    Note right of WebClient: Start RTC handshake
+    WebClient->>RealtimeAPI: Offer SDP (WebRTC)
+    RealtimeAPI->>WebClient: SDP answer
+    WebClient->>WebClient: DataChannel "oai-events" established
+
+    Note over AgentManager: Default agent is "authentication"
+    User->>WebClient: "Hi, I'd like to return my snowboard."
+    WebClient->>AgentManager: conversation.item.create (role=user)
+    WebClient->>RealtimeAPI: {type: "conversation.item.create"}
+    WebClient->>RealtimeAPI: {type: "response.create"}
+
+    authentication->>AgentManager: Requests user info, calls authenticate_user_information()
+    AgentManager-->>WebClient: function_call => name="authenticate_user_information"
+    WebClient->>WebClient: handleFunctionCall => verifies details
+
+    Note over AgentManager: After user is authenticated
+    authentication->>AgentManager: transferAgents("returns")
+    AgentManager-->>WebClient: function_call => name="transferAgents" args={ destination: "returns" }
+    WebClient->>WebClient: setSelectedAgentName("returns")
+
+    Note over returns: The user wants to process a return
+    returns->>AgentManager: function_call => checkEligibilityAndPossiblyInitiateReturn
+    AgentManager-->>WebClient: function_call => name="checkEligibilityAndPossiblyInitiateReturn"
+
+    Note over WebClient: The WebClient calls /api/chat/completions with model="o1-mini"
+    WebClient->>o1mini: "Is this item eligible for return?"
+    o1mini->>WebClient: "Yes/No (plus notes)"
+
+    Note right of returns: Returns uses the result from "o1-mini"
+    returns->>AgentManager: "Return is approved" or "Return is denied"
+    AgentManager->>WebClient: conversation.item.create (assistant role)
+    WebClient->>User: Displays final verdict
+```
+
+</details>
+
+
 ### Next steps
 - Check out the configs in `src/app/agentConfigs`. The example above is a minimal demo that illustrates the core concepts.
 - [frontDeskAuthentication](src/app/agentConfigs/frontDeskAuthentication) Guides the user through a step-by-step authentication flow, confirming each value character-by-character, authenticates the user with a tool call, and then transfers to another agent. Note that the second agent is intentionally "bored" to show how to prompt for personality and tone.
