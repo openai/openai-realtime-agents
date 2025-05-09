@@ -93,12 +93,12 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: 6px;
+  height: 15px; /* Aumentado de 6px para dar mais espaço para o efeito esfumaçado */
   width: 100%;
   background: transparent;
   z-index: 15;
   pointer-events: none;
-  overflow: hidden; /* Ensure the gradient is contained */
+  overflow: hidden;
 }
 
 /* Gradiente base */
@@ -111,55 +111,67 @@
   height: 100%;
   background: transparent;
   
-  /* Transitions much slower for smoother changes */
+  /* Transição muito mais suave */
   transition: 
-    opacity 0.8s ease-in-out, 
-    background-color 1.2s ease-in-out,
-    background 1.2s ease-in-out;
+    opacity 1.2s ease-in-out, 
+    background-color 2s ease-in-out,
+    background 2s ease-in-out;
   
   opacity: 0;
+  filter: blur(4px); /* Adicionado blur para suavizar as bordas */
 }
 
 /* Estilo quando a Marlene está falando */
 .animated-footer.agent-speaking::after {
   opacity: 1;
   background: linear-gradient(
-    to right,
-    #FC6200 0%,
-    rgba(252, 98, 0, 0.9) 25%,
-    rgba(252, 98, 0, 0.7) 50%,
-    rgba(252, 98, 0, 0.5) 75%,
-    rgba(252, 98, 0, 0.3) 100%
+    to top,
+    rgba(252, 98, 0, 0.9) 0%,
+    rgba(252, 98, 0, 0.7) 30%,
+    rgba(252, 98, 0, 0.4) 60%,
+    rgba(252, 98, 0, 0.1) 90%,
+    rgba(252, 98, 0, 0) 100%
   );
-  animation: wave-gradient 3s ease-in-out infinite; /* Slower animation */
-  background-size: 200% 100%;
+  animation: pulse-gradient 4s ease-in-out infinite;
 }
 
 /* Estilo quando o usuário está falando */
 .animated-footer.user-speaking::after {
   opacity: 1;
   background: linear-gradient(
-    to right,
-    #0066cc 0%,
-    rgba(0, 102, 204, 0.9) 25%,
-    rgba(0, 102, 204, 0.7) 50%,
-    rgba(0, 102, 204, 0.5) 75%,
-    rgba(0, 102, 204, 0.3) 100%
+    to top,
+    rgba(0, 102, 204, 0.9) 0%,
+    rgba(0, 102, 204, 0.7) 30%,
+    rgba(0, 102, 204, 0.4) 60%,
+    rgba(0, 102, 204, 0.1) 90%,
+    rgba(0, 102, 204, 0) 100%
   );
-  animation: wave-gradient 3s ease-in-out infinite; /* Slower animation */
-  background-size: 200% 100%;
+  animation: pulse-gradient 4s ease-in-out infinite;
 }
 
-/* Slower, smoother wave animation */
-@keyframes wave-gradient {
+/* Estilo intermediário para transição */
+.animated-footer.transitioning::after {
+  opacity: 1;
+  background: linear-gradient(
+    to top,
+    rgba(126, 100, 153, 0.9) 0%, /* Cor intermediária entre laranja e azul */
+    rgba(126, 100, 153, 0.7) 30%,
+    rgba(126, 100, 153, 0.4) 60%,
+    rgba(126, 100, 153, 0.1) 90%,
+    rgba(126, 100, 153, 0) 100%
+  );
+}
+
+/* Nova animação mais suave */
+@keyframes pulse-gradient {
   0% {
-    background-position: 0% 50%;
+    opacity: 0.7;
   }
   50% {
-    background-position: 100% 50%; 
+    opacity: 1;
   }
   100% {
-    background-position: 0% 50%;
+    opacity: 0.7;
   }
 }
 /* mockup chapado */
