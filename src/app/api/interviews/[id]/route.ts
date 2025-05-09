@@ -38,7 +38,8 @@ export async function DELETE(_req: NextRequest, { params }: any) {
 
 export async function GET(_req: NextRequest, { params }: any) {
   try {
-    const interviewId = params.id;
+    const resolvedParams = await params;
+    const interviewId = resolvedParams.id;
     if (!interviewId) {
       return NextResponse.json({ error: "Interview ID is required" }, { status: 400 });
     }
