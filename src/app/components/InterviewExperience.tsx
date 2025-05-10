@@ -2,129 +2,142 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useTranscript } from "@/app/contexts/TranscriptContext";
-import { getInterviewWithRelationsClient as getInterviewWithRelations } from "@/app/lib/interviewClientHelper";
+import type { InterviewWithRelations as InterviewData } from "@/app/lib/interviewClientHelper";
 
 interface InterviewExperienceProps {
-  interviewId: string;
+  interviewData: InterviewData;
   isAgentSpeaking: boolean;
+  isUserSpeaking: boolean;
+  isAgentThinking: boolean;
   sessionStatus: string;
+  agentStatusMessage: string;
 }
 
 const InterviewExperience: React.FC<InterviewExperienceProps> = ({
-  interviewId,
+  interviewData,
   isAgentSpeaking,
+  isUserSpeaking,
+  isAgentThinking,
   sessionStatus,
+  agentStatusMessage,
 }) => {
   const { transcriptItems } = useTranscript();
-  const [interview, setInterview] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const interview = interviewData;
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [questionHistory, setQuestionHistory] = useState<string[]>([]);
   const visualizerRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number | null>(null);
   const [hasFirstQuestionBeenAsked, setHasFirstQuestionBeenAsked] = useState(false);
 
-  // Load interview data
-  useEffect(() => {
-    const loadInterview = async () => {
-      try {
-        setLoading(true);
-        const data = await getInterviewWithRelations(interviewId);
-        
-        if (!data) {
-          throw new Error("Failed to load interview data");
-        }
-        
-        setInterview(data);
-        setLoading(false);
-      } catch (err: any) {
-        console.error("Error loading interview:", err);
-        setError(err.message || "Failed to load interview");
-        setLoading(false);
-      }
-    };
-    
-    loadInterview();
-  }, [interviewId]);
-
   // Audio visualization effect
   useEffect(() => {
-    if (!visualizerRef.current || !isAgentSpeaking) return;
+    // If canvas ref is not set, or neither agent nor user is speaking, do nothing or clear.
+    if (!visualizerRef.current || (!isAgentSpeaking && !isUserSpeaking)) {
+      if (visualizerRef.current) {
+        const canvas = visualizerRef.current;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+      }
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+      }
+      return;
+    }
     
     const canvas = visualizerRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // Set canvas size
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
     
-    let particles: Array<{x: number, y: number, radius: number, speed: number, direction: number}> = [];
+    let particles: Array<{x: number, y: number, radius: number, speed: number, directionFactor: number}> = []; // Added directionFactor
+
+    // Determine active speaker for styling
+    const agentColor = 'rgba(79, 70, 229, 0.7)'; // Indigo
+    const agentLineColor = 'rgba(79, 70, 229, 0.3)';
+    const userColor = 'rgba(14, 165, 233, 0.7)'; // Sky Blue
+    const userLineColor = 'rgba(14, 165, 233, 0.3)';
+
+    let particleFillColor;
+    let middleLineColor;
+    let particleDirectionFactor;
+
+    if (isUserSpeaking) { // User speaking takes visual priority
+      particleFillColor = userColor;
+      middleLineColor = userLineColor;
+      particleDirectionFactor = -1; // RTL for user
+    } else if (isAgentSpeaking) { // Agent speaking, user is not
+      particleFillColor = agentColor;
+      middleLineColor = agentLineColor;
+      particleDirectionFactor = 1; // LTR for agent
+    } else {
+      // This case should ideally not be hit if the effect guard condition is correct,
+      // but as a fallback, ensure no animation or clear.
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      ctx.clearRect(0,0,canvas.width, canvas.height);
+      return; // Do not proceed with particle animation if neither is speaking
+    }
     
-    // Initialize particles
     const initParticles = () => {
       particles = [];
       const particleCount = 50;
-      
       for (let i = 0; i < particleCount; i++) {
         particles.push({
           x: Math.random() * canvas.width,
           y: canvas.height / 2 + (Math.random() * 80 - 40),
           radius: Math.random() * 3 + 1,
           speed: Math.random() * 1 + 0.5,
-          direction: Math.random() > 0.5 ? 1 : -1,
+          directionFactor: particleDirectionFactor, // Use determined direction
         });
       }
     };
     
-    // Animation function
     const animate = () => {
       if (!ctx) return;
-      
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Draw middle line
       ctx.beginPath();
       ctx.moveTo(0, canvas.height / 2);
       ctx.lineTo(canvas.width, canvas.height / 2);
-      ctx.strokeStyle = 'rgba(79, 70, 229, 0.3)';
+      ctx.strokeStyle = middleLineColor;
       ctx.stroke();
       
-      // Update and draw particles
       particles.forEach(particle => {
-        // Update position with oscillation
-        particle.x += particle.speed;
+        particle.x += particle.speed * particle.directionFactor; // Apply direction
         particle.y = canvas.height / 2 + 
           Math.sin(Date.now() * 0.002 + particle.x * 0.01) * 
           (20 + Math.sin(Date.now() * 0.001) * 15);
         
-        // Reset if off screen
-        if (particle.x > canvas.width) {
+        // Reset based on direction
+        if (particle.directionFactor > 0 && particle.x > canvas.width) { // LTR
           particle.x = 0;
+        } else if (particle.directionFactor < 0 && particle.x < 0) { // RTL
+          particle.x = canvas.width;
         }
         
-        // Draw particle
         ctx.beginPath();
         ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(79, 70, 229, 0.7)';
+        ctx.fillStyle = particleFillColor;
         ctx.fill();
       });
       
       animationRef.current = requestAnimationFrame(animate);
     };
     
-    // Start animation
     initParticles();
     animate();
     
-    // Cleanup
     return () => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
       }
     };
-  }, [isAgentSpeaking]);
+  }, [isAgentSpeaking, isUserSpeaking]); // Added isUserSpeaking to dependencies
 
   // Question tracking effect – track progress without causing infinite re-renders
   useEffect(() => {
@@ -163,25 +176,6 @@ const InterviewExperience: React.FC<InterviewExperienceProps> = ({
       }
     }
   }, [transcriptItems, interview]);
-
-  if (loading) {
-    return (
-      <div className="p-6 bg-white rounded-lg shadow-md animate-pulse">
-        <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
-        <div className="h-20 bg-gray-200 rounded mb-4"></div>
-        <div className="h-32 bg-gray-200 rounded"></div>
-      </div>
-    );
-  }
-
-  if (error || !interview || !interview.questions) {
-    return (
-      <div className="p-6 bg-red-50 border border-red-200 rounded-lg">
-        <h3 className="text-red-700 font-medium mb-2">Error</h3>
-        <p className="text-red-600">{error || "Failed to load interview questions"}</p>
-      </div>
-    );
-  }
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden">
@@ -255,20 +249,37 @@ const InterviewExperience: React.FC<InterviewExperienceProps> = ({
       {/* Voice Visualization */}
       <div className="p-6 bg-gray-50">
         <div className="relative">
-          <div className={`mb-3 flex items-center ${isAgentSpeaking ? 'opacity-100' : 'opacity-50'}`}>
-            <div className={`w-2 h-2 rounded-full mr-2 ${isAgentSpeaking ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
-            <span className={`text-sm font-medium ${isAgentSpeaking ? 'text-green-700' : 'text-gray-500'}`}>
-              {isAgentSpeaking ? 'Agent is speaking...' : 'Agent is listening...'}
+          <div className={`mb-3 flex items-center ${isAgentSpeaking || isUserSpeaking || isAgentThinking ? 'opacity-100' : 'opacity-50'}`}>
+            <div className={`w-2 h-2 rounded-full mr-2 animate-pulse ${
+              isUserSpeaking 
+                ? 'bg-blue-500'
+                : isAgentThinking 
+                ? 'bg-yellow-400'
+                : isAgentSpeaking
+                ? 'bg-green-500'
+                : 'bg-gray-400 opacity-50'
+            }
+            ${ !(isUserSpeaking || isAgentThinking || isAgentSpeaking) ? 'opacity-50 !animate-none' : '' }
+            `}></div>
+            <span className={`text-sm font-medium ${ 
+              isUserSpeaking 
+                ? 'text-blue-700' 
+                : isAgentThinking
+                ? 'text-yellow-700'
+                : 'text-gray-700'
+            }`}>
+              {agentStatusMessage}
             </span>
           </div>
           
           <div className="h-16 w-full bg-white rounded-lg border overflow-hidden">
-            {isAgentSpeaking ? (
+            {(isAgentSpeaking || isUserSpeaking || isAgentThinking) ? (
               <canvas 
                 ref={visualizerRef} 
                 className="w-full h-full"
               ></canvas>
             ) : (
+              // Default static mic icon when no one is speaking
               <div className="w-full h-full flex items-center justify-center text-gray-400">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>

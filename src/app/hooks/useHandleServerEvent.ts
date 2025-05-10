@@ -14,6 +14,10 @@ export interface UseHandleServerEventParams {
   customAgentConfig?: AgentConfig | null;
   shouldForceResponse?: boolean;
   onFunctionResult?: (name: string, result: any) => void;
+  setIsHearingUser: (isHearing: boolean) => void;
+  setIsThinking: (isThinking: boolean) => void;
+  setIsSpeakingAudio: (isSpeaking: boolean) => void;
+  setIsSpeakingText: (isSpeaking: boolean) => void;
 }
 
 export function useHandleServerEvent({
@@ -24,6 +28,10 @@ export function useHandleServerEvent({
   setSelectedAgentName,
   customAgentConfig,
   onFunctionResult,
+  setIsHearingUser,
+  setIsThinking,
+  setIsSpeakingAudio,
+  setIsSpeakingText,
 }: UseHandleServerEventParams) {
   const {
     transcriptItems,
@@ -126,6 +134,51 @@ export function useHandleServerEvent({
         break;
       }
 
+      case "input_audio_buffer.speech_started": {
+        setIsHearingUser(true);
+        break;
+      }
+
+      case "input_audio_buffer.speech_stopped": {
+        setIsHearingUser(false);
+        setIsThinking(true); 
+        break;
+      }
+
+      case "response.created": {
+        setIsThinking(true);
+        setIsSpeakingText(false);
+        break;
+      }
+
+      case "response.text.delta": {
+        setIsThinking(false);
+        setIsSpeakingText(true);
+        
+        const itemId = serverEvent.item_id;
+        const deltaText = serverEvent.delta || "";
+        
+        if (itemId) {
+          const existingItem = transcriptItems.find(item => item.itemId === itemId && item.type === "MESSAGE");
+          if (existingItem) {
+            updateTranscriptMessage(itemId, deltaText, true); 
+          } else {
+            addTranscriptMessage(itemId, "assistant", deltaText);
+          }
+        }
+        break;
+      }
+
+      case "response.text.done": {
+        setIsSpeakingText(false);
+        break;
+      }
+
+      case "response.audio.done": {
+        // setIsSpeakingAudio(false);
+        break;
+      }
+
       case "conversation.item.created": {
         let text =
           serverEvent.item?.content?.[0]?.text ||
@@ -169,6 +222,7 @@ export function useHandleServerEvent({
       }
 
       case "response.done": {
+        let wasFunctionCall = false;
         if (serverEvent.response?.output) {
           serverEvent.response.output.forEach((outputItem) => {
             if (
@@ -176,6 +230,7 @@ export function useHandleServerEvent({
               outputItem.name &&
               outputItem.arguments
             ) {
+              wasFunctionCall = true;
               handleFunctionCall({
                 name: outputItem.name,
                 call_id: outputItem.call_id,
@@ -183,6 +238,9 @@ export function useHandleServerEvent({
               });
             }
           });
+        }
+        if (!wasFunctionCall) {
+          setIsThinking(false);
         }
         break;
       }
