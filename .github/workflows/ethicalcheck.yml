@@ -16,7 +16,7 @@
 # EthicalCheck functions in the following simple steps.
 # 1. Security Testing.
 # Provide your OpenAPI specification or start with a public Postman collection URL.
-# EthicalCheck instantly instrospects your API and creates a map of API endpoints for security testing.
+# EthicalCheck instantly introspects your API and creates a map of API endpoints for security testing.
 # It then automatically creates hundreds of security tests that are non-intrusive to comprehensively and completely test for authentication, authorizations, and OWASP bugs your API. The tests addresses the OWASP API Security categories including OAuth 2.0, JWT, Rate Limit etc.
 
 # 2. Reporting.
