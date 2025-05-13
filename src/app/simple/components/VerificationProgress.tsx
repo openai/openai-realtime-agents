@@ -5,12 +5,16 @@ import { useVerification } from '../contexts/VerificationContext';
 const VerificationProgress: React.FC = () => {
   const { state } = useVerification();
   
+  // Não mostrar o indicador de progresso durante a verificação facial
+  // Apenas mostrar antes e depois do processo completo
+  if (state.step > 0 && state.step < 4) {
+    return null;
+  }
+  
   return (
     <div className="verification-indicator">
       <div className="verification-step-text">
-        {state.step === 1 && "Aguardando análise..."}
-        {state.step === 2 && "Analisando documento..."}
-        {state.step === 3 && "Verificando identidade..."}
+        {state.step === 0 && "Verificação não iniciada"}
         {state.step === 4 && "Verificação concluída!"}
       </div>
       <div className="verification-progress">

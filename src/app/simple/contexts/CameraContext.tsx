@@ -1,4 +1,3 @@
-// src/app/simple/contexts/CameraContext.tsx
 import React, { createContext, useContext, useReducer, useRef, useEffect } from 'react';
 import { CameraState } from '../types';
 import * as faceapi from 'face-api.js';
@@ -83,7 +82,13 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       closeCamera();
       
       // Solicitar acesso à câmera
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'user', // Usar câmera frontal
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
+      });
       
       // Atualizar o estado
       dispatch({ type: 'CAMERA_OPENED', stream });
@@ -128,7 +133,8 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 const centerY = y + height/2;
                 
                 // Valor normalizado entre -1 e 1 (0 é o centro)
-                const relX = (centerX / videoWidth) * 2 - 1;
+                // Invertendo o valor de X para compensar o espelhamento da câmera
+                const relX = -((centerX / videoWidth) * 2 - 1); // Invertido aqui
                 const relY = (centerY / videoHeight) * 2 - 1;
                 
                 // Tamanho do rosto em relação ao frame
@@ -199,8 +205,9 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } else {
       // Gerar feedback direcional
       let direction = "";
-      if (x < -0.2) direction += " à esquerda";
-      else if (x > 0.2) direction += " à direita";
+      // Inverter direções para corresponder à visão do usuário com a câmera espelhada
+      if (x < -0.2) direction += " à direita"; // Invertido de "à esquerda"
+      else if (x > 0.2) direction += " à esquerda"; // Invertido de "à direita"
       
       if (y < -0.2) direction += " para cima";
       else if (y > 0.2) direction += " para baixo";

@@ -1,5 +1,4 @@
 // src/app/simple/types.ts
-
 // Tipo para eventos da UI
 export interface UIEvent {
   name: string;
@@ -25,14 +24,15 @@ export interface VerificationState {
     centered: boolean;
     verified: boolean;
   };
+  pendingMessages: any[]; // Adiciona um campo para armazenar mensagens pendentes durante falhas de conexão
 }
-
 
 // Estado da conexão
 export interface ConnectionState {
   status: 'disconnected' | 'connecting' | 'connected';
   sessionId: string | null;
   error: Error | null;
+  reconnectAttempts?: number; // Contagem de tentativas de reconexão
 }
 
 // Estado da câmera

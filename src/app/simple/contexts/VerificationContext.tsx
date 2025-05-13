@@ -15,7 +15,8 @@ const initialState: VerificationState = {
     detected: false,
     centered: false,
     verified: false
-  }
+  },
+  pendingMessages: [] // Nova propriedade para armazenar mensagens pendentes
 };
 
 // Tipos de ações
@@ -25,7 +26,9 @@ type VerificationAction =
   | { type: 'COMPLETE_VERIFICATION' }
   | { type: 'CANCEL_VERIFICATION' }
   | { type: 'VERIFICATION_ERROR', error: Error }
-  | { type: 'FACE_STATUS', status: 'detected' | 'centered' | 'verified', value: boolean };
+  | { type: 'FACE_STATUS', status: 'detected' | 'centered' | 'verified', value: boolean }
+  | { type: 'ADD_PENDING_MESSAGE', message: any }
+  | { type: 'CLEAR_PENDING_MESSAGES' };
 
 // Reducer
 const verificationReducer = (state: VerificationState, action: VerificationAction): VerificationState => {
@@ -42,7 +45,8 @@ const verificationReducer = (state: VerificationState, action: VerificationActio
           detected: false,
           centered: false,
           verified: false
-        }
+        },
+        pendingMessages: []
       };
     case 'SET_STEP':
       return { ...state, step: action.step };
@@ -51,16 +55,18 @@ const verificationReducer = (state: VerificationState, action: VerificationActio
         ...state, 
         active: false, 
         step: 0, 
-        completionTime: Date.now() 
+        completionTime: Date.now(),
+        pendingMessages: []
       };
     case 'CANCEL_VERIFICATION':
-      return initialState;
+      return { ...initialState, pendingMessages: [] };
     case 'VERIFICATION_ERROR':
       return { 
         ...state, 
         error: action.error, 
         active: false, 
-        step: 0 
+        step: 0,
+        pendingMessages: []
       };
     case 'FACE_STATUS':
       return {
@@ -69,6 +75,16 @@ const verificationReducer = (state: VerificationState, action: VerificationActio
           ...state.faceDetectionStatus,
           [action.status]: action.value
         }
+      };
+    case 'ADD_PENDING_MESSAGE':
+      return {
+        ...state,
+        pendingMessages: [...state.pendingMessages, action.message]
+      };
+    case 'CLEAR_PENDING_MESSAGES':
+      return {
+        ...state,
+        pendingMessages: []
       };
     default:
       return state;
@@ -80,6 +96,7 @@ interface VerificationContextType {
   state: VerificationState;
   startVerification: () => void;
   cancelVerification: () => void;
+  processPendingMessages: () => void;
 }
 
 // Criar o contexto
@@ -88,11 +105,12 @@ const VerificationContext = createContext<VerificationContextType | undefined>(u
 // Provider
 export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(verificationReducer, initialState);
-  const { sendMessage } = useConnection();
+  const { state: connectionState, sendMessage } = useConnection();
   const { openCamera, closeCamera } = useCamera();
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const cameraEventListenerRef = useRef<EventListener | null>(null);
+  const verificationCompleteRef = useRef<boolean>(false);
   
   // Limpar temporizadores ao desmontar
   useEffect(() => {
@@ -107,11 +125,61 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
   }, []);
   
+  // Função segura para enviar mensagens, armazenando-as se a conexão cair
+  const safeSendMessage = (message: any) => {
+    // Se a conexão estiver ativa, envie a mensagem
+    if (connectionState.status === 'connected') {
+      const success = sendMessage(message);
+      
+      // Se falhar, armazenar como pendente
+      if (!success) {
+        console.log("Mensagem não pôde ser enviada, armazenando para reenvio:", message);
+        dispatch({ type: 'ADD_PENDING_MESSAGE', message });
+      }
+      
+      return success;
+    } else {
+      // Se não estiver conectado, armazenar como pendente
+      console.log("Conexão inativa, armazenando mensagem para envio posterior:", message);
+      dispatch({ type: 'ADD_PENDING_MESSAGE', message });
+      return false;
+    }
+  };
+  
+  // Função para processar mensagens pendentes quando a conexão for restaurada
+  const processPendingMessages = () => {
+    if (connectionState.status !== 'connected' || state.pendingMessages.length === 0) {
+      return;
+    }
+    
+    console.log(`Processando ${state.pendingMessages.length} mensagens pendentes`);
+    
+    // Envia cada mensagem armazenada
+    state.pendingMessages.forEach(message => {
+      sendMessage(message);
+    });
+    
+    // Enviar mensagem de resposta após o último item
+    sendMessage({ type: "response.create" });
+    
+    // Limpar a fila de mensagens
+    dispatch({ type: 'CLEAR_PENDING_MESSAGES' });
+  };
+  
+  // Monitorar mudanças no estado da conexão
+  useEffect(() => {
+    // Quando a conexão for restaurada, processar mensagens pendentes
+    if (connectionState.status === 'connected' && state.pendingMessages.length > 0) {
+      processPendingMessages();
+    }
+  }, [connectionState.status]);
+  
   // Função para iniciar a verificação
   const startVerification = () => {
     if (state.active) return; // Evitar iniciar mais de uma vez
     
     dispatch({ type: 'START_VERIFICATION' });
+    verificationCompleteRef.current = false;
     
     // Configurar listener para eventos da câmera
     const handleCameraEvent = (event: CustomEvent) => {
@@ -122,7 +190,7 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       switch (type) {
         case 'CAMERA_OPENED':
           // Marlene reconhece que a câmera foi aberta
-          sendMessage({ 
+          safeSendMessage({ 
             type: "conversation.item.create",
             item: {
               type: "message",
@@ -130,14 +198,14 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
               content: [{ type: "input_text", text: "[CÂMERA ABERTA]" }],
             },
           });
-          sendMessage({ type: "response.create" });
+          safeSendMessage({ type: "response.create" });
           dispatch({ type: 'FACE_STATUS', status: 'detected', value: false });
           break;
           
         case 'FACE_NOT_VISIBLE':
           // Marlene não consegue ver o rosto
           if (state.faceDetectionStatus.detected) {
-            sendMessage({ 
+            safeSendMessage({ 
               type: "conversation.item.create",
               item: {
                 type: "message",
@@ -145,17 +213,17 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 content: [{ type: "input_text", text: "[ROSTO NÃO VISÍVEL]" }],
               },
             });
-            sendMessage({ type: "response.create" });
+            safeSendMessage({ type: "response.create" });
             dispatch({ type: 'FACE_STATUS', status: 'detected', value: false });
           }
           break;
           
         case 'FACE_NEEDS_ADJUSTMENT':
-          // Marlene dá instruções para ajustar posição
+          // Marlene dá instruções para ajustar posição - sem texto na tela
           if (!state.faceDetectionStatus.centered) {
             dispatch({ type: 'FACE_STATUS', status: 'detected', value: true });
             
-            sendMessage({ 
+            safeSendMessage({ 
               type: "conversation.item.create",
               item: {
                 type: "message",
@@ -163,18 +231,18 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 content: [{ type: "input_text", text: `[AJUSTE NECESSÁRIO${direction}]` }],
               },
             });
-            sendMessage({ type: "response.create" });
+            safeSendMessage({ type: "response.create" });
           }
           break;
           
         case 'FACE_CENTERED':
-          // Marlene confirma que o rosto está centralizado
+          // Marlene confirma que o rosto está centralizado - sem texto na tela
           if (!state.faceDetectionStatus.centered) {
             dispatch({ type: 'FACE_STATUS', status: 'detected', value: true });
             dispatch({ type: 'FACE_STATUS', status: 'centered', value: true });
             dispatch({ type: 'SET_STEP', step: 2 });
             
-            sendMessage({ 
+            safeSendMessage({ 
               type: "conversation.item.create",
               item: {
                 type: "message",
@@ -182,14 +250,14 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 content: [{ type: "input_text", text: "[ROSTO CENTRALIZADO]" }],
               },
             });
-            sendMessage({ type: "response.create" });
+            safeSendMessage({ type: "response.create" });
             
             // Avançar para verificação após um breve atraso
             timerRef.current = setTimeout(() => {
               if (!state.faceDetectionStatus.verified) {
                 dispatch({ type: 'SET_STEP', step: 3 });
                 
-                sendMessage({ 
+                safeSendMessage({ 
                   type: "conversation.item.create",
                   item: {
                     type: "message",
@@ -197,14 +265,15 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                     content: [{ type: "input_text", text: "[VERIFICANDO IDENTIDADE]" }],
                   },
                 });
-                sendMessage({ type: "response.create" });
+                safeSendMessage({ type: "response.create" });
                 
                 // Simular verificação de identidade (tempo para reconhecimento)
                 timerRef.current = setTimeout(() => {
                   dispatch({ type: 'FACE_STATUS', status: 'verified', value: true });
                   dispatch({ type: 'SET_STEP', step: 4 });
+                  verificationCompleteRef.current = true;
                   
-                  sendMessage({ 
+                  safeSendMessage({ 
                     type: "conversation.item.create",
                     item: {
                       type: "message",
@@ -212,11 +281,11 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                       content: [{ type: "input_text", text: "[VERIFICAÇÃO CONCLUÍDA]" }],
                     },
                   });
-                  sendMessage({ type: "response.create" });
+                  safeSendMessage({ type: "response.create" });
                   
-                  // Fechar a câmera automaticamente
+                  // Fechar a câmera automaticamente com atraso para mostrar o checkmark
                   timerRef.current = setTimeout(() => {
-                    sendMessage({
+                    safeSendMessage({
                       type: "conversation.item.create",
                       item: {
                         id: Math.random().toString(36).substring(2, 15),
@@ -228,23 +297,26 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                       },
                     });
                     
-                    closeCamera();
-                    
-                    // Completar verificação e avançar na máquina de estados
-                    dispatch({ type: 'COMPLETE_VERIFICATION' });
-                    
-                    // Avançar para o próximo estado da Marlene
-                    timerRef.current = setTimeout(() => {
-                      sendMessage({ 
-                        type: "conversation.item.create",
-                        item: {
-                          type: "message",
-                          role: "user",
-                          content: [{ type: "input_text", text: "[AVANÇAR PARA SIMULAÇÃO DE EMPRÉSTIMO]" }],
-                        },
-                      });
-                      sendMessage({ type: "response.create" });
-                    }, 1000);
+                    // Atraso maior para fechar a câmera para que o usuário veja a animação e o checkmark
+                    setTimeout(() => {
+                      closeCamera();
+                      
+                      // Completar verificação e avançar na máquina de estados
+                      dispatch({ type: 'COMPLETE_VERIFICATION' });
+                      
+                      // Avançar para o próximo estado da Marlene
+                      timerRef.current = setTimeout(() => {
+                        safeSendMessage({ 
+                          type: "conversation.item.create",
+                          item: {
+                            type: "message",
+                            role: "user",
+                            content: [{ type: "input_text", text: "[AVANÇAR PARA SIMULAÇÃO DE EMPRÉSTIMO]" }],
+                          },
+                        });
+                        safeSendMessage({ type: "response.create" });
+                      }, 1000);
+                    }, 3000);
                   }, 3000);
                 }, 2000);
               }
@@ -254,9 +326,8 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           
         case 'CAMERA_CLOSED':
           // Câmera fechada, avançar na máquina de estados se verificação foi concluída
-          if (state.faceDetectionStatus.verified) {
-            // Aqui você poderia adicionar lógica adicional para avançar definitivamente
-            // na máquina de estados da Marlene
+          if (verificationCompleteRef.current) {
+            // Transição concluída
           }
           break;
       }
@@ -287,6 +358,7 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       cameraEventListenerRef.current = null;
     }
     
+    verificationCompleteRef.current = false;
     closeCamera();
     dispatch({ type: 'CANCEL_VERIFICATION' });
   };
@@ -295,6 +367,7 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     state,
     startVerification,
     cancelVerification,
+    processPendingMessages
   };
   
   return (
