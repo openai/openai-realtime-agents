@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useUI } from '../contexts/UIContext';
 
 const LoanValueAnimation: React.FC = () => {
-  const { loanState } = useUI();
+  const { loanState, showLoanAnimation, setRequestedLoanAmount } = useUI();
   const [moneyEmojis, setMoneyEmojis] = useState<Array<{
     id: number, 
     left: number, 
@@ -17,10 +17,21 @@ const LoanValueAnimation: React.FC = () => {
   // Ref para armazenar o timer da animação
   const animationTimerRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Função de teste interna
+  const testSelf = () => {
+    console.log("🎬 Teste interno iniciado");
+    setRequestedLoanAmount('R$ 20.000,00');
+    
+    setTimeout(() => {
+      showLoanAnimation();
+    }, 500);
+  };
+  
   // Gerar emojis quando a animação começa
   useEffect(() => {
     if (loanState.showAnimation) {
-      console.log('Animação iniciada para valor:', loanState.requestedAmount);
+      console.log('🎬 Animação iniciada para valor:', loanState.requestedAmount);
+      console.log('🎬 Estado completo da animação:', loanState);
       
       // Mostrar o overlay primeiro
       setOverlayVisible(true);
@@ -71,17 +82,83 @@ const LoanValueAnimation: React.FC = () => {
     };
   }, [loanState.showAnimation]);
   
+  // Estilos forçados para garantir visibilidade
+  const forcedStyles = loanState.showAnimation ? {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '240px',
+    zIndex: 99,
+  } : {};
+  
   if (!loanState.showAnimation && !overlayVisible && moneyEmojis.length === 0) {
-    return null;
+    return (
+      <button
+        onClick={testSelf}
+        style={{
+          position: 'absolute',
+          top: '200px',
+          right: '10px',
+          zIndex: 1000,
+          padding: '5px',
+          background: '#ff0000',
+          color: 'white',
+          border: 'none',
+          borderRadius: '5px'
+        }}
+      >
+        Testar Direto
+      </button>
+    );
   }
   
   return (
     <>
+      {/* Botão de teste interno */}
+      <button
+        onClick={testSelf}
+        style={{
+          position: 'absolute',
+          top: '200px',
+          right: '10px',
+          zIndex: 1000,
+          padding: '5px',
+          background: '#ff0000',
+          color: 'white',
+          border: 'none',
+          borderRadius: '5px'
+        }}
+      >
+        Testar Direto
+      </button>
+      
       {/* Overlay de fundo */}
-      <div className={`loan-value-overlay ${overlayVisible ? 'visible' : ''}`} />
+      <div 
+        className={`loan-value-overlay ${overlayVisible ? 'visible' : ''}`} 
+        style={{ opacity: overlayVisible ? 1 : 0 }}
+      />
       
       {/* Container para a animação */}
-      <div className="loan-value-animation">
+      <div className="loan-value-animation" style={forcedStyles}>
+        {/* Indicador para debug */}
+        {loanState.showAnimation && (
+          <div style={{
+            position: 'absolute',
+            top: '20%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            fontSize: '14px',
+            color: 'white',
+            background: 'rgba(0,0,0,0.5)',
+            padding: '3px 8px',
+            borderRadius: '4px',
+            zIndex: 1000
+          }}>
+            ANIMAÇÃO ATIVA
+          </div>
+        )}
+        
         {/* Emojis de dinheiro */}
         {moneyEmojis.map(emoji => (
           <div 
@@ -106,7 +183,7 @@ const LoanValueAnimation: React.FC = () => {
             opacity: loanState.animationProgress > 60 ? 1 : loanState.animationProgress / 60,
           }}
         >
-          {loanState.requestedAmount}
+          {loanState.requestedAmount || 'R$ 10.000,00'}
         </div>
       </div>
     </>

@@ -114,6 +114,12 @@ export interface UIEvent {
   color: string;
 }
 
+export interface LoanState {
+  requestedAmount: string | null; // Valor solicitado pelo usuário
+  showAnimation: boolean;         // Controla visibilidade da animação
+  animationProgress: number;      // Progresso da animação (0-100)
+}
+
 // Solicitações de câmera
 export interface CameraRequest {
   id: string;

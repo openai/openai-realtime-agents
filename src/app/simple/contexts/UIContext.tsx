@@ -100,28 +100,12 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   
   // Função para definir o valor do empréstimo solicitado
   const setRequestedLoanAmount = (amount: string) => {
-    console.log("Setting requested loan amount:", amount);
+    console.log("💰 Setting requested loan amount:", amount);
     
-    // Formatar o valor como R$ X.XXX,XX
-    // Remover quaisquer caracteres não numéricos, exceto vírgulas e pontos
-    const cleanAmount = amount.replace(/[^\d,.]/g, '');
-    
-    let formattedAmount;
-    if (amount.includes('R$') || amount.match(/^\d+(\.\d{3})*(,\d{2})?$/)) {
-      // Já está formatado como R$ ou como número com separadores
-      formattedAmount = amount.includes('R$') ? amount : `R$ ${cleanAmount}`;
-    } else {
-      try {
-        // Converter para número - substituir vírgula por ponto para parse
-        const numberValue = parseFloat(cleanAmount.replace(',', '.'));
-        formattedAmount = isNaN(numberValue) ? amount : `R$ ${numberValue.toLocaleString('pt-BR', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
-        })}`;
-      } catch (e) {
-        // Se falhar, usar o valor original
-        formattedAmount = amount;
-      }
+    // Formatar o valor como R$ X.XXX,XX se necessário
+    let formattedAmount = amount;
+    if (!amount.includes('R$')) {
+      formattedAmount = `R$ ${amount}`;
     }
     
     setLoanState(prev => ({
@@ -132,41 +116,50 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   
   // Função para mostrar a animação do valor
   const showLoanAnimation = () => {
-    console.log("Showing loan animation for amount:", loanState.requestedAmount);
+    console.log("🎬 Showing loan animation for amount:", loanState.requestedAmount);
     
     // Apenas mostrar se houver um valor de empréstimo definido
-    if (loanState.requestedAmount) {
+    if (!loanState.requestedAmount) {
+      console.warn("⚠️ Tentando mostrar animação sem valor definido");
+      // Definir um valor padrão para debug
+      setLoanState(prev => ({
+        ...prev,
+        requestedAmount: 'R$ 10.000,00',
+        showAnimation: true,
+        animationProgress: 0
+      }));
+    } else {
       setLoanState(prev => ({
         ...prev,
         showAnimation: true,
         animationProgress: 0
       }));
-      
-      // Animar o progresso
-      const startTime = Date.now();
-      const duration = 2000; // 2 segundos para animação completa
-      
-      const updateProgress = () => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(100, (elapsed / duration) * 100);
-        
-        setLoanState(prev => ({
-          ...prev,
-          animationProgress: progress
-        }));
-        
-        if (progress < 100) {
-          loanAnimationTimerRef.current = window.requestAnimationFrame(updateProgress);
-        }
-      };
-      
-      loanAnimationTimerRef.current = window.requestAnimationFrame(updateProgress);
-      
-      // Esconder após um tempo
-      setTimeout(() => {
-        hideLoanAnimation();
-      }, 8000);
     }
+    
+    // Animar o progresso
+    const startTime = Date.now();
+    const duration = 2000; // 2 segundos para animação completa
+    
+    const updateProgress = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(100, (elapsed / duration) * 100);
+      
+      setLoanState(prev => ({
+        ...prev,
+        animationProgress: progress
+      }));
+      
+      if (progress < 100) {
+        loanAnimationTimerRef.current = window.requestAnimationFrame(updateProgress);
+      }
+    };
+    
+    loanAnimationTimerRef.current = window.requestAnimationFrame(updateProgress);
+    
+    // Esconder após um tempo
+    setTimeout(() => {
+      hideLoanAnimation();
+    }, 8000);
   };
   
   // Função para esconder a animação
@@ -216,6 +209,33 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     const clockInterval = setInterval(updateClock, 60000); // Atualizar a cada minuto
     
     return () => clearInterval(clockInterval);
+  }, []);
+  
+  // Escuta eventos globais para detecção de valor e animação
+  useEffect(() => {
+    // Handler para detectar valor
+    const handleDetectAmount = (e: CustomEvent) => {
+      console.log("🔍 Evento detect-loan-amount capturado:", e.detail);
+      if (e.detail && e.detail.amount) {
+        setRequestedLoanAmount(e.detail.amount);
+      }
+    };
+    
+    // Handler para acionar animação
+    const handleAnimationTrigger = () => {
+      console.log("🎬 Evento loan-animation-trigger capturado");
+      showLoanAnimation();
+    };
+    
+    // Adicionar event listeners
+    document.addEventListener('detect-loan-amount', handleDetectAmount as EventListener);
+    document.addEventListener('loan-animation-trigger', handleAnimationTrigger);
+    
+    // Remover event listeners na desmontagem
+    return () => {
+      document.removeEventListener('detect-loan-amount', handleDetectAmount as EventListener);
+      document.removeEventListener('loan-animation-trigger', handleAnimationTrigger);
+    };
   }, []);
   
   // Função para simular alternância de fala para debug - com transições mais suaves
@@ -285,7 +305,11 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
           msg.item?.role === 'user' && 
           msg.item?.content) {
         
-        const content = msg.item.content[0]?.text || '';
+        const content = Array.isArray(msg.item.content) 
+          ? msg.item.content[0]?.text || '' 
+          : typeof msg.item.content === 'string' 
+            ? msg.item.content 
+            : '';
         
         // Padrão para detectar valores monetários (R$ 1.000,00 ou 1000 ou mil)
         const moneyRegex = /R\$\s*(\d{1,3}(\.\d{3})*(\,\d{1,2})?|\d+)|(\d+)\s*(mil|milhão|milhões)/i;
@@ -390,6 +414,11 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     };
   }, []);
   
+  // Logging do estado de animação quando muda
+  useEffect(() => {
+    console.log("🔄 Estado de animação atualizado:", loanState);
+  }, [loanState]);
+  
   const contextValue: UIContextType = {
     // Valores existentes
     uiEvents,
@@ -407,7 +436,7 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     setUserIsSpeaking,
     setIsAudioPlaybackEnabled,
     
-    // Novos valores para o empréstimo
+    // Valores para o empréstimo
     loanState,
     setRequestedLoanAmount,
     showLoanAnimation,

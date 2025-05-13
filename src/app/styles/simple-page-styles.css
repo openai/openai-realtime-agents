@@ -500,7 +500,6 @@
     transform: scale(1);
   }
 }
-/* Animação do valor do empréstimo */
 .loan-value-animation {
   position: absolute;
   bottom: 0;
@@ -574,57 +573,4 @@
   padding-left: 20px;
   opacity: 0;
   transition: opacity 0.8s ease-in-out;
-}
-
-/* Estilos específicos para o rodapé durante a animação de valor */
-.animated-footer.loan-animation::after {
-  opacity: 1;
-  background: linear-gradient(
-    to top,
-    rgba(255, 133, 0, 0.95) 0%,
-    rgba(255, 153, 0, 0.8) 30%, 
-    rgba(255, 173, 0, 0.5) 60%,
-    rgba(255, 193, 0, 0.2) 90%,
-    rgba(255, 213, 0, 0) 100%
-  );
-  animation: pulse-gradient-loan 3s ease-in-out infinite;
-}
-
-@keyframes pulse-gradient-loan {
-  0% {
-    opacity: 0.8;
-    height: 100%;
-  }
-  50% {
-    opacity: 1;
-    height: 120%;
-  }
-  100% {
-    opacity: 0.8;
-    height: 100%;
-  }
-}
-
-/* Estilos para o botão PTT quando a animação de valor está ativa */
-.ptt-button.loan-animation {
-  background: linear-gradient(45deg, #ff8036, #ffb000);
-  box-shadow: 
-    0 0 10px rgba(255, 133, 0, 0.5),
-    0 0 20px rgba(255, 133, 0, 0.3);
-  animation: pulse-loan 2s infinite;
-}
-
-@keyframes pulse-loan {
-  0% {
-    box-shadow: 0 0 0 0 rgba(255, 133, 0, 0.6);
-    transform: scale(1);
-  }
-  50% {
-    box-shadow: 0 0 0 15px rgba(255, 133, 0, 0);
-    transform: scale(1.08);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(255, 133, 0, 0);
-    transform: scale(1);
-  }
 }
