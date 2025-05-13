@@ -104,92 +104,134 @@ export function useHandleServerEvent({
     return null;
   };
 
-  const handleFunctionCall = async (functionCallParams: {
-    name: string;
-    call_id?: string;
-    arguments: string;
-  }) => {
-    // Log function call for debugging
-    console.log("🛠️ Function call received:", functionCallParams.name);
-    setDebugLogs((prev) => [...prev, { type: 'function_call', data: functionCallParams }]);
+const handleFunctionCall = async (functionCallParams: {
+  name: string;
+  call_id?: string;
+  arguments: string;
+}) => {
+  // Log function call for debugging
+  console.log("🛠️ Function call received:", functionCallParams.name);
+  setDebugLogs((prev) => [...prev, { type: 'function_call', data: functionCallParams }]);
 
-    // Special handling for UI events
-    if (functionCallParams.name === "ui_event") {
-      const args = JSON.parse(functionCallParams.arguments);
-      console.log("🎮 UI Event args:", args);
-      setDebugLogs((prev) => [...prev, { type: 'ui_event_args', data: args }]);
-      // Push to uiEvents state for rendering in the UI
-      setUiEvents(prev => [...prev, args]);
-      // Retornar sucesso para a chamada de função
-      sendClientEvent({
-        type: "conversation.item.create",
-        item: {
-          type: "function_call_output",
-          call_id: functionCallParams.call_id,
-          output: JSON.stringify({ success: true }),
-        },
-      });
-      return;
+  // Special handling for UI events
+  if (functionCallParams.name === "ui_event") {
+    const args = JSON.parse(functionCallParams.arguments);
+    console.log("🎮 UI Event args:", args);
+    setDebugLogs((prev) => [...prev, { type: 'ui_event_args', data: args }]);
+    // Push to uiEvents state for rendering in the UI
+    setUIEvents((prev) => [...prev, args]);
+    // Retornar sucesso para a chamada de função
+    sendClientEvent({
+      type: "conversation.item.create",
+      item: {
+        type: "function_call_output",
+        call_id: functionCallParams.call_id,
+        output: JSON.stringify({ success: true }),
+      },
+    });
+    return;
+  }
+
+  // Handling para open_camera - CRUCIAL PARA PRESERVAR O COMPORTAMENTO DO BALÃOZINHO
+  if (functionCallParams.name === "open_camera") {
+    console.log("[DEBUG] Open camera function call received");
+    setDebugLogs((prev) => [...prev, { type: 'open_camera', data: { timestamp: new Date().toISOString() } }]);
+    
+    // IMPORTANTE: Adicionar um balãozinho em vez de abrir a câmera diretamente
+    // Isso mantém o comportamento atual onde o usuário precisa clicar no balão
+    addCameraRequest(50); // Posição padrão
+    
+    // Responder à chamada de função para não deixar a Marlene esperando
+    sendClientEvent({
+      type: "conversation.item.create",
+      item: {
+        type: "function_call_output",
+        call_id: functionCallParams.call_id,
+        output: JSON.stringify({ 
+          success: true,
+          timestamp: new Date().toISOString()
+        }),
+      },
+    });
+    
+    // Não chamar response.create para permitir que a Marlene continue falando
+    return;
+  }
+
+  // Handle close_camera
+  if (functionCallParams.name === "close_camera") {
+    console.log("[DEBUG] Close camera function call received");
+    setDebugLogs((prev) => [...prev, { type: 'close_camera', data: { timestamp: new Date().toISOString() } }]);
+    
+    sendClientEvent({
+      type: "conversation.item.create",
+      item: {
+        type: "function_call_output",
+        call_id: functionCallParams.call_id,
+        output: JSON.stringify({ 
+          success: true,
+          timestamp: new Date().toISOString()
+        }),
+      },
+    });
+    sendClientEvent({ type: "response.create" });
+    return;
+  }
+
+  // Handling para animate_loan_value
+  if (functionCallParams.name === "animate_loan_value") {
+    console.log("💰 ANIMATE_LOAN_VALUE chamada detectada!");
+    
+    // Tente extrair informações dos argumentos
+    try {
+      const args = JSON.parse(functionCallParams.arguments || "{}");
+      console.log("💰 Argumentos da função:", args);
+      
+      // Usar valor dos argumentos ou um valor padrão
+      const valueToUse = args.amount || detectedAmount || 'R$ 12.000,00';
+      console.log("💰 Valor a ser usado:", valueToUse);
+      
+      // Definir o valor no aplicativo
+      document.dispatchEvent(new CustomEvent('detect-loan-amount', {
+        detail: { amount: valueToUse }
+      }));
+      
+      // Aguardar um pouco para garantir que o valor foi definido
+      setTimeout(() => {
+        console.log("💰 Disparando animação após definir valor");
+        document.dispatchEvent(new CustomEvent('loan-animation-trigger'));
+      }, 500);
+    } catch (e) {
+      console.error("Erro ao processar argumentos:", e);
+      
+      // Usar valor padrão em caso de erro
+      const fallbackValue = detectedAmount || 'R$ 15.000,00';
+      console.log("💰 Usando valor padrão:", fallbackValue);
+      
+      document.dispatchEvent(new CustomEvent('detect-loan-amount', {
+        detail: { amount: fallbackValue }
+      }));
+      
+      setTimeout(() => {
+        document.dispatchEvent(new CustomEvent('loan-animation-trigger'));
+      }, 500);
     }
-
-    // Handling for animate_loan_value
-    if (functionCallParams.name === "animate_loan_value") {
-      console.log("💰 ANIMATE_LOAN_VALUE chamada detectada!");
-      
-      // Tente extrair informações dos argumentos
-      try {
-        const args = JSON.parse(functionCallParams.arguments || "{}");
-        console.log("💰 Argumentos da função:", args);
-        
-        // Usar valor dos argumentos ou um valor padrão
-        let valueToUse = args.amount || detectedAmount || 'R$ 12.000,00';
-        
-        // Garantir que o valor esteja no formato correto
-        if (!valueToUse.includes('R$')) {
-          valueToUse = `R$ ${valueToUse}`;
-        }
-        
-        console.log("💰 Valor a ser usado na animação:", valueToUse);
-        
-        // Definir o valor no aplicativo
-        document.dispatchEvent(new CustomEvent('detect-loan-amount', {
-          detail: { amount: valueToUse }
-        }));
-        
-        // Aguardar um pouco para garantir que o valor foi definido
-        setTimeout(() => {
-          console.log("💰 Disparando animação após definir valor");
-          document.dispatchEvent(new CustomEvent('loan-animation-trigger'));
-        }, 300);
-      } catch (e) {
-        console.error("Erro ao processar argumentos:", e);
-        
-        // Usar valor padrão em caso de erro
-        const fallbackValue = detectedAmount || 'R$ 15.000,00';
-        console.log("💰 Usando valor padrão:", fallbackValue);
-        
-        document.dispatchEvent(new CustomEvent('detect-loan-amount', {
-          detail: { amount: fallbackValue }
-        }));
-        
-        setTimeout(() => {
-          console.log("💰 Disparando animação com valor padrão após erro");
-          document.dispatchEvent(new CustomEvent('loan-animation-trigger'));
-        }, 300);
-      }
-      
-      // Retornar resultado da função
-      sendClientEvent({
-        type: "conversation.item.create",
-        item: {
-          type: "function_call_output",
-          call_id: functionCallParams.call_id,
-          output: JSON.stringify({ 
-            success: true,
-            timestamp: new Date().toISOString()
-          }),
-        },
-      });
+    
+    // Retornar resultado da função
+    sendClientEvent({
+      type: "conversation.item.create",
+      item: {
+        type: "function_call_output",
+        call_id: functionCallParams.call_id,
+        output: JSON.stringify({ 
+          success: true,
+          timestamp: new Date().toISOString()
+        }),
+      },
+    });
+    
+    return;
+  }
       
       // Criar resposta após a animação
       sendClientEvent({ type: "response.create" });

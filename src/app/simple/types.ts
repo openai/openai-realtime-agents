@@ -20,7 +20,13 @@ export interface VerificationState {
   startTime: number | null;
   completionTime: number | null;
   error: Error | null;
+  faceDetectionStatus: {
+    detected: boolean;
+    centered: boolean;
+    verified: boolean;
+  };
 }
+
 
 // Estado da conexão
 export interface ConnectionState {
@@ -34,8 +40,10 @@ export interface CameraState {
   stream: MediaStream | null;
   active: boolean;
   error: Error | null;
+  faceDetected: boolean;
+  facePosition: {x: number, y: number, size: number} | null;
+  modelsLoaded: boolean;
 }
-
 // Estado da animação de empréstimo
 export interface LoanState {
   requestedAmount: string | null; // Valor solicitado pelo usuário

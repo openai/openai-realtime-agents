@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "face-api.js": "^0.20.0",
     "next": "^15.3.0",
     "openai": "^4.77.3",
     "react": "^19.0.0",
@@ -26,5 +27,23 @@
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
-  }
+  },
+"browserlistrc": {
+  "production": [
+    ">0.2%",
+    "not dead",
+    "not op_mini all"
+  ],
+  "development": [
+    "last 1 chrome version",
+    "last 1 firefox version",
+    "last 1 safari version"
+  ]
+},
+"eslintConfig": {
+  "extends": [
+    "react-app",
+    "react-app/jest"
+  ]
+}
 }

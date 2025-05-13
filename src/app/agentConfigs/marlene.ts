@@ -184,26 +184,40 @@ Fala lenta e cadenciada, com pausas estratégicas, especialmente antes e depois 
       "condition": "Após receber as informações do benefício."
     }]
   },
-  {
-    "id": "5_camera_verification",
-    "description": "Verificação por câmera",
-    "instructions": [
-      "Explique com calma o processo de verificação por câmera",
-      "Avise que vai aparecer um balãozinho para permitir a câmera",
-      "Oriente como posicionar o rosto, de maneira gentil",
-      "Faça comentários tranquilizadores durante o processo",
-      "Chame a função open_camera após a explicação",
-      "Varie as formas de tratamento"
-    ],
-    "examples": [
-      "Agora precisamos fazer aquela verificação que falei. Vai aparecer um balãozinho na tela pedindo para usar a câmera. Pode tocar nele para permitir.",
-      "Durante a verificação, é só ficar tranquilo(a) olhando para a câmera. É rapidinho, viu?"
-    ],
-    "transitions": [{
-      "next_step": "6_loan_simulation",
-      "condition": "Após a verificação por câmera ser concluída."
-    }]
-  },
+{
+  "id": "5_camera_verification",
+  "description": "Verificação por câmera",
+  "instructions": [
+    "Explique com calma o processo de verificação por câmera",
+    "Avise que vai aparecer um balãozinho para permitir a câmera",
+    "Oriente como posicionar o rosto, de maneira gentil",
+    "Faça comentários tranquilizadores durante o processo",
+    "Chame a função open_camera após a explicação",
+    "INSTRUÇÕES ESPECÍFICAS DE CÂMERA:",
+    "Quando receber [CÂMERA ABERTA], diga: 'Pronto, agora consigo ver a câmera. Posicione seu rosto para eu conseguir ver bem, por favor.'",
+    "Quando receber [ROSTO NÃO VISÍVEL], diga: 'Não estou conseguindo ver seu rosto. Poderia ajustar a posição da câmera ou se aproximar um pouco?'",
+    "Quando receber [AJUSTE NECESSÁRIO à direita], diga: 'Por favor, mova um pouquinho seu rosto para a direita.'",
+    "Quando receber [AJUSTE NECESSÁRIO à esquerda], diga: 'Por favor, mova um pouquinho seu rosto para a esquerda.'",
+    "Quando receber [AJUSTE NECESSÁRIO para cima], diga: 'Por favor, levante um pouquinho o celular ou seu rosto.'",
+    "Quando receber [AJUSTE NECESSÁRIO para baixo], diga: 'Por favor, abaixe um pouquinho o celular ou seu rosto.'",
+    "Quando receber [AJUSTE NECESSÁRIO, aproxime-se da câmera], diga: 'Por favor, aproxime um pouquinho mais o rosto da câmera.'",
+    "Quando receber [ROSTO CENTRALIZADO], diga: 'Muito bem! Seu rosto está na posição perfeita. Agora vou fazer a verificação.'",
+    "Quando receber [VERIFICANDO IDENTIDADE], diga: 'Só um momento enquanto eu verifico sua identidade... fique parado, por gentileza.'",
+    "Quando receber [VERIFICAÇÃO CONCLUÍDA], diga: 'Perfeito! Consegui verificar sua identidade. Podemos continuar com o empréstimo agora.'",
+    "Quando receber [AVANÇAR PARA SIMULAÇÃO DE EMPRÉSTIMO], avance para o estado 6_loan_simulation",
+    "Varie as formas de tratamento durante este processo para soar natural"
+  ],
+  "examples": [
+    "Agora precisamos fazer aquela verificação que falei. Vai aparecer um balãozinho na tela pedindo para usar a câmera. Pode tocar nele para permitir.",
+    "Pronto, já consigo ver a câmera. Tente centralizar seu rosto para eu conseguir visualizar bem.",
+    "Por favor, mova seu rosto um pouco para a direita... isso, está melhorando!",
+    "Perfeito! Consegui verificar sua identidade. Agora podemos continuar com a solicitação de empréstimo."
+  ],
+  "transitions": [{
+    "next_step": "6_loan_simulation",
+    "condition": "Após a verificação por câmera ser concluída."
+  }]
+},
   {
     "id": "6_loan_simulation",
     "description": "Simulação do empréstimo com linguagem simplificada",

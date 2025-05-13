@@ -9,37 +9,29 @@ import LoanValueAnimation from './LoanValueAnimation';
 import { useUI } from '../contexts/UIContext';
 import { useCamera } from '../contexts/CameraContext';
 import { useVerification } from '../contexts/VerificationContext';
-import { useSimulation } from '../contexts/SimulationContext';
 import Image from 'next/image';
 
 const PhoneMockup: React.FC = () => {
-  const {
-    uiEvents,
-    cameraRequests,
-    addCameraRequest,
-    removeCameraRequest,
-    setRequestedLoanAmount,
-    showLoanAnimation,
-  } = useUI();
+  const { uiEvents, cameraRequests, removeCameraRequest, setRequestedLoanAmount, showLoanAnimation } = useUI();
   const { state: cameraState, openCamera } = useCamera();
-  const { state: verificationState } = useVerification();
-  const { simulationMode } = useSimulation();
+  const { state: verificationState, startVerification } = useVerification();
   const videoRef = useRef<HTMLVideoElement | null>(null);
-
+  
   // Função de teste para a animação de valor
   const testAnimation = () => {
     console.log("⭐ Teste de animação iniciado");
-    document.dispatchEvent(
-      new CustomEvent('detect-loan-amount', {
-        detail: { amount: 'R$ 10.000,00' },
-      })
-    );
+    
+    // Definir valor
+    setRequestedLoanAmount('R$ 10.000,00');
+    console.log("⭐ Valor definido: R$ 10.000,00");
+    
+    // Mostrar a animação com um breve atraso
     setTimeout(() => {
       console.log("⭐ Acionando animação");
-      document.dispatchEvent(new CustomEvent('loan-animation-trigger'));
-    }, 300);
+      showLoanAnimation();
+    }, 500);
   };
-
+  
   // Quando receber o stream, anexar ao <video>
   useEffect(() => {
     if (cameraState.stream && videoRef.current) {
@@ -47,34 +39,14 @@ const PhoneMockup: React.FC = () => {
       videoRef.current.muted = true;
       videoRef.current.playsInline = true;
       videoRef.current.autoplay = true;
+      
+      // Tentar reproduzir o vídeo e lidar com qualquer erro
+      videoRef.current.play().catch(err => {
+        console.error('Error playing video:', err);
+      });
     }
   }, [cameraState.stream]);
-
-  // Ouvir eventos de solicitação de câmera simulados
-  useEffect(() => {
-    if (!simulationMode) return;
-
-    const handleCameraRequest = (e: CustomEvent) => {
-      console.log("🧪 Simulando solicitação de câmera");
-      const position = e.detail?.position || 50;
-      const id = addCameraRequest(position);
-      // Opcional: remover automaticamente após uso ou timeout
-      // removeCameraRequest(id);
-    };
-
-    document.addEventListener(
-      'simulated-camera-request',
-      handleCameraRequest as EventListener
-    );
-
-    return () => {
-      document.removeEventListener(
-        'simulated-camera-request',
-        handleCameraRequest as EventListener
-      );
-    };
-  }, [simulationMode, addCameraRequest, removeCameraRequest]);
-
+  
   return (
     <div className="phone-mockup">
       <div className="button-vol-up" />
@@ -82,83 +54,94 @@ const PhoneMockup: React.FC = () => {
       <div className="button-power" />
       <div className="camera-hole" />
       <div className="notch" />
+      
       <div className="screen">
+        {/* Barra de status */}
         <StatusBar />
+        
+        {/* Barra de navegação do browser */}
         <BrowserNavbar />
-        {simulationMode && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '40px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              backgroundColor: 'rgba(255, 133, 0, 0.8)',
-              color: 'white',
-              padding: '2px 10px',
-              borderRadius: '10px',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              zIndex: 100,
-            }}
-          >
-            MODO SIMULAÇÃO
-          </div>
-        )}
+        
+        {/* Logo do Itaú */}
         <div className="itau-logo">
-          <Image
-            src="/images/brand.svg"
-            alt="Itaú Logo"
+          <Image 
+            src="/images/brand.svg" 
+            alt="Itaú Logo" 
             width={0}
             height={0}
             style={{ width: 'auto', height: 'auto', maxHeight: '40px' }}
             priority
           />
         </div>
+        
+        {/* Header com título e nome */}
         <div className="header-content">
           <h1 className="page-title">Crédito Consignado</h1>
           <p className="user-name">Maria Justina Linhares</p>
         </div>
-        {verificationState.active && <VerificationProgress />}
+        
+        {/* Indicador de verificação */}
+        {verificationState.active && (
+          <VerificationProgress />
+        )}
+        
+        {/* Ícones de evento */}
         {uiEvents.map((evt, i) => (
           <div key={i} className="ui-event-icon" style={{ color: evt.color }}>
             {evt.icon}
           </div>
         ))}
-        {cameraRequests.map((req) => (
+        
+        {/* Balõezinhos de câmera - PARTE CRUCIAL MODIFICADA */}
+        {cameraRequests.map(req => (
           <div
             key={req.id}
             className="camera-request-bubble"
             style={{ left: `${req.left}%` }}
             onClick={() => {
+              // 1. Iniciar a verificação primeiro para configurar os listeners
+              if (!verificationState.active) {
+                startVerification();
+              }
+              
+              // 2. Abrir a câmera
               openCamera();
+              
+              // 3. Remover o balãozinho da tela
               removeCameraRequest(req.id);
             }}
           >
             📷
           </div>
         ))}
-        {!simulationMode && (
-          <button
-            onClick={testAnimation}
-            style={{
-              position: 'absolute',
-              top: '150px',
-              left: '10px',
-              zIndex: 100,
-              padding: '5px',
-              background: '#ff8548',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-            }}
-          >
-            Testar animação
-          </button>
-        )}
-        {cameraState.active && cameraState.stream && (
+        
+        {/* Botão de teste da animação */}
+        <button 
+          onClick={testAnimation}
+          style={{
+            position: 'absolute',
+            top: '150px',
+            left: '10px',
+            zIndex: 100,
+            padding: '5px',
+            background: '#ff8548',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px'
+          }}
+        >
+          Testar animação
+        </button>
+        
+        {/* Preview da câmera */}
+        {cameraState.active && (
           <CameraView videoRef={videoRef} />
         )}
+        
+        {/* Animação do valor do empréstimo */}
         <LoanValueAnimation />
+        
+        {/* Footer com animação */}
         <AnimatedFooter />
       </div>
     </div>

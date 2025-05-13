@@ -574,3 +574,115 @@
   opacity: 0;
   transition: opacity 0.8s ease-in-out;
 }
+.guide-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.face-centered {
+  animation: pulse 2s infinite;
+}
+
+.direction-arrows {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.direction-arrows .arrow {
+  position: absolute;
+  font-size: 48px;
+  filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));
+  animation: blink 1s infinite;
+}
+
+.direction-arrows .arrow.left {
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.direction-arrows .arrow.right {
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.direction-arrows .arrow.up {
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.direction-arrows .arrow.down {
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.direction-arrows .zoom {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 60px;
+  animation: grow 1.5s infinite;
+}
+
+.no-face-detected {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(0,0,0,0.5);
+  padding: 15px;
+  border-radius: 10px;
+}
+
+.no-face-detected .face-icon {
+  font-size: 48px;
+  margin-bottom: 10px;
+}
+
+.no-face-detected .direction-text {
+  color: white;
+  font-size: 16px;
+  text-align: center;
+}
+
+.verification-status {
+  position: absolute;
+  bottom: 10px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  padding: 8px;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.95); opacity: 0.7; }
+  50% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.7; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+@keyframes grow {
+  0% { transform: translate(-50%, -50%) scale(0.8); }
+  50% { transform: translate(-50%, -50%) scale(1.2); }
+  100% { transform: translate(-50%, -50%) scale(0.8); }
+}
