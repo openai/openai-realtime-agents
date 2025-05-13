@@ -231,10 +231,7 @@ We hope these policies give you confidence in our commitment to quality and cust
 `;
     },
     checkEligibilityAndPossiblyInitiateReturn: async (args, transcriptLogs) => {
-      console.log(
-        "checkEligibilityAndPossiblyInitiateReturn()",
-        args,
-      );
+      console.log("checkEligibilityAndPossiblyInitiateReturn()", args);
       const nMostRecentLogs = 10;
       const messages = [
         {

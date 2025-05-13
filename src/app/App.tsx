@@ -25,16 +25,22 @@ import { createRealtimeConnection } from "./lib/realtimeConnection";
 // Agent configs
 import { allAgentSets, defaultAgentSetKey } from "@/app/agentConfigs";
 
+import useAudioDownload from "./hooks/useAudioDownload";
+
 function App() {
   const searchParams = useSearchParams();
+
+  // Use urlCodec directly from URL search params (default: "opus")
+  const urlCodec = searchParams.get("codec") || "opus";
 
   const { transcriptItems, addTranscriptMessage, addTranscriptBreadcrumb } =
     useTranscript();
   const { logClientEvent, logServerEvent } = useEvent();
 
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
-  const [selectedAgentConfigSet, setSelectedAgentConfigSet] =
-    useState<AgentConfig[] | null>(null);
+  const [selectedAgentConfigSet, setSelectedAgentConfigSet] = useState<
+    AgentConfig[] | null
+  >(null);
 
   const [dataChannel, setDataChannel] = useState<RTCDataChannel | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -50,6 +56,13 @@ function App() {
   const [isPTTUserSpeaking, setIsPTTUserSpeaking] = useState<boolean>(false);
   const [isAudioPlaybackEnabled, setIsAudioPlaybackEnabled] =
     useState<boolean>(true);
+
+  const [isOutputAudioBufferActive, setIsOutputAudioBufferActive] =
+    useState<boolean>(false);
+
+  // Initialize the recording hook.
+  const { startRecording, stopRecording, downloadRecording } =
+    useAudioDownload();
 
   const sendClientEvent = (eventObj: any, eventNameSuffix = "") => {
     if (dcRef.current && dcRef.current.readyState === "open") {
@@ -73,6 +86,7 @@ function App() {
     selectedAgentConfigSet,
     sendClientEvent,
     setSelectedAgentName,
+    setIsOutputAudioBufferActive,
   });
 
   useEffect(() => {
@@ -107,10 +121,7 @@ function App() {
       const currentAgent = selectedAgentConfigSet.find(
         (a) => a.name === selectedAgentName
       );
-      addTranscriptBreadcrumb(
-        `Agent: ${selectedAgentName}`,
-        currentAgent
-      );
+      addTranscriptBreadcrumb(`Agent: ${selectedAgentName}`, currentAgent);
       updateSession(true);
     }
   }, [selectedAgentConfigSet, selectedAgentName, sessionStatus]);
@@ -157,7 +168,8 @@ function App() {
 
       const { pc, dc } = await createRealtimeConnection(
         EPHEMERAL_KEY,
-        audioElementRef
+        audioElementRef,
+        urlCodec
       );
       pcRef.current = pc;
       dcRef.current = dc;
@@ -250,9 +262,7 @@ function App() {
       session: {
         modalities: ["text", "audio"],
         instructions,
-        voice: "coral",
-        input_audio_format: "pcm16",
-        output_audio_format: "pcm16",
+        voice: "sage",
         input_audio_transcription: { model: "whisper-1" },
         turn_detection: turnDetection,
         tools,
@@ -267,29 +277,30 @@ function App() {
   };
 
   const cancelAssistantSpeech = async () => {
+    // Send a response.cancel if the most recent assistant conversation item is IN_PROGRESS. This implicitly does a item.truncate as well
     const mostRecentAssistantMessage = [...transcriptItems]
       .reverse()
       .find((item) => item.role === "assistant");
+
 
     if (!mostRecentAssistantMessage) {
       console.warn("can't cancel, no recent assistant message found");
       return;
     }
-    if (mostRecentAssistantMessage.status === "DONE") {
-      console.log("No truncation needed, message is DONE");
-      return;
+    if (mostRecentAssistantMessage.status === "IN_PROGRESS") {
+      sendClientEvent(
+        { type: "response.cancel" },
+        "(cancel due to user interruption)"
+      );
     }
 
-    sendClientEvent({
-      type: "conversation.item.truncate",
-      item_id: mostRecentAssistantMessage?.itemId,
-      content_index: 0,
-      audio_end_ms: Date.now() - mostRecentAssistantMessage.createdAtMs,
-    });
-    sendClientEvent(
-      { type: "response.cancel" },
-      "(cancel due to user interruption)"
-    );
+    // Send an output_audio_buffer.cancel if the isOutputAudioBufferActive is True
+    if (isOutputAudioBufferActive) {
+      sendClientEvent(
+        { type: "output_audio_buffer.clear" },
+        "(cancel due to user interruption)"
+      );
+    }
   };
 
   const handleSendTextMessage = () => {
@@ -309,7 +320,7 @@ function App() {
     );
     setUserText("");
 
-    sendClientEvent({ type: "response.create" }, "trigger response");
+    sendClientEvent({ type: "response.create" }, "(trigger response)");
   };
 
   const handleTalkButtonDown = () => {
@@ -357,6 +368,13 @@ function App() {
     setSelectedAgentName(newAgentName);
   };
 
+  // Instead of using setCodec, we update the URL and refresh the page when codec changes
+  const handleCodecChange = (newCodec: string) => {
+    const url = new URL(window.location.toString());
+    url.searchParams.set("codec", newCodec);
+    window.location.replace(url.toString());
+  };
+
   useEffect(() => {
     const storedPushToTalkUI = localStorage.getItem("pushToTalkUI");
     if (storedPushToTalkUI) {
@@ -401,13 +419,29 @@ function App() {
     }
   }, [isAudioPlaybackEnabled]);
 
+  useEffect(() => {
+    if (sessionStatus === "CONNECTED" && audioElementRef.current?.srcObject) {
+      // The remote audio stream from the audio element.
+      const remoteStream = audioElementRef.current.srcObject as MediaStream;
+      startRecording(remoteStream);
+    }
+
+    // Clean up on unmount or when sessionStatus is updated.
+    return () => {
+      stopRecording();
+    };
+  }, [sessionStatus]);
+
   const agentSetKey = searchParams.get("agentConfig") || "default";
 
   return (
     <div className="text-base flex flex-col h-screen bg-gray-100 text-gray-800 relative">
       <div className="p-5 text-lg font-semibold flex justify-between items-center">
-        <div className="flex items-center">
-          <div onClick={() => window.location.reload()} style={{ cursor: 'pointer' }}>
+        <div
+          className="flex items-center cursor-pointer"
+          onClick={() => window.location.reload()}
+        >
+          <div>
             <Image
               src="/openai-logomark.svg"
               alt="OpenAI Logo"
@@ -458,7 +492,7 @@ function App() {
                   onChange={handleSelectedAgentChange}
                   className="appearance-none border border-gray-300 rounded-lg text-base px-2 py-1 pr-8 cursor-pointer font-normal focus:outline-none"
                 >
-                  {selectedAgentConfigSet?.map(agent => (
+                  {selectedAgentConfigSet?.map((agent) => (
                     <option key={agent.name} value={agent.name}>
                       {agent.name}
                     </option>
@@ -488,6 +522,7 @@ function App() {
           userText={userText}
           setUserText={setUserText}
           onSendMessage={handleSendTextMessage}
+          downloadRecording={downloadRecording}
           canSend={
             sessionStatus === "CONNECTED" &&
             dcRef.current?.readyState === "open"
@@ -509,6 +544,8 @@ function App() {
         setIsEventsPaneExpanded={setIsEventsPaneExpanded}
         isAudioPlaybackEnabled={isAudioPlaybackEnabled}
         setIsAudioPlaybackEnabled={setIsAudioPlaybackEnabled}
+        codec={urlCodec}
+        onCodecChange={handleCodecChange}
       />
     </div>
   );

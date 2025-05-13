@@ -5,11 +5,12 @@ const openai = new OpenAI();
 
 export async function POST(req: Request) {
   try {
-    const { model, messages } = await req.json();
+    // Retrieve the entire JSON object from the request.
+    const body = await req.json();
 
+    // Spread the entire body into the API call.
     const completion = await openai.chat.completions.create({
-      model,
-      messages,
+      ...body,
     });
 
     return NextResponse.json(completion);

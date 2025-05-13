@@ -5,12 +5,15 @@ import ReactMarkdown from "react-markdown";
 import { TranscriptItem } from "@/app/types";
 import Image from "next/image";
 import { useTranscript } from "@/app/contexts/TranscriptContext";
+import { DownloadIcon, ClipboardCopyIcon } from "@radix-ui/react-icons";
+import { GuardrailChip } from "./GuardrailChip";
 
 export interface TranscriptProps {
   userText: string;
   setUserText: (val: string) => void;
   onSendMessage: () => void;
   canSend: boolean;
+  downloadRecording: () => void;
 }
 
 function Transcript({
@@ -18,6 +21,7 @@ function Transcript({
   setUserText,
   onSendMessage,
   canSend,
+  downloadRecording,
 }: TranscriptProps) {
   const { transcriptItems, toggleTranscriptItemExpand } = useTranscript();
   const transcriptRef = useRef<HTMLDivElement | null>(null);
@@ -68,20 +72,44 @@ function Transcript({
 
   return (
     <div className="flex flex-col flex-1 bg-white min-h-0 rounded-xl">
-      <div className="relative flex-1 min-h-0">
-        <button
-          onClick={handleCopyTranscript}
-          className={`absolute w-20 top-3 right-2 mr-1 z-10 text-sm px-3 py-2 rounded-full bg-gray-200 hover:bg-gray-300`}
-        >
-          {justCopied ? "Copied!" : "Copy"}
-        </button>
+      <div className="flex flex-col flex-1 min-h-0">
+        <div className="flex items-center justify-between px-6 py-3 sticky top-0 z-10 text-base border-b bg-white rounded-t-xl">
+          <span className="font-semibold">Transcript</span>
+          <div className="flex gap-x-2">
+            <button
+              onClick={handleCopyTranscript}
+              className="w-24 text-sm px-3 py-1 rounded-md bg-gray-200 hover:bg-gray-300 flex items-center justify-center gap-x-1"
+            >
+              <ClipboardCopyIcon />
+              {justCopied ? "Copied!" : "Copy"}
+            </button>
+            <button
+              onClick={downloadRecording}
+              className="w-40 text-sm px-3 py-1 rounded-md bg-gray-200 hover:bg-gray-300 flex items-center justify-center gap-x-1"
+            >
+              <DownloadIcon />
+              <span>Download Audio</span>
+            </button>
+          </div>
+        </div>
 
+        {/* Transcript Content */}
         <div
           ref={transcriptRef}
           className="overflow-auto p-4 flex flex-col gap-y-4 h-full"
         >
           {transcriptItems.map((item) => {
-            const { itemId, type, role, data, expanded, timestamp, title = "", isHidden } = item;
+            const {
+              itemId,
+              type,
+              role,
+              data,
+              expanded,
+              timestamp,
+              title = "",
+              isHidden,
+              guardrailResult,
+            } = item;
 
             if (isHidden) {
               return null;
@@ -89,22 +117,45 @@ function Transcript({
 
             if (type === "MESSAGE") {
               const isUser = role === "user";
-              const baseContainer = "flex justify-end flex-col";
-              const containerClasses = `${baseContainer} ${isUser ? "items-end" : "items-start"}`;
-              const bubbleBase = `max-w-lg p-3 rounded-xl ${isUser ? "bg-gray-900 text-gray-100" : "bg-gray-100 text-black"}`;
-              const isBracketedMessage = title.startsWith("[") && title.endsWith("]");
-              const messageStyle = isBracketedMessage ? "italic text-gray-400" : "";
-              const displayTitle = isBracketedMessage ? title.slice(1, -1) : title;
+              const containerClasses = `flex justify-end flex-col ${
+                isUser ? "items-end" : "items-start"
+              }`;
+              const bubbleBase = `max-w-lg p-3 ${
+                isUser ? "bg-gray-900 text-gray-100" : "bg-gray-100 text-black"
+              }`;
+              const isBracketedMessage =
+                title.startsWith("[") && title.endsWith("]");
+              const messageStyle = isBracketedMessage
+                ? "italic text-gray-400"
+                : "";
+              const displayTitle = isBracketedMessage
+                ? title.slice(1, -1)
+                : title;
 
               return (
                 <div key={itemId} className={containerClasses}>
-                  <div className={bubbleBase}>
-                    <div className={`text-xs ${isUser ? "text-gray-400" : "text-gray-500"} font-mono`}>
-                      {timestamp}
+                  <div className="max-w-lg">
+                    <div
+                      className={`${bubbleBase} rounded-t-xl ${
+                        guardrailResult ? "" : "rounded-b-xl"
+                      }`}
+                    >
+                      <div
+                        className={`text-xs ${
+                          isUser ? "text-gray-400" : "text-gray-500"
+                        } font-mono`}
+                      >
+                        {timestamp}
+                      </div>
+                      <div className={`whitespace-pre-wrap ${messageStyle}`}>
+                        <ReactMarkdown>{displayTitle}</ReactMarkdown>
+                      </div>
                     </div>
-                    <div className={`whitespace-pre-wrap ${messageStyle}`}>
-                      <ReactMarkdown>{displayTitle}</ReactMarkdown>
-                    </div>
+                    {guardrailResult && (
+                      <div className="bg-gray-200 px-3 py-2 rounded-b-xl">
+                        <GuardrailChip guardrailResult={guardrailResult} />
+                      </div>
+                    )}
                   </div>
                 </div>
               );

@@ -2,18 +2,34 @@ import { RefObject } from "react";
 
 export async function createRealtimeConnection(
   EPHEMERAL_KEY: string,
-  audioElement: RefObject<HTMLAudioElement | null>
+  audioElement: RefObject<HTMLAudioElement | null>,
+  codec: string
 ): Promise<{ pc: RTCPeerConnection; dc: RTCDataChannel }> {
   const pc = new RTCPeerConnection();
 
   pc.ontrack = (e) => {
     if (audioElement.current) {
-        audioElement.current.srcObject = e.streams[0];
+      audioElement.current.srcObject = e.streams[0];
     }
   };
 
   const ms = await navigator.mediaDevices.getUserMedia({ audio: true });
   pc.addTrack(ms.getTracks()[0]);
+
+  // Set codec preferences based on selected codec from the query parameter.
+  const capabilities = RTCRtpSender.getCapabilities("audio");
+  if (capabilities) {
+    const chosenCodec = capabilities.codecs.find(
+      (c) => c.mimeType.toLowerCase() === `audio/${codec}`
+    );
+    if (chosenCodec) {
+      pc.getTransceivers()[0].setCodecPreferences([chosenCodec]);
+    } else {
+      console.warn(
+        `Codec "${codec}" not found in capabilities. Using default settings.`
+      );
+    }
+  }
 
   const dc = pc.createDataChannel("oai-events");
 
@@ -41,4 +57,4 @@ export async function createRealtimeConnection(
   await pc.setRemoteDescription(answer);
 
   return { pc, dc };
-} 
+}

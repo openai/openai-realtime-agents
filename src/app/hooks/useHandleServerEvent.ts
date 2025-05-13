@@ -1,9 +1,15 @@
 "use client";
 
-import { ServerEvent, SessionStatus, AgentConfig } from "@/app/types";
+import { useRef } from "react";
+import {
+  ServerEvent,
+  SessionStatus,
+  AgentConfig,
+  GuardrailResultType,
+} from "@/app/types";
 import { useTranscript } from "@/app/contexts/TranscriptContext";
 import { useEvent } from "@/app/contexts/EventContext";
-import { useRef } from "react";
+import { runGuardrailClassifier } from "@/app/lib/callOai";
 
 export interface UseHandleServerEventParams {
   setSessionStatus: (status: SessionStatus) => void;
@@ -12,6 +18,7 @@ export interface UseHandleServerEventParams {
   sendClientEvent: (eventObj: any, eventNameSuffix?: string) => void;
   setSelectedAgentName: (name: string) => void;
   shouldForceResponse?: boolean;
+  setIsOutputAudioBufferActive: (active: boolean) => void;
 }
 
 export function useHandleServerEvent({
@@ -20,16 +27,45 @@ export function useHandleServerEvent({
   selectedAgentConfigSet,
   sendClientEvent,
   setSelectedAgentName,
+  setIsOutputAudioBufferActive,
 }: UseHandleServerEventParams) {
   const {
     transcriptItems,
     addTranscriptBreadcrumb,
     addTranscriptMessage,
     updateTranscriptMessage,
-    updateTranscriptItemStatus,
+    updateTranscriptItem,
   } = useTranscript();
 
   const { logServerEvent } = useEvent();
+
+  const assistantDeltasRef = useRef<{ [itemId: string]: string }>({});
+
+  async function processGuardrail(itemId: string, text: string) {
+    let res;
+    try {
+      res = await runGuardrailClassifier(text);
+    } catch (error) {
+      console.warn(error);
+      return;
+    }
+
+    const currentItem = transcriptItems.find((item) => item.itemId === itemId);
+    if ((currentItem?.guardrailResult?.testText?.length ?? 0) > text.length) {
+      // If the existing guardrail result is more complete, skip updating. We're running multiple guardrail checks and you don't want an earlier one to overwrite a later, more complete result.
+      return;
+    }
+    
+    const newGuardrailResult: GuardrailResultType = {
+      status: "DONE",
+      testText: text,
+      category: res.moderationCategory,
+      rationale: res.moderationRationale,
+    };
+
+    // Update the transcript item with the new guardrail result.
+    updateTranscriptItem(itemId, { guardrailResult: newGuardrailResult });
+  }
 
   const handleFunctionCall = async (functionCallParams: {
     name: string;
@@ -63,7 +99,8 @@ export function useHandleServerEvent({
     } else if (functionCallParams.name === "transferAgents") {
       const destinationAgent = args.destination_agent;
       const newAgentConfig =
-        selectedAgentConfigSet?.find((a) => a.name === destinationAgent) || null;
+        selectedAgentConfigSet?.find((a) => a.name === destinationAgent) ||
+        null;
       if (newAgentConfig) {
         setSelectedAgentName(destinationAgent);
       }
@@ -118,6 +155,15 @@ export function useHandleServerEvent({
         break;
       }
 
+      case "output_audio_buffer.started": {
+        setIsOutputAudioBufferActive(true);
+        break;
+      }
+      case "output_audio_buffer.stopped": {
+        setIsOutputAudioBufferActive(false);
+        break;
+      }
+
       case "conversation.item.created": {
         let text =
           serverEvent.item?.content?.[0]?.text ||
@@ -127,6 +173,7 @@ export function useHandleServerEvent({
         const itemId = serverEvent.item?.id;
 
         if (itemId && transcriptItems.some((item) => item.itemId === itemId)) {
+          // don't add transcript message if already exists
           break;
         }
 
@@ -155,7 +202,21 @@ export function useHandleServerEvent({
         const itemId = serverEvent.item_id;
         const deltaText = serverEvent.delta || "";
         if (itemId) {
+          // Update the transcript message with the new text.
           updateTranscriptMessage(itemId, deltaText, true);
+
+          // Accumulate the deltas and run the output guardrail at regular intervals.
+          if (!assistantDeltasRef.current[itemId]) {
+            assistantDeltasRef.current[itemId] = "";
+          }
+          assistantDeltasRef.current[itemId] += deltaText;
+          const newAccumulated = assistantDeltasRef.current[itemId];
+          const wordCount = newAccumulated.trim().split(" ").length;
+
+          // Run guardrail classifier every 5 words.
+          if (wordCount > 0 && wordCount % 5 === 0) {
+            processGuardrail(itemId, newAccumulated);
+          }
         }
         break;
       }
@@ -174,6 +235,15 @@ export function useHandleServerEvent({
                 arguments: outputItem.arguments,
               });
             }
+            if (
+              outputItem.type === "message" &&
+              outputItem.role === "assistant"
+            ) {
+              const itemId = outputItem.id;
+              const text = outputItem.content[0].transcript;
+              // Final guardrail for this message
+              processGuardrail(itemId, text);
+            }
           });
         }
         break;
@@ -182,7 +252,7 @@ export function useHandleServerEvent({
       case "response.output_item.done": {
         const itemId = serverEvent.item?.id;
         if (itemId) {
-          updateTranscriptItemStatus(itemId, "DONE");
+          updateTranscriptItem(itemId, { status: "DONE" });
         }
         break;
       }

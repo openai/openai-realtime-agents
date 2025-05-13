@@ -10,7 +10,7 @@ type TranscriptContextValue = {
   updateTranscriptMessage: (itemId: string, text: string, isDelta: boolean) => void;
   addTranscriptBreadcrumb: (title: string, data?: Record<string, any>) => void;
   toggleTranscriptItemExpand: (itemId: string) => void;
-  updateTranscriptItemStatus: (itemId: string, newStatus: "IN_PROGRESS" | "DONE") => void;
+  updateTranscriptItem: (itemId: string, updatedProperties: Partial<TranscriptItem>) => void;
 };
 
 const TranscriptContext = createContext<TranscriptContextValue | undefined>(undefined);
@@ -89,10 +89,10 @@ export const TranscriptProvider: FC<PropsWithChildren> = ({ children }) => {
     );
   };
 
-  const updateTranscriptItemStatus: TranscriptContextValue["updateTranscriptItemStatus"] = (itemId, newStatus) => {
+  const updateTranscriptItem: TranscriptContextValue["updateTranscriptItem"] = (itemId, updatedProperties) => {
     setTranscriptItems((prev) =>
       prev.map((item) =>
-        item.itemId === itemId ? { ...item, status: newStatus } : item
+        item.itemId === itemId ? { ...item, ...updatedProperties } : item
       )
     );
   };
@@ -105,7 +105,7 @@ export const TranscriptProvider: FC<PropsWithChildren> = ({ children }) => {
         updateTranscriptMessage,
         addTranscriptBreadcrumb,
         toggleTranscriptItemExpand,
-        updateTranscriptItemStatus,
+        updateTranscriptItem,
       }}
     >
       {children}
