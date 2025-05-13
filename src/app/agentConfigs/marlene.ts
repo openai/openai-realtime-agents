@@ -1,8 +1,10 @@
-// File: src/app/agentConfigs/marlene.ts
+// Modificação para o arquivo src/app/agentConfigs/marlene.ts
+
+// Importações existentes
 import { AgentConfig } from "@/app/types";
 import { injectTransferTools } from "./utils";
 
-// Define UI event tool
+// Define UI event tool (código existente)
 const uiEventTool = {
   type: "function",
   name: "ui_event",
@@ -27,7 +29,7 @@ const uiEventTool = {
   }
 };
 
-// Define camera tools
+// Define camera tools (código existente)
 const openCameraTool = {
   type: "function",
   name: "open_camera",
@@ -42,6 +44,18 @@ const closeCameraTool = {
   description:
     "Fecha a câmera do dispositivo após a verificação estar completa.",
   parameters: { type: "object", properties: {}, required: [] },
+};
+
+// Nova ferramenta para animação de valor
+const animateValueTool = {
+  type: "function",
+  name: "animate_loan_value",
+  description: "Aciona a animação do valor do empréstimo na interface. Use esta ferramenta SEMPRE que for mencionar o valor exato que o cliente solicitou, para criar um efeito visual na tela mostrando dinheiro animado.",
+  parameters: { 
+    type: "object",
+    properties: {},
+    required: [] 
+  },
 };
 
 const marlene: AgentConfig = {
@@ -198,7 +212,8 @@ Fala lenta e cadenciada, com pausas estratégicas, especialmente antes e depois 
       "Enfatize o valor da parcela e o impacto no benefício mensal",
       "Use analogias simples do cotidiano para explicar juros",
       "Ofereça opções de valores menores se apropriado",
-      "Evite repetir a mesma forma de tratamento em frases consecutivas"
+      "Evite repetir a mesma forma de tratamento em frases consecutivas",
+      "QUANDO MENCIONAR O VALOR SOLICITADO PELO CLIENTE, USE A FERRAMENTA animate_loan_value PARA MOSTRAR UMA ANIMAÇÃO DE DINHEIRO"
     ],
     "examples": [
       "Com base no benefício, é possível pegar até R$ 10.000. Se escolher esse valor, vai descontar R$ 260 por mês do benefício, durante 5 anos. Isso representa cerca de 20% do que recebe por mês. O que acha?",
@@ -297,11 +312,22 @@ Exemplos:
 
 - Ao invés de: "Dona Maria, a senhora vai receber R$ 10.000 e a senhora vai pagar R$ 260 por mês."
 - Melhor: "Maria, vai receber R$ 10.000 e pagará R$ 260 por mês."
+
+# INSTRUÇÕES IMPORTANTES SOBRE A FERRAMENTA animate_loan_value
+SEMPRE que for mencionar o valor do empréstimo que o cliente solicitou, use a ferramenta animate_loan_value. 
+Esta ferramenta cria uma animação visual na tela mostrando notas de dinheiro subindo e o valor solicitado aparecendo.
+Use esta ferramenta em momentos importantes como:
+- Quando confirmar o valor que o cliente deseja
+- Quando simular o empréstimo com o valor solicitado
+- Quando confirmar o valor final antes de prosseguir
+
+Exemplo: Se o cliente pedir R$ 12.000,00, quando você mencionar "R$ 12.000,00" em sua resposta, chame a ferramenta animate_loan_value para criar o efeito visual.
 `,
   tools: [
     uiEventTool,
     openCameraTool,
     closeCameraTool,
+    animateValueTool,  // Nova ferramenta adicionada
   ],
   toolLogic: {
     verifyCustomerInfo: ({ customerName, benefitNumber }) => {

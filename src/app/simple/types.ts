@@ -1,13 +1,13 @@
 // src/app/simple/types.ts
 
-// Tipos de eventos da UI
+// Tipo para eventos da UI
 export interface UIEvent {
   name: string;
   icon: string;
   color: string;
 }
 
-// Solicitações de câmera
+// Tipo para solicitações de câmera
 export interface CameraRequest {
   id: string;
   left: number;
@@ -36,6 +36,13 @@ export interface CameraState {
   error: Error | null;
 }
 
+// Estado da animação de empréstimo
+export interface LoanState {
+  requestedAmount: string | null; // Valor solicitado pelo usuário
+  showAnimation: boolean;         // Controla visibilidade da animação
+  animationProgress: number;      // Progresso da animação (0-100)
+}
+
 // Mensagens do agente
 export interface AgentMessage {
   type: string;
@@ -45,7 +52,16 @@ export interface AgentMessage {
       type: string;
       name?: string;
       arguments?: string;
+      call_id?: string;
     }>;
+  };
+  item?: {
+    role?: 'user' | 'assistant';
+    content?: Array<{
+      type?: string;
+      text?: string;
+    }> | string;
+    [key: string]: any;
   };
   [key: string]: any;
 }

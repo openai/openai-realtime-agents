@@ -5,6 +5,7 @@ import BrowserNavbar from './BrowserNavbar';
 import CameraView from './CameraView';
 import VerificationProgress from './VerificationProgress';
 import AnimatedFooter from './AnimatedFooter';
+import LoanValueAnimation from './LoanValueAnimation';
 import { useUI } from '../contexts/UIContext';
 import { useCamera } from '../contexts/CameraContext';
 import { useVerification } from '../contexts/VerificationContext';
@@ -90,6 +91,9 @@ const PhoneMockup: React.FC = () => {
         {cameraState.active && cameraState.stream && (
           <CameraView videoRef={videoRef} />
         )}
+        
+        {/* Animação do valor do empréstimo */}
+        <LoanValueAnimation />
         
         {/* Footer com animação */}
         <AnimatedFooter />

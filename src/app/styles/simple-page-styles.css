@@ -500,3 +500,131 @@
     transform: scale(1);
   }
 }
+/* Animação do valor do empréstimo */
+.loan-value-animation {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 240px; /* Área maior para os emojis subirem */
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 11;
+}
+
+/* Sobreposição para a animação de valor */
+.loan-value-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 150px;
+  background: linear-gradient(to top, 
+    rgba(255, 133, 0, 0.95) 0%, 
+    rgba(255, 153, 0, 0.7) 50%, 
+    rgba(255, 173, 0, 0) 100%);
+  opacity: 0;
+  transition: opacity 0.5s ease-in-out;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.loan-value-overlay.visible {
+  opacity: 1;
+}
+
+.money-emoji {
+  position: absolute;
+  bottom: 15px;
+  font-size: 28px;
+  --float-distance: -200px;
+  --rotation: 15deg;
+  animation: floatUpRandom 4s ease-out forwards;
+  z-index: 12;
+}
+
+@keyframes floatUpRandom {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(var(--float-distance, -200px)) rotate(var(--rotation, 15deg));
+    opacity: 0;
+  }
+}
+
+.loan-amount-display {
+  position: absolute;
+  bottom: 80px;
+  left: 0;
+  width: 100%;
+  text-align: left;
+  font-size: 32px;
+  font-weight: bold;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  z-index: 13; /* Acima dos emojis */
+  padding-left: 20px;
+  opacity: 0;
+  transition: opacity 0.8s ease-in-out;
+}
+
+/* Estilos específicos para o rodapé durante a animação de valor */
+.animated-footer.loan-animation::after {
+  opacity: 1;
+  background: linear-gradient(
+    to top,
+    rgba(255, 133, 0, 0.95) 0%,
+    rgba(255, 153, 0, 0.8) 30%, 
+    rgba(255, 173, 0, 0.5) 60%,
+    rgba(255, 193, 0, 0.2) 90%,
+    rgba(255, 213, 0, 0) 100%
+  );
+  animation: pulse-gradient-loan 3s ease-in-out infinite;
+}
+
+@keyframes pulse-gradient-loan {
+  0% {
+    opacity: 0.8;
+    height: 100%;
+  }
+  50% {
+    opacity: 1;
+    height: 120%;
+  }
+  100% {
+    opacity: 0.8;
+    height: 100%;
+  }
+}
+
+/* Estilos para o botão PTT quando a animação de valor está ativa */
+.ptt-button.loan-animation {
+  background: linear-gradient(45deg, #ff8036, #ffb000);
+  box-shadow: 
+    0 0 10px rgba(255, 133, 0, 0.5),
+    0 0 20px rgba(255, 133, 0, 0.3);
+  animation: pulse-loan 2s infinite;
+}
+
+@keyframes pulse-loan {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 133, 0, 0.6);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 15px rgba(255, 133, 0, 0);
+    transform: scale(1.08);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 133, 0, 0);
+    transform: scale(1);
+  }
+}

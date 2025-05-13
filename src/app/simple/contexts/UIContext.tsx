@@ -1,23 +1,33 @@
 // src/app/simple/contexts/UIContext.tsx
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { UIEvent, CameraRequest } from '../types';
+import { UIEvent, CameraRequest, LoanState } from '../types';
 import { useConnection } from './ConnectionContext';
 
 // Tipo do contexto
 interface UIContextType {
+  // Estados existentes
   uiEvents: UIEvent[];
   cameraRequests: CameraRequest[];
   currentTime: string;
   agentIsSpeaking: boolean;
   userIsSpeaking: boolean;
   speechIntensity: number;
+  isAudioPlaybackEnabled: boolean;
+  isTransitioning: boolean;
+  
+  // Funções existentes
   addUIEvent: (event: UIEvent) => void;
   addCameraRequest: (left: number) => string;
   removeCameraRequest: (id: string) => void;
   setSpeechIntensity: (intensity: number) => void;
   setUserIsSpeaking: (isSpeaking: boolean) => void;
-  isAudioPlaybackEnabled: boolean;
   setIsAudioPlaybackEnabled: (enabled: boolean) => void;
+  
+  // Estados e funções para valor de empréstimo
+  loanState: LoanState;
+  setRequestedLoanAmount: (amount: string) => void;
+  showLoanAnimation: () => void;
+  hideLoanAnimation: () => void;
 }
 
 // Criar o contexto
@@ -25,6 +35,7 @@ const UIContext = createContext<UIContextType | undefined>(undefined);
 
 // Provider
 export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Estados existentes
   const [uiEvents, setUIEvents] = useState<UIEvent[]>([]);
   const [cameraRequests, setCameraRequests] = useState<CameraRequest[]>([]);
   const [currentTime, setCurrentTime] = useState<string>('');
@@ -32,14 +43,23 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   const [userIsSpeaking, setUserIsSpeaking] = useState<boolean>(false);
   const [speechIntensity, setSpeechIntensity] = useState<number>(0);
   const [isAudioPlaybackEnabled, setIsAudioPlaybackEnabled] = useState<boolean>(true);
+  const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
   
-  // Debounce timers to prevent rapid state changes
+  // Estado do empréstimo
+  const [loanState, setLoanState] = useState<LoanState>({
+    requestedAmount: null,
+    showAnimation: false,
+    animationProgress: 0
+  });
+  
+  // Referências para temporizadores
   const agentSpeakingTimerRef = useRef<number | null>(null);
   const userSpeakingTimerRef = useRef<number | null>(null);
+  const loanAnimationTimerRef = useRef<number | null>(null);
   
   const { onAgentMessage } = useConnection();
   
-  // Debounced state setters
+  // Debounced state setters (código existente)
   const setAgentSpeakingDebounced = (isSpeaking: boolean, delay: number = 300) => {
     // Clear any pending timer
     if (agentSpeakingTimerRef.current !== null) {
@@ -78,7 +98,112 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     }
   };
   
-  // Atualizar o relógio a cada minuto
+  // Função para definir o valor do empréstimo solicitado
+  const setRequestedLoanAmount = (amount: string) => {
+    console.log("Setting requested loan amount:", amount);
+    
+    // Formatar o valor como R$ X.XXX,XX
+    // Remover quaisquer caracteres não numéricos, exceto vírgulas e pontos
+    const cleanAmount = amount.replace(/[^\d,.]/g, '');
+    
+    let formattedAmount;
+    if (amount.includes('R$') || amount.match(/^\d+(\.\d{3})*(,\d{2})?$/)) {
+      // Já está formatado como R$ ou como número com separadores
+      formattedAmount = amount.includes('R$') ? amount : `R$ ${cleanAmount}`;
+    } else {
+      try {
+        // Converter para número - substituir vírgula por ponto para parse
+        const numberValue = parseFloat(cleanAmount.replace(',', '.'));
+        formattedAmount = isNaN(numberValue) ? amount : `R$ ${numberValue.toLocaleString('pt-BR', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        })}`;
+      } catch (e) {
+        // Se falhar, usar o valor original
+        formattedAmount = amount;
+      }
+    }
+    
+    setLoanState(prev => ({
+      ...prev,
+      requestedAmount: formattedAmount
+    }));
+  };
+  
+  // Função para mostrar a animação do valor
+  const showLoanAnimation = () => {
+    console.log("Showing loan animation for amount:", loanState.requestedAmount);
+    
+    // Apenas mostrar se houver um valor de empréstimo definido
+    if (loanState.requestedAmount) {
+      setLoanState(prev => ({
+        ...prev,
+        showAnimation: true,
+        animationProgress: 0
+      }));
+      
+      // Animar o progresso
+      const startTime = Date.now();
+      const duration = 2000; // 2 segundos para animação completa
+      
+      const updateProgress = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(100, (elapsed / duration) * 100);
+        
+        setLoanState(prev => ({
+          ...prev,
+          animationProgress: progress
+        }));
+        
+        if (progress < 100) {
+          loanAnimationTimerRef.current = window.requestAnimationFrame(updateProgress);
+        }
+      };
+      
+      loanAnimationTimerRef.current = window.requestAnimationFrame(updateProgress);
+      
+      // Esconder após um tempo
+      setTimeout(() => {
+        hideLoanAnimation();
+      }, 8000);
+    }
+  };
+  
+  // Função para esconder a animação
+  const hideLoanAnimation = () => {
+    setLoanState(prev => ({
+      ...prev,
+      showAnimation: false
+    }));
+    
+    if (loanAnimationTimerRef.current) {
+      window.cancelAnimationFrame(loanAnimationTimerRef.current);
+      loanAnimationTimerRef.current = null;
+    }
+  };
+  
+  // Função para adicionar evento de UI (existente)
+  const addUIEvent = (event: UIEvent) => {
+    setUIEvents(prev => [...prev, event]);
+    // Remover após 3 segundos
+    setTimeout(() => {
+      setUIEvents(prev => prev.filter(e => e !== event));
+    }, 3000);
+  };
+  
+  // Função para adicionar solicitação de câmera (existente)
+  const addCameraRequest = (left: number): string => {
+    const id = Math.random().toString(36).substring(2, 15);
+    setCameraRequests(prev => [...prev, { id, left }]);
+    return id;
+  };
+  
+  // Função para remover solicitação de câmera (existente)
+  const removeCameraRequest = (id: string) => {
+    setCameraRequests(prev => prev.filter(req => req.id !== id));
+  };
+  
+  // Atualizar o relógio a cada minuto (código existente)
   useEffect(() => {
     const updateClock = () => {
       const now = new Date();
@@ -125,19 +250,7 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     return () => clearInterval(testInterval);
   }, [agentIsSpeaking, userIsSpeaking]);
   
-  // Cleanup debounce timers on unmount
-  useEffect(() => {
-    return () => {
-      if (agentSpeakingTimerRef.current !== null) {
-        clearTimeout(agentSpeakingTimerRef.current);
-      }
-      if (userSpeakingTimerRef.current !== null) {
-        clearTimeout(userSpeakingTimerRef.current);
-      }
-    };
-  }, []);
-  
-  // Subscrever para mensagens do agente
+  // Subscrever para mensagens do agente para detectar quando mencionar o valor do empréstimo
   useEffect(() => {
     if (!onAgentMessage) return () => {};
     
@@ -167,6 +280,77 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         setUserSpeakingDebounced(false, 800); // Slower fade-out
       }
       
+      // Detectar quando o usuário menciona valores monetários
+      if (msg.type === 'conversation.item.created' && 
+          msg.item?.role === 'user' && 
+          msg.item?.content) {
+        
+        const content = msg.item.content[0]?.text || '';
+        
+        // Padrão para detectar valores monetários (R$ 1.000,00 ou 1000 ou mil)
+        const moneyRegex = /R\$\s*(\d{1,3}(\.\d{3})*(\,\d{1,2})?|\d+)|(\d+)\s*(mil|milhão|milhões)/i;
+        const match = content.match(moneyRegex);
+        
+        if (match) {
+          console.log("Detected money amount in user message:", match[0]);
+          let amount = match[0];
+          
+          // Se for "mil" ou similar, converter para número
+          if (match[5] && match[4]) {
+            const baseNumber = parseInt(match[4], 10);
+            if (match[5].toLowerCase() === 'mil') {
+              amount = `R$ ${(baseNumber * 1000).toLocaleString('pt-BR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })}`;
+            } else if (match[5].toLowerCase() === 'milhão' || match[5].toLowerCase() === 'milhões') {
+              amount = `R$ ${(baseNumber * 1000000).toLocaleString('pt-BR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })}`;
+            }
+          }
+          
+          setRequestedLoanAmount(amount);
+        }
+      }
+      
+      // Detectar quando o agente menciona o valor de empréstimo
+      if (msg.type === 'conversation.item.created' && 
+          msg.item?.role === 'assistant' && 
+          msg.item?.content && 
+          loanState.requestedAmount) {
+        
+        const content = Array.isArray(msg.item.content) 
+          ? msg.item.content[0]?.text || '' 
+          : typeof msg.item.content === 'string' 
+            ? msg.item.content 
+            : '';
+        
+        // Remover R$ e formatar para comparação
+        const cleanAmount = loanState.requestedAmount.replace(/R\$\s*/, '').trim();
+        
+        // Verificar se o texto contém o valor do empréstimo
+        if (content.includes(cleanAmount) || content.includes(loanState.requestedAmount)) {
+          console.log("Agent is mentioning the loan amount:", loanState.requestedAmount);
+          showLoanAnimation();
+        }
+      }
+      
+      // Detectar quando o agente menciona a ferramenta animate_loan_value
+      if (msg.type === 'response.done' && 
+          Array.isArray(msg.response?.output)) {
+        
+        for (const output of msg.response.output) {
+          if (output.type === 'function_call' && 
+              output.name === 'animate_loan_value') {
+            console.log("Detected animate_loan_value function call");
+            showLoanAnimation();
+            break;
+          }
+        }
+      }
+      
       // Processar chamadas de função
       if (msg.type === 'response.done' && Array.isArray(msg.response?.output)) {
         msg.response.output.forEach((item) => {
@@ -189,30 +373,25 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     });
     
     return unsubscribe;
-  }, [onAgentMessage]);
+  }, [onAgentMessage, loanState.requestedAmount]);
   
-  // Função para adicionar evento de UI
-  const addUIEvent = (event: UIEvent) => {
-    setUIEvents(prev => [...prev, event]);
-    // Remover após 3 segundos
-    setTimeout(() => {
-      setUIEvents(prev => prev.filter(e => e !== event));
-    }, 3000);
-  };
-  
-  // Função para adicionar solicitação de câmera
-  const addCameraRequest = (left: number): string => {
-    const id = Math.random().toString(36).substring(2, 15);
-    setCameraRequests(prev => [...prev, { id, left }]);
-    return id;
-  };
-  
-  // Função para remover solicitação de câmera
-  const removeCameraRequest = (id: string) => {
-    setCameraRequests(prev => prev.filter(req => req.id !== id));
-  };
+  // Limpar temporizadores na desmontagem
+  useEffect(() => {
+    return () => {
+      if (agentSpeakingTimerRef.current !== null) {
+        clearTimeout(agentSpeakingTimerRef.current);
+      }
+      if (userSpeakingTimerRef.current !== null) {
+        clearTimeout(userSpeakingTimerRef.current);
+      }
+      if (loanAnimationTimerRef.current) {
+        window.cancelAnimationFrame(loanAnimationTimerRef.current);
+      }
+    };
+  }, []);
   
   const contextValue: UIContextType = {
+    // Valores existentes
     uiEvents,
     cameraRequests,
     currentTime,
@@ -220,12 +399,19 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     userIsSpeaking,
     speechIntensity,
     isAudioPlaybackEnabled,
-    setIsAudioPlaybackEnabled,
+    isTransitioning,
     addUIEvent,
     addCameraRequest,
     removeCameraRequest,
     setSpeechIntensity,
     setUserIsSpeaking,
+    setIsAudioPlaybackEnabled,
+    
+    // Novos valores para o empréstimo
+    loanState,
+    setRequestedLoanAmount,
+    showLoanAnimation,
+    hideLoanAnimation
   };
   
   return (
