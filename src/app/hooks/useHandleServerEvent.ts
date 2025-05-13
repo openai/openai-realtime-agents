@@ -1,7 +1,10 @@
+// Modificações necessárias em src/app/hooks/useHandleServerEvent.ts
+
 import { ServerEvent, SessionStatus, AgentConfig } from "@/app/types";
 import { useTranscript } from "@/app/contexts/TranscriptContext";
 import { useEvent } from "@/app/contexts/EventContext";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
+import { useSimulation } from "../simple/contexts/SimulationContext"; // Adicionar esta importação
 
 export interface UseHandleServerEventParams {
   setSessionStatus: (status: SessionStatus) => void;
@@ -28,6 +31,7 @@ export function useHandleServerEvent({
   } = useTranscript();
 
   const { logServerEvent } = useEvent();
+  const { simulationMode } = useSimulation(); // Adicionar esta linha
 
   // Estado para monitorar se detectamos um valor monetário
   const [detectedAmount, setDetectedAmount] = useState<string | null>(null);
@@ -41,6 +45,27 @@ export function useHandleServerEvent({
 
   // Debug logs state for inspecting raw events
   const [debugLogs, setDebugLogs] = useState<any[]>([]);
+
+  // Efeito para ouvir eventos simulados
+  useEffect(() => {
+    if (!simulationMode) return; // Apenas ouvir no modo simulação
+    
+    // Handler para eventos simulados de UI
+    const handleSimulatedUIEvent = (e: CustomEvent) => {
+      if (e.detail) {
+        console.log("🧪 Evento UI simulado:", e.detail);
+        setUiEvents(prev => [...prev, e.detail]);
+      }
+    };
+    
+    // Registrar ouvintes
+    document.addEventListener('simulated-ui-event', handleSimulatedUIEvent as EventListener);
+    
+    // Limpar ouvintes
+    return () => {
+      document.removeEventListener('simulated-ui-event', handleSimulatedUIEvent as EventListener);
+    };
+  }, [simulationMode]);
 
   // Função para detectar valores monetários em texto
   const detectMoneyAmount = (text: string): string | null => {
@@ -94,7 +119,7 @@ export function useHandleServerEvent({
       console.log("🎮 UI Event args:", args);
       setDebugLogs((prev) => [...prev, { type: 'ui_event_args', data: args }]);
       // Push to uiEvents state for rendering in the UI
-      setUiEvents((prev) => [...prev, args]);
+      setUiEvents(prev => [...prev, args]);
       // Retornar sucesso para a chamada de função
       sendClientEvent({
         type: "conversation.item.create",
@@ -117,8 +142,14 @@ export function useHandleServerEvent({
         console.log("💰 Argumentos da função:", args);
         
         // Usar valor dos argumentos ou um valor padrão
-        const valueToUse = args.amount || detectedAmount || 'R$ 12.000,00';
-        console.log("💰 Valor a ser usado:", valueToUse);
+        let valueToUse = args.amount || detectedAmount || 'R$ 12.000,00';
+        
+        // Garantir que o valor esteja no formato correto
+        if (!valueToUse.includes('R$')) {
+          valueToUse = `R$ ${valueToUse}`;
+        }
+        
+        console.log("💰 Valor a ser usado na animação:", valueToUse);
         
         // Definir o valor no aplicativo
         document.dispatchEvent(new CustomEvent('detect-loan-amount', {
@@ -129,7 +160,7 @@ export function useHandleServerEvent({
         setTimeout(() => {
           console.log("💰 Disparando animação após definir valor");
           document.dispatchEvent(new CustomEvent('loan-animation-trigger'));
-        }, 500);
+        }, 300);
       } catch (e) {
         console.error("Erro ao processar argumentos:", e);
         
@@ -142,8 +173,9 @@ export function useHandleServerEvent({
         }));
         
         setTimeout(() => {
+          console.log("💰 Disparando animação com valor padrão após erro");
           document.dispatchEvent(new CustomEvent('loan-animation-trigger'));
-        }, 500);
+        }, 300);
       }
       
       // Retornar resultado da função
@@ -159,6 +191,8 @@ export function useHandleServerEvent({
         },
       });
       
+      // Criar resposta após a animação
+      sendClientEvent({ type: "response.create" });
       return;
     }
 
@@ -246,12 +280,12 @@ export function useHandleServerEvent({
     const simulatedResult = { result: true };
     sendClientEvent({
       type: "conversation.item.create",
-      item: {
-        type: "function_call_output",
-        call_id: functionCallParams.call_id,
-        output: JSON.stringify(simulatedResult),
-      },
-    });
+        item: {
+          type: "function_call_output",
+          call_id: functionCallParams.call_id,
+          output: JSON.stringify(simulatedResult),
+        },
+      });
     sendClientEvent({ type: "response.create" });
   };
 
@@ -300,11 +334,28 @@ export function useHandleServerEvent({
             
             // Se for uma mensagem do agente mencionando o valor que detectamos do usuário,
             // podemos também acionar a animação diretamente
-            if (role === 'assistant' && detectedAmount && content.includes(detectedAmount)) {
-              console.log("💰 Agent mentioned previously detected amount, triggering animation");
-              setTimeout(() => {
-                document.dispatchEvent(new CustomEvent('loan-animation-trigger'));
-              }, 500);
+            if (role === 'assistant' && detectedAmount) {
+              // Para comparar valores, normalize-os primeiro (retirando R$, espaços e pontos)
+              const normalizeValue = (val: string) => {
+                return val.replace(/[R$\s\.]/g, '').replace(',', '.').toLowerCase();
+              };
+              
+              const normalizedDetectedAmount = normalizeValue(detectedAmount);
+              const normalizedAmount = normalizeValue(amount);
+              
+              // Verifique se o valor detectado é aproximadamente o mesmo
+              const detectedNum = parseFloat(normalizedDetectedAmount);
+              const currentNum = parseFloat(normalizedAmount);
+              
+              const closeEnough = Math.abs(detectedNum - currentNum) < 1 || 
+                                 content.includes(detectedAmount);
+              
+              if (closeEnough) {
+                console.log("💰 Agent mentioned previously detected amount, triggering animation");
+                setTimeout(() => {
+                  document.dispatchEvent(new CustomEvent('loan-animation-trigger'));
+                }, 500);
+              }
             }
           }
         }
@@ -366,6 +417,30 @@ export function useHandleServerEvent({
         break;
     }
   };
+
+  // Efeito para processar eventos de função simulados
+  useEffect(() => {
+    if (!simulationMode) return;
+    
+    const handleFunctionDetected = (e: CustomEvent) => {
+      if (e.detail?.name && e.detail?.arguments) {
+        console.log("🧪 Processando chamada de função simulada:", e.detail);
+        
+        // Simular chamada de função
+        handleFunctionCall({
+          name: e.detail.name,
+          arguments: e.detail.arguments,
+          call_id: `simulated-${Date.now()}`
+        });
+      }
+    };
+    
+    document.addEventListener('function-detected', handleFunctionDetected as EventListener);
+    
+    return () => {
+      document.removeEventListener('function-detected', handleFunctionDetected as EventListener);
+    };
+  }, [simulationMode]);
 
   // Wrap in ref to avoid re-creating on each render
   const handleServerEventRef = useRef(handleServerEvent);

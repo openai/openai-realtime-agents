@@ -56,6 +56,7 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   const agentSpeakingTimerRef = useRef<number | null>(null);
   const userSpeakingTimerRef = useRef<number | null>(null);
   const loanAnimationTimerRef = useRef<number | null>(null);
+  const lastAnimationTimeRef = useRef<number>(0);
   
   const { onAgentMessage } = useConnection();
   
@@ -116,7 +117,22 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   
   // Função para mostrar a animação do valor
   const showLoanAnimation = () => {
+    // Evitar múltiplas animações em curto período
+    const now = Date.now();
+    if (now - lastAnimationTimeRef.current < 3000) {
+      console.log("🔄 Ignorando animação - muito recente desde a última");
+      return;
+    }
+    
+    lastAnimationTimeRef.current = now;
     console.log("🎬 Showing loan animation for amount:", loanState.requestedAmount);
+    
+    // Disparar evento global - isso vai garantir que outros componentes saibam
+    try {
+      document.dispatchEvent(new CustomEvent('loan-animation-trigger'));
+    } catch (e) {
+      console.error("Erro ao disparar evento global:", e);
+    }
     
     // Apenas mostrar se houver um valor de empréstimo definido
     if (!loanState.requestedAmount) {
@@ -224,7 +240,50 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     // Handler para acionar animação
     const handleAnimationTrigger = () => {
       console.log("🎬 Evento loan-animation-trigger capturado");
-      showLoanAnimation();
+      
+      // Verificar se temos um valor definido
+      if (!loanState.requestedAmount) {
+        console.log("⚠️ Nenhum valor definido ao acionar animação. Definindo padrão...");
+        setRequestedLoanAmount('R$ 10.000,00');
+      }
+      
+      // Definir estado da animação diretamente, não apenas via showLoanAnimation
+      // Isso garante que a animação aconteça mesmo se os timers estiverem bagunçados
+      setLoanState(prev => ({
+        ...prev,
+        showAnimation: true,
+        animationProgress: 0
+      }));
+      
+      // Animar o progresso
+      const startTime = Date.now();
+      const duration = 2000; // 2 segundos para animação completa
+      
+      // Limpar qualquer animação anterior
+      if (loanAnimationTimerRef.current) {
+        window.cancelAnimationFrame(loanAnimationTimerRef.current);
+      }
+      
+      const updateProgress = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(100, (elapsed / duration) * 100);
+        
+        setLoanState(prev => ({
+          ...prev,
+          animationProgress: progress
+        }));
+        
+        if (progress < 100) {
+          loanAnimationTimerRef.current = window.requestAnimationFrame(updateProgress);
+        }
+      };
+      
+      loanAnimationTimerRef.current = window.requestAnimationFrame(updateProgress);
+      
+      // Esconder após um tempo
+      setTimeout(() => {
+        setLoanState(prev => ({ ...prev, showAnimation: false }));
+      }, 8000);
     };
     
     // Adicionar event listeners
@@ -236,7 +295,7 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       document.removeEventListener('detect-loan-amount', handleDetectAmount as EventListener);
       document.removeEventListener('loan-animation-trigger', handleAnimationTrigger);
     };
-  }, []);
+  }, [loanState.requestedAmount]);
   
   // Função para simular alternância de fala para debug - com transições mais suaves
   useEffect(() => {
@@ -269,6 +328,44 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     
     return () => clearInterval(testInterval);
   }, [agentIsSpeaking, userIsSpeaking]);
+  
+  // Função para extrair e normalizar valor monetário de um texto
+  const extractMoneyValue = (text: string) => {
+    // Padrão para detectar valores monetários (R$ 1.000,00 ou 1000 ou mil)
+    const moneyRegex = /R\$\s*(\d{1,3}(\.\d{3})*(\,\d{1,2})?|\d+)|(\d+)\s*(mil|milhão|milhões)/i;
+    const match = text.match(moneyRegex);
+    
+    if (match) {
+      console.log("💰 Raw money match:", match[0]);
+      let amount = match[0];
+      
+      // Se for "mil" ou similar, converter para número
+      if (match[5] && match[4]) {
+        const baseNumber = parseInt(match[4], 10);
+        if (match[5].toLowerCase() === 'mil') {
+          amount = `R$ ${(baseNumber * 1000).toLocaleString('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          })}`;
+        } else if (match[5].toLowerCase() === 'milhão' || match[5].toLowerCase() === 'milhões') {
+          amount = `R$ ${(baseNumber * 1000000).toLocaleString('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          })}`;
+        }
+      }
+      
+      // Se não começar com R$, adicionar
+      if (!amount.includes('R$')) {
+        amount = `R$ ${amount}`;
+      }
+      
+      console.log("💰 Formatted money amount:", amount);
+      return amount;
+    }
+    
+    return null;
+  }
   
   // Subscrever para mensagens do agente para detectar quando mencionar o valor do empréstimo
   useEffect(() => {
@@ -311,31 +408,15 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
             ? msg.item.content 
             : '';
         
-        // Padrão para detectar valores monetários (R$ 1.000,00 ou 1000 ou mil)
-        const moneyRegex = /R\$\s*(\d{1,3}(\.\d{3})*(\,\d{1,2})?|\d+)|(\d+)\s*(mil|milhão|milhões)/i;
-        const match = content.match(moneyRegex);
+        console.log("💬 Mensagem do usuário:", content);
+        const amount = extractMoneyValue(content);
         
-        if (match) {
-          console.log("Detected money amount in user message:", match[0]);
-          let amount = match[0];
-          
-          // Se for "mil" ou similar, converter para número
-          if (match[5] && match[4]) {
-            const baseNumber = parseInt(match[4], 10);
-            if (match[5].toLowerCase() === 'mil') {
-              amount = `R$ ${(baseNumber * 1000).toLocaleString('pt-BR', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })}`;
-            } else if (match[5].toLowerCase() === 'milhão' || match[5].toLowerCase() === 'milhões') {
-              amount = `R$ ${(baseNumber * 1000000).toLocaleString('pt-BR', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })}`;
-            }
-          }
-          
+        if (amount) {
+          console.log("💰 Valor monetário detectado na mensagem do usuário:", amount);
           setRequestedLoanAmount(amount);
+          
+          // Quando o usuário menciona um valor, não mostramos a animação ainda
+          // Esperamos que o agente repita o valor ou use a ferramenta animate_loan_value
         }
       }
       
@@ -351,28 +432,89 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
             ? msg.item.content 
             : '';
         
-        // Remover R$ e formatar para comparação
-        const cleanAmount = loanState.requestedAmount.replace(/R\$\s*/, '').trim();
+        console.log("💬 Mensagem do agente:", content);
         
-        // Verificar se o texto contém o valor do empréstimo
-        if (content.includes(cleanAmount) || content.includes(loanState.requestedAmount)) {
-          console.log("Agent is mentioning the loan amount:", loanState.requestedAmount);
-          showLoanAnimation();
-        }
-      }
-      
-      // Detectar quando o agente menciona a ferramenta animate_loan_value
-      if (msg.type === 'response.done' && 
-          Array.isArray(msg.response?.output)) {
+        // Normalizar tanto o valor solicitado quanto o conteúdo para comparação
+        const normalizeForComparison = (text: string) => {
+          return text.replace(/[R$\s\.]/g, '').replace(',', '.').toLowerCase();
+        };
         
-        for (const output of msg.response.output) {
-          if (output.type === 'function_call' && 
-              output.name === 'animate_loan_value') {
-            console.log("Detected animate_loan_value function call");
-            showLoanAnimation();
+        const normalizedRequestedAmount = normalizeForComparison(loanState.requestedAmount);
+        
+        // Procurar por valores monetários na mensagem do agente
+        const moneyRegex = /R\$\s*(\d{1,3}(\.\d{3})*(\,\d{1,2})?|\d+)|(\d+)\s*(mil|milhão|milhões)/gi;
+        let match;
+        let foundMatch = false;
+        
+        while ((match = moneyRegex.exec(content)) !== null) {
+          const rawValue = match[0];
+          console.log("💰 Encontrado valor monetário na mensagem do agente:", rawValue);
+          
+          // Normalizar o valor encontrado
+          const normalizedValue = normalizeForComparison(rawValue);
+          
+          // Verificar se é o mesmo valor que o usuário solicitou
+          // Sendo mais flexível na comparação
+          if (normalizedValue === normalizedRequestedAmount || 
+              (parseFloat(normalizedValue) > 0 && 
+              Math.abs(parseFloat(normalizedValue) - parseFloat(normalizedRequestedAmount)) < 1)) {
+            
+            console.log("🎯 Agente mencionou o valor solicitado pelo usuário! Acionando animação!");
+            foundMatch = true;
+            
+            // Acionar a animação após um pequeno atraso para sincronizar com a fala
+            setTimeout(() => {
+              showLoanAnimation();
+            }, 300);
+            
             break;
           }
         }
+        
+        // Se não encontrou nenhuma correspondência mas a mensagem é pequena e contém algum valor,
+        // acionar a animação de qualquer maneira (pode ser uma confirmação simples)
+        if (!foundMatch && content.length < 100 && moneyRegex.test(content)) {
+          console.log("⚠️ Nenhuma correspondência exata, mas mensagem curta com valor monetário. Acionando animação.");
+          setTimeout(() => {
+            showLoanAnimation();
+          }, 300);
+        }
+      }
+      
+      // Detectar quando o agente usa funções específicas
+      if (msg.type === 'response.done' && 
+          msg.response?.output) {
+        
+        // Verificar cada item de saída
+        msg.response.output.forEach(output => {
+          // Detectar especificamente chamadas da função animate_loan_value
+          if (output.type === 'function_call' && 
+              output.name === 'animate_loan_value') {
+            
+            console.log("🎭 Função animate_loan_value detectada!");
+            
+            // Verificar se temos argumentos e tentar extrair um valor específico
+            if (output.arguments) {
+              try {
+                const args = JSON.parse(output.arguments);
+                console.log("🎭 Argumentos da função:", args);
+                
+                if (args.amount) {
+                  console.log("🎭 Definindo valor da animação:", args.amount);
+                  setRequestedLoanAmount(args.amount);
+                }
+              } catch (e) {
+                console.error("Erro ao analisar argumentos da função:", e);
+              }
+            }
+            
+            // Acionar a animação após um pequeno atraso
+            setTimeout(() => {
+              console.log("🎭 Acionando animação a partir da chamada de função");
+              showLoanAnimation();
+            }, 300);
+          }
+        });
       }
       
       // Processar chamadas de função

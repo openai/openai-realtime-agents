@@ -16,6 +16,7 @@ const LoanValueAnimation: React.FC = () => {
   
   // Ref para armazenar o timer da animação
   const animationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const animationCountRef = useRef<number>(0);
   
   // Função de teste interna
   const testSelf = () => {
@@ -32,6 +33,10 @@ const LoanValueAnimation: React.FC = () => {
     if (loanState.showAnimation) {
       console.log('🎬 Animação iniciada para valor:', loanState.requestedAmount);
       console.log('🎬 Estado completo da animação:', loanState);
+      
+      // Incrementar contador de animação
+      animationCountRef.current += 1;
+      const currentAnimationCount = animationCountRef.current;
       
       // Mostrar o overlay primeiro
       setOverlayVisible(true);
@@ -56,14 +61,19 @@ const LoanValueAnimation: React.FC = () => {
       
       // Esconder após um tempo
       animationTimerRef.current = setTimeout(() => {
-        setOverlayVisible(false);
-        
-        // Pequeno atraso antes de limpar os emojis
-        setTimeout(() => {
-          setMoneyEmojis([]);
-        }, 500);
+        // Verificar se esta animação ainda é a atual
+        if (currentAnimationCount === animationCountRef.current) {
+          setOverlayVisible(false);
+          
+          // Pequeno atraso antes de limpar os emojis
+          setTimeout(() => {
+            if (currentAnimationCount === animationCountRef.current) {
+              setMoneyEmojis([]);
+            }
+          }, 500);
+        }
       }, 7000);
-    } else {
+    } else if (!loanState.showAnimation && overlayVisible) {
       // Quando a animação termina
       setOverlayVisible(false);
       
@@ -80,10 +90,19 @@ const LoanValueAnimation: React.FC = () => {
         clearTimeout(animationTimerRef.current);
       }
     };
-  }, [loanState.showAnimation]);
+  }, [loanState.showAnimation, loanState.requestedAmount]);
+  
+  // Reagir a alterações no valor solicitado
+  useEffect(() => {
+    if (loanState.requestedAmount && loanState.showAnimation) {
+      console.log("💰 Valor atualizado durante animação ativa:", loanState.requestedAmount);
+      // Se o valor mudar durante a animação, podemos reiniciar a animação
+      // ou simplesmente atualizar o texto apresentado
+    }
+  }, [loanState.requestedAmount]);
   
   // Estilos forçados para garantir visibilidade
-  const forcedStyles = loanState.showAnimation ? {
+  const forcedStyles = loanState.showAnimation || overlayVisible ? {
     position: 'absolute',
     bottom: 0,
     left: 0,
@@ -91,6 +110,21 @@ const LoanValueAnimation: React.FC = () => {
     height: '240px',
     zIndex: 99,
   } : {};
+  
+  // Escutar eventos globais
+  useEffect(() => {
+    const handleAnimationTrigger = () => {
+      console.log("🔄 Evento global de acionamento de animação recebido");
+      // Não chame showLoanAnimation() aqui, pois isso criaria um loop
+      // O UIContext já deve estar lidando com a atualização do estado
+    };
+    
+    document.addEventListener('loan-animation-trigger', handleAnimationTrigger);
+    
+    return () => {
+      document.removeEventListener('loan-animation-trigger', handleAnimationTrigger);
+    };
+  }, []);
   
   if (!loanState.showAnimation && !overlayVisible && moneyEmojis.length === 0) {
     return (
@@ -142,7 +176,7 @@ const LoanValueAnimation: React.FC = () => {
       {/* Container para a animação */}
       <div className="loan-value-animation" style={forcedStyles}>
         {/* Indicador para debug */}
-        {loanState.showAnimation && (
+        {(loanState.showAnimation || overlayVisible) && (
           <div style={{
             position: 'absolute',
             top: '20%',
