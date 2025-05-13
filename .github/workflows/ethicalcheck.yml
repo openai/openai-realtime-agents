@@ -36,7 +36,11 @@ on:
   pull_request:
     branches: [ "main" ]
   schedule:
+nodoubtz-patch-4
+    - cron: '17 11 * * 0'
+=======
     - cron: '19 20 * * 0'
+main
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:

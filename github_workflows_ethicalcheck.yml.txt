@@ -1,0 +1,33 @@
+name: EthicalCheck-Workflow
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '17 11 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  Trigger_EthicalCheck:
+    permissions:
+      security-events: write
+      actions: read
+    runs-on: ubuntu-latest
+
+    steps:
+       - name: EthicalCheck Free & Automated API Security Testing Service
+         uses: apisec-inc/ethicalcheck-action@005fac321dd843682b1af6b72f30caaf9952c641
+         with:
+          oas-url: "http://netbanking.apisec.ai:8080/v2/api-docs"
+          email: "xxx@apisec.ai"
+          sarif-result-file: "ethicalcheck-results.sarif"
+
+       - name: Upload sarif file to repository
+         uses: github/codeql-action/upload-sarif@v3
+         with:
+          sarif_file: ./ethicalcheck-results.sarif
