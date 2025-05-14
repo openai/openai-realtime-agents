@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useRef, useEffect } from 'react';
 import { CameraState } from '../types';
 import * as faceapi from 'face-api.js';
+import { setCameraVerified } from "@/app/agentConfigs/utils";
 
 // Estado inicial
 const initialState: CameraState = {
@@ -195,6 +196,9 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     // Verificar centralização do rosto
     if (isCentered && isGoodSize) {
+      // Marcar verificação como concluída no contexto da Marlene
+      setCameraVerified(true);
+      
       document.dispatchEvent(new CustomEvent('camera-event', {
         detail: { 
           type: 'FACE_CENTERED',

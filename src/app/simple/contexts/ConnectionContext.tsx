@@ -1,9 +1,10 @@
 // src/app/simple/contexts/ConnectionContext.tsx
-import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useReducer, useRef, useEffect } from 'react';
 import { ConnectionState, AgentMessage } from '../types';
 import { createRealtimeConnection } from '@/app/lib/realtimeConnection';
 import marleneConfig from '@/app/agentConfigs/marlene';
 import { useSimulation } from './SimulationContext';
+import { resetConversationContext } from "@/app/agentConfigs/utils";
 
 // Estado inicial
 const initialState: ConnectionState = {
@@ -49,7 +50,7 @@ interface ConnectionContextType {
   onAgentMessage: (callback: (message: AgentMessage) => void) => () => void;
 }
 
-// Criar e exportar o contexto (ESTA ERA A LINHA QUE FALTAVA)
+// Criar e exportar o contexto
 export const ConnectionContext = createContext<ConnectionContextType | undefined>(undefined);
 
 // Provider
@@ -69,6 +70,9 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // Função para conectar
   const connect = async () => {
     if (state.status !== 'disconnected') return;
+
+    // Resetar contexto da conversa
+    resetConversationContext();
 
     // Resetar flag de desconexão manual
     manualDisconnectRef.current = false;
