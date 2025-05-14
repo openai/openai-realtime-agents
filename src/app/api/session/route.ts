@@ -3,8 +3,7 @@ import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
-    console.log("Tentando obter sessão com a chave:", 
-                process.env.OPENAI_API_KEY ? "Chave presente" : "Chave ausente");
+    console.log("Tentando obter sessão com a chave do ambiente");
     
     if (!process.env.OPENAI_API_KEY) {
       console.error("OPENAI_API_KEY não está configurada nas variáveis de ambiente!");
@@ -14,6 +13,7 @@ export async function GET() {
       );
     }
     
+    // Simplificar o modelo para tentar o mais básico
     const response = await fetch(
       "https://api.openai.com/v1/realtime/sessions",
       {
@@ -23,7 +23,7 @@ export async function GET() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-4o-realtime-preview-2024-12-17",
+          model: "gpt-4o-realtime-preview", // Removida a versão específica com a data
         }),
       }
     );

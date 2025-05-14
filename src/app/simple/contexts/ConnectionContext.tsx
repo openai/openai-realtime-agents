@@ -49,6 +49,9 @@ interface ConnectionContextType {
   onAgentMessage: (callback: (message: AgentMessage) => void) => () => void;
 }
 
+// Criar e exportar o contexto (ESTA ERA A LINHA QUE FALTAVA)
+export const ConnectionContext = createContext<ConnectionContextType | undefined>(undefined);
+
 // Provider
 export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(connectionReducer, initialState);
@@ -192,29 +195,25 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         console.log('Sending session update with Marlene instructions');
         
         // Atualização para melhorar a qualidade do áudio
-        sendMessage({
-          type: "session.update",
-          session: { 
-            modalities: ["audio","text"], 
-            instructions: marleneConfig[0].instructions, 
-            voice: "alloy", // Usando a voz alloy que tem qualidade superior
-            voice_settings: { 
-              stability: 0.3,  // Define estabilidade para equilíbrio natural 
-              similarity_boost: 0.75  // Maior similaridade para voz mais consistente
-            },
-            input_audio_format: "pcm16", 
-            output_audio_format: "mp3-192", // Solicitando formato MP3 de maior qualidade (192kbps)
-            input_audio_transcription: { model: "whisper-1" }, 
-            turn_detection: { 
-              type: "server_vad", 
-              threshold: 0.5, 
-              prefix_padding_ms: 300, 
-              silence_duration_ms: 200, 
-              create_response: true 
-            }, 
-            tools: marleneConfig[0].tools 
-          }
-        });
+       sendMessage({
+         type: "session.update",
+         session: { 
+           modalities: ["audio","text"], 
+           instructions: marleneConfig[0].instructions, 
+           voice: "alloy",
+           input_audio_format: "pcm16", 
+           output_audio_format: "pcm16", // Simplificado para o formato básico
+           input_audio_transcription: { model: "whisper-1" }, 
+           turn_detection: { 
+             type: "server_vad", 
+             threshold: 0.5, 
+             prefix_padding_ms: 300, 
+             silence_duration_ms: 200, 
+             create_response: true 
+           }, 
+           tools: marleneConfig[0].tools 
+         }
+       });
         
         console.log('Creating initial response'); 
         sendMessage({ type: "response.create" });
