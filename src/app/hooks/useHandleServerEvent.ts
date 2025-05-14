@@ -5,6 +5,13 @@ import { useTranscript } from "@/app/contexts/TranscriptContext";
 import { useEvent } from "@/app/contexts/EventContext";
 import { useRef, useState, useEffect } from "react";
 import { useSimulation } from "../simple/contexts/SimulationContext"; // Adicionar esta importação
+import { 
+  processUserInput, 
+  exportContext, 
+  recordStateChange, 
+  setCameraVerified 
+} from "@/app/agentConfigs/utils";
+
 
 export interface UseHandleServerEventParams {
   setSessionStatus: (status: SessionStatus) => void;

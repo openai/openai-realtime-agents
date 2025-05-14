@@ -1,61 +1,23 @@
 // src/app/agentConfigs/marlene.ts
 import { AgentConfig } from "@/app/types";
-import { injectTransferTools } from "./utils";
+import { 
+  injectTransferTools, 
+  processUserInput, 
+  exportContext, 
+  importContext, 
+  recordStateChange,
+  setCameraVerified,
+  animateValueTool,
+  openCameraTool,
+  closeCameraTool,
+  verifyUnderstandingTool,
+  simplifyFinancialExplanationTool,
+  includeCompanionTool,
+  handleCameraErrorTool,
+  createAccessibleDocumentationTool
+} from "./utils";
 
-// Define UI event tool
-const uiEventTool = {
-  type: "function",
-  name: "ui_event",
-  description: "Triggers UI events in the client interface",
-  parameters: {
-    type: "object",
-    properties: {
-      name: {
-        type: "string",
-        description: "Name of the event"
-      },
-      icon: {
-        type: "string",
-        description: "Icon to display"
-      },
-      color: {
-        type: "string",
-        description: "Color of the icon"
-      }
-    },
-    required: ["name", "icon", "color"]
-  }
-};
-
-// Define camera tools
-const openCameraTool = {
-  type: "function",
-  name: "open_camera",
-  description:
-    "Pede permissão ao usuário e ativa a câmera do dispositivo para verificação. Use em um momento natural da conversa, após explicar a necessidade.",
-  parameters: { type: "object", properties: {}, required: [] },
-};
-
-const closeCameraTool = {
-  type: "function",
-  name: "close_camera",
-  description:
-    "Fecha a câmera do dispositivo após a verificação estar completa.",
-  parameters: { type: "object", properties: {}, required: [] },
-};
-
-// Ferramenta para animação de valor - sem menção explícita à animação visual
-const animateValueTool = {
-  type: "function",
-  name: "animate_loan_value",
-  description: "Destaca o valor do empréstimo mencionado pelo cliente. Use esta ferramenta SEMPRE que for confirmar ou mencionar o valor exato que o cliente solicitou, mas NÃO anuncie que uma animação será exibida.",
-  parameters: { 
-    type: "object",
-    properties: {},
-    required: [] 
-  },
-};
-
+// Definição do agente Marlene
 const marlene: AgentConfig = {
   name: "marlene",
   publicDescription: "Marlene, atendente de voz da Credmais para crédito consignado.",
@@ -411,13 +373,241 @@ Esta ferramenta destaca visualmente o valor solicitado na interface.
 IMPORTANTE: NÃO anuncie verbalmente que está mostrando uma animação ou efeito visual. 
 Apenas use a ferramenta e continue a conversa normalmente.
 `,
+  // Usamos as ferramentas do utils.ts
   tools: [
-    uiEventTool,
+    animateValueTool,
     openCameraTool,
     closeCameraTool,
-    animateValueTool,
+    verifyUnderstandingTool,
+    simplifyFinancialExplanationTool,
+    includeCompanionTool,
+    handleCameraErrorTool,
+    createAccessibleDocumentationTool
   ],
   toolLogic: {
+    // Processamento de mensagens do usuário com extração de entidades e avanço de estados
+    handleUserMessage: async (args, transcriptItems) => {
+      // Usa processUserInput de utils.ts para extrair entidades da mensagem
+      const processResult = processUserInput(args.message, transcriptItems);
+      
+      // Obtém o estado atual do contexto da conversa
+      const context = exportContext();
+      
+      // Analisa se deve avançar para outro estado com base nas entidades detectadas
+      if (processResult.hasMultipleEntities && processResult.shouldAdvanceState && processResult.recommendedState) {
+        recordStateChange(processResult.recommendedState);
+      }
+      
+      return {
+        processedInfo: {
+          detectedEntities: processResult.entities,
+          advancedState: processResult.shouldAdvanceState,
+          recommendedState: processResult.recommendedState,
+          currentState: context.currentState
+        }
+      };
+    },
+    
+    // Ferramenta para verificação de entendimento
+    verify_understanding: (args) => {
+      console.log(`[toolLogic] Verificando entendimento do cliente sobre os termos do empréstimo`);
+      
+      // Avalia o risco de o cliente não ter entendido completamente
+      const riskAssessment = {
+        overallRisk: "baixo", // baixo, médio, alto
+        specificRisks: []
+      };
+      
+      // Calcula impacto no benefício
+      const impactPercentage = args.benefitImpactPercentage;
+      if (impactPercentage > 25) {
+        riskAssessment.specificRisks.push({
+          type: "impacto_elevado",
+          description: "O comprometimento do benefício está acima de 25%, o que pode ser significativo para o sustento mensal",
+          recommendation: "Oferecer simulação com valor menor ou prazo mais longo para reduzir o impacto mensal"
+        });
+      }
+      
+      // Analisa prazo
+      if (args.term > 60) {
+        riskAssessment.specificRisks.push({
+          type: "prazo_longo",
+          description: "Prazo superior a 60 meses pode ser difícil de compreender em termos de impacto total",
+          recommendation: "Enfatizar quanto tempo é 84 meses em anos (7 anos) para facilitar compreensão"
+        });
+      }
+      
+      // Se houver riscos específicos, aumentar o nível geral
+      if (riskAssessment.specificRisks.length > 0) {
+        riskAssessment.overallRisk = "médio";
+      }
+      if (riskAssessment.specificRisks.length > 2) {
+        riskAssessment.overallRisk = "alto";
+      }
+      
+      return {
+        isUnderstandingConfirmed: riskAssessment.overallRisk === "baixo",
+        riskAssessment: riskAssessment,
+        suggestedExplanations: [
+          `Com esse empréstimo de ${args.loanAmount}, você pagaria ${args.installmentValue} por mês, durante ${args.term} meses. Isso seria como guardar ${args.installmentValue} todo mês para pagar o empréstimo.`,
+          `Dos seus ${args.benefitImpactPercentage}% do benefício que vai para o pagamento, ainda sobram ${100 - args.benefitImpactPercentage}% para suas outras despesas.`
+        ]
+      };
+    },
+    
+    // Simplificação de conceitos financeiros
+    simplify_financial_explanation: ({ concept, context }) => {
+      console.log(`[toolLogic] Simplificando explicação: ${concept}, contexto: ${context || "geral"}`);
+      
+      // Usa a função do utils.ts integrada diretamente
+      return {
+        concept: concept,
+        simpleExplanation: `O ${concept} é como o dinheiro que você paga todo mês, como se fosse uma conta de água ou luz. É um valor fixo que sai do seu benefício automaticamente.`,
+        analogyExplanation: `Vamos pensar no ${concept} como fatias de um bolo. Se seu benefício é o bolo inteiro, a parcela é só uma fatia pequena que você vai tirar todo mês para pagar o empréstimo. O importante é que sobre bastante bolo para você.`,
+        visualRepresentation: concept === "parcela" ? "🍰✂️" : 
+                             concept === "prazo" ? "📆➡️📆" :
+                             concept === "juros" ? "💵➕" :
+                             concept === "margem_consignável" ? "💰🔒" : "💵",
+        adjustedForContext: context ? `No seu caso, como ${context}, isso significa que...` : null
+      };
+    },
+    
+    // Gerenciamento de verificação por câmera
+    handle_camera_error: (args) => {
+      console.log(`[toolLogic] Tratando erro de câmera: ${args.errorType}`);
+      
+      // Mapeia tipos de erro para mensagens amigáveis
+      const errorMessages = {
+        "permission_denied": "Parece que não consegui permissão para usar a câmera.",
+        "device_unavailable": "Parece que a câmera não está disponível no momento.",
+        "timeout": "A verificação está demorando mais que o esperado.",
+        "other": "Estamos tendo um problema com a verificação."
+      };
+      
+      // Opções alternativas para diferentes situações
+      const alternativeOptions = {
+        "try_again": {
+          steps: ["Vamos tentar mais uma vez. Às vezes é só tocar de novo no botão da câmera."],
+          userGuidance: "Toque novamente no botão da câmera quando aparecer."
+        },
+        "phone_verification": {
+          steps: ["Vamos verificar por mensagem de texto", "Enviarei um código para seu celular", "Você me informa o código para confirmar sua identidade"],
+          userGuidance: "Em instantes, você vai receber uma mensagem com um código de 5 números no seu celular. Quando receber, me diga quais são os números."
+        },
+        "in_person_verification": {
+          steps: ["Faremos a verificação aqui mesmo com seus documentos", "Preciso ver seu documento com foto"],
+          userGuidance: "Poderia me mostrar seu documento com foto? É só um minutinho para confirmar."
+        }
+      };
+      
+      const alternativeMethod = args.alternativeMethod || "phone_verification";
+      
+      return {
+        errorMessage: errorMessages[args.errorType] || errorMessages.other,
+        reassuranceMessage: "Não se preocupe, temos um jeito mais fácil de fazer essa verificação.",
+        alternativeMethod: alternativeOptions[alternativeMethod],
+        verificationCode: alternativeMethod === "phone_verification" ? "12345" : null
+      };
+    },
+    
+    // Gestão de acompanhantes
+    include_companion: (args) => {
+      console.log(`[toolLogic] Ajustando para acompanhante: ${args.hasCompanion}, tipo: ${args.relationshipType || "não especificado"}`);
+      
+      if (!args.hasCompanion) {
+        return {
+          adjustedApproach: "comunicação_direta",
+          suggestions: [
+            "Use linguagem ainda mais simples e visual",
+            "Ofereça ajuda frequentemente para interações digitais",
+            "Verifique compreensão com mais frequência"
+          ]
+        };
+      }
+      
+      // Estratégias específicas por tipo de relação
+      const strategies = {
+        "filho(a)": {
+          role: "mediador_principal",
+          approach: "Inclua nas explicações, mas mantenha as decisões com o beneficiário",
+          suggestedPrompts: [
+            "Seu/Sua filho(a) está acompanhando, então vou explicar para vocês dois",
+            "Pode pedir ajuda dele(a) para a parte da câmera"
+          ]
+        },
+        "cônjuge": {
+          role: "parceiro_decisão",
+          approach: "Trate como decisão conjunta, direcione-se a ambos igualmente",
+          suggestedPrompts: [
+            "Vocês estão de acordo com esses valores?",
+            "Preferem uma parcela menor?"
+          ]
+        },
+        "neto(a)": {
+          role: "suporte_tecnológico",
+          approach: "Utilize para auxílio tecnológico, mas direcione decisões ao idoso",
+          suggestedPrompts: [
+            "Seu/Sua neto(a) pode ajudar com a câmera, mas quero confirmar se está de acordo"
+          ]
+        },
+        "default": {
+          role: "auxiliar",
+          approach: "Reconheça presença, mas foque comunicação no beneficiário",
+          suggestedPrompts: [
+            "Que bom que veio com alguém, isso ajuda",
+            "Vou explicar para você, e se tiver dúvida, podem perguntar também"
+          ]
+        }
+      };
+      
+      return {
+        adjustedApproach: "acompanhante_incluido",
+        companionStrategy: strategies[args.relationshipType] || strategies.default,
+        verificationRecommendation: "Ainda assim, verifique consentimento direto do beneficiário"
+      };
+    },
+    
+    // Documentação acessível
+    create_accessible_documentation: (args) => {
+      console.log(`[toolLogic] Criando documentação acessível para ${args.customerName}`);
+      
+      const deliveryOptions = {
+        "whatsapp_audio": {
+          format: "áudio",
+          benefits: ["Não depende de leitura", "Pode ser ouvido várias vezes", "Familiar para o cliente"],
+          exampleScript: `Olá, ${args.customerName}! Aqui é a Marlene da Credmais. Estou enviando a confirmação do seu empréstimo de ${args.loanDetails.loanAmount}. Vai ser descontado ${args.loanDetails.installmentValue} por mês do seu benefício, durante ${args.loanDetails.term} meses. O dinheiro estará na sua conta em até 2 dias úteis. Qualquer dúvida, pode me ligar no número da Credmais. Obrigada pela confiança!`
+        },
+        "sms": {
+          format: "texto simples",
+          benefits: ["Fica registrado no celular", "Pode ser mostrado para familiares"],
+          exampleText: `Credmais: ${args.customerName}, emprestimo ${args.loanDetails.loanAmount} aprovado. Parcela ${args.loanDetails.installmentValue} x ${args.loanDetails.term}. Dinheiro em 2 dias. Duvidas? Ligue (XX) XXXX-XXXX`
+        },
+        "print_visual": {
+          format: "documento visual",
+          benefits: ["Contém ícones para fácil compreensão", "Cores destacam informações importantes"],
+          visualElements: [
+            "🏦 - Credmais Consignado",
+            "💵 - Valor do empréstimo",
+            "📅 - Duração do contrato",
+            "💰 - Valor da parcela",
+            "📱 - Contato para dúvidas"
+          ]
+        }
+      };
+      
+      return {
+        documentationCreated: true,
+        deliveryMethod: args.deliveryMethod,
+        documentDetails: deliveryOptions[args.deliveryMethod],
+        retentionSuggestions: [
+          "Peça para o cliente salvar o número da Credmais no celular",
+          "Sugira que compartilhe as informações com um familiar de confiança",
+          "Lembre que pode vir à loja a qualquer momento para tirar dúvidas"
+        ]
+      };
+    },
+    
+    // Funções existentes de Marlene
     verifyCustomerInfo: ({ customerName, benefitNumber }) => {
       console.log(`[toolLogic] Verificando cliente: ${customerName}, benefício: ${benefitNumber || "não fornecido"}`);
       
@@ -464,149 +654,23 @@ Apenas use a ferramenta e continue a conversa normalmente.
       };
     },
     
-    handleCameraError: ({ errorType, alternativeMethod }) => {
-      console.log(`[toolLogic] Tratando erro de câmera: ${errorType}`);
+    // Função para processar eventos de câmera
+    processCameraEvent: (args) => {
+      console.log(`[toolLogic] Processando evento de câmera: ${args.eventType}`);
       
-      const errorMessages = {
-        "permission_denied": "parece que não conseguimos permissão para usar a câmera",
-        "device_unavailable": "parece que a câmera não está disponível no momento",
-        "timeout": "a verificação demorou mais que o esperado",
-        "other": "estamos tendo um problema com a verificação"
-      };
-      
-      const alternativeMethods = {
-        "try_again": {
-          message: "Podemos tentar novamente. Às vezes é só tocar de novo no botão da câmera.",
-          steps: ["Vamos tentar mais uma vez", "Toque no botão da câmera quando aparecer"]
-        },
-        "phone_verification": {
-          message: "Podemos enviar um código por mensagem para o seu celular.",
-          steps: ["Vou enviar um código de 5 números para seu celular", "Quando receber, me diga quais são os números"]
-        },
-        "in_person_verification": {
-          message: "Podemos fazer a verificação aqui mesmo com seus documentos.",
-          steps: ["Vou precisar ver seu documento com foto", "É só um minutinho para confirmar"]
-        }
-      };
-      
-      return {
-        errorHandled: true,
-        userMessage: `${errorMessages[errorType]}. Não se preocupe, temos um jeito mais fácil.`,
-        alternativeProcess: alternativeMethods[alternativeMethod || "phone_verification"],
-        // Simula envio de código se for verificação por telefone
-        verificationCode: alternativeMethod === "phone_verification" ? "12345" : null
-      };
-    },
-    
-    includeCompanion: ({ hasCompanion, relationshipType }) => {
-      console.log(`[toolLogic] Ajustando para acompanhante: ${hasCompanion}, tipo: ${relationshipType || "não especificado"}`);
-      
-      if (!hasCompanion) {
+      if (args.eventType === "VERIFICATION_COMPLETED") {
+        // Marca a verificação como concluída no contexto persistente
+        setCameraVerified(true);
         return {
-          adjustedStrategy: "direct_communication",
-          suggestions: [
-            "Use linguagem ainda mais simples e visual",
-            "Ofereça ajuda frequentemente para interações digitais",
-            "Verifique compreensão com mais frequência"
-          ]
+          success: true,
+          message: "Verificação concluída com sucesso",
+          nextStep: "loan_simulation"
         };
       }
       
-      // Estratégias específicas por tipo de relação
-      const strategies = {
-        "filho(a)": {
-          role: "mediador_principal",
-          approach: "Inclua nas explicações, mas mantenha as decisões com o beneficiário",
-          suggestedPrompts: [
-            "Seu/Sua filho(a) está acompanhando, então vou explicar para vocês dois",
-            "Pode pedir ajuda dele(a) para a parte da câmera"
-          ]
-        },
-        "cônjuge": {
-          role: "parceiro_decisão",
-          approach: "Trate como decisão conjunta, direcione-se a ambos igualmente",
-          suggestedPrompts: [
-            "Vocês estão de acordo com esses valores?",
-            "Preferem uma parcela menor?"
-          ]
-        },
-        "neto(a)": {
-          role: "suporte_tecnológico",
-          approach: "Utilize para auxílio tecnológico, mas direcione decisões ao idoso",
-          suggestedPrompts: [
-            "Seu/Sua neto(a) pode ajudar com a câmera, mas quero confirmar se está de acordo"
-          ]
-        },
-        "default": {
-          role: "auxiliar",
-          approach: "Reconheça presença, mas foque comunicação no beneficiário",
-          suggestedPrompts: [
-            "Que bom que veio com alguém, isso ajuda",
-            "Vou explicar para você, e se tiver dúvida, podem perguntar também"
-          ]
-        }
-      };
-      
       return {
-        adjustedStrategy: "companion_included",
-        companionStrategy: strategies[relationshipType] || strategies["default"],
-        verificationRecommendation: "Ainda assim, verifique consentimento direto do beneficiário"
-      };
-    },
-    
-    simplifyFinancialExplanation: ({ concept, context }) => {
-      console.log(`[toolLogic] Simplificando explicação: ${concept}, contexto: ${context || "geral"}`);
-      
-      // Analogias e explicações adequadas para baixa alfabetização e letramento financeiro
-      const explanations = {
-        "juros": {
-          simple: "É como um aluguel que você paga por usar o dinheiro do banco",
-          visual: "Imagine que pediu R$ 100 emprestado do vizinho. Quando devolver, dá R$ 100 e mais R$ 2 de agradecimento. Esses R$ 2 são como os juros",
-          audio: "Os juros são um valor a mais que você paga por pegar emprestado. Como quando pede açúcar emprestado e devolve o açúcar e mais um pouquinho de agradecimento"
-        },
-        "parcela": {
-          simple: "É quanto vai ser descontado do seu benefício todo mês",
-          visual: "É como a conta de luz que vem todo mês, com valor parecido",
-          audio: "A parcela é o dinheirinho que sai do seu benefício todo mês, antes de chegar na sua mão ou no banco"
-        },
-        "prazo": {
-          simple: "É por quanto tempo você vai pagar a parcela",
-          visual: "Como um calendário onde marca 60 meses (5 anos) pagando um pouquinho cada mês",
-          audio: "O prazo é o tempo que vai ficar pagando. Se for 60 meses, são 5 anos pagando um pouquinho todo mês"
-        },
-        "margem_consignavel": {
-          simple: "É a parte do seu benefício que a lei permite usar para pagar empréstimos",
-          visual: "Imagine que o benefício é um bolo. A lei diz que só podemos usar 30% do bolo para pagar empréstimos. O resto precisa ficar para você usar no dia a dia",
-          audio: "A margem é uma parte do seu benefício que pode ser usada para o empréstimo. A lei não deixa usar todo o benefício, para garantir que sempre sobra dinheiro para você viver"
-        },
-        "valor_total": {
-          simple: "É tudo que você vai pagar até o final, somando todas as parcelas",
-          visual: "Se paga R$ 200 por mês, durante 60 meses, o total é R$ 12.000",
-          audio: "O valor total é a soma de todas as parcelinhas que vai pagar do começo até o fim do empréstimo"
-        }
-      };
-      
-      // Formatos de comunicação adaptados
-      const formats = {
-        simple: explanations[concept]?.simple || "Não tenho uma explicação simplificada para esse conceito",
-        visual: explanations[concept]?.visual || "Não tenho uma explicação visual para esse conceito",
-        audio: explanations[concept]?.audio || "Não tenho uma explicação em áudio para esse conceito",
-        // Combinação recomendada para maior compreensão
-        combined: explanations[concept] ? `${explanations[concept].simple}. ${explanations[concept].visual}` : 
-                  "Não tenho uma explicação para esse conceito"
-      };
-      
-      return {
-        concept: concept,
-        recommendedExplanation: formats.combined,
-        visualExplanation: formats.visual,
-        audioExplanation: formats.audio,
-        // Ícones para representação visual (para baixa alfabetização)
-        associatedIcon: concept === "juros" ? "💰➕" : 
-                      concept === "parcela" ? "📆💵" :
-                      concept === "prazo" ? "🗓️" :
-                      concept === "margem_consignavel" ? "🍰✂️" :
-                      concept === "valor_total" ? "💵💵💵" : "❓"
+        success: true,
+        message: `Evento de câmera ${args.eventType} processado`
       };
     }
   },
