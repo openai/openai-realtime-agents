@@ -12,7 +12,33 @@ const CameraView: React.FC<CameraViewProps> = ({ videoRef }) => {
   const { state: verificationState, cancelVerification } = useVerification();
   const [showCheckmark, setShowCheckmark] = useState(false);
   
-  // Atualizar guias baseado na posição do rosto - sem texto na tela
+  // Determine positioning guide style based on face detection status
+  const getFaceGuideStyle = () => {
+    if (!cameraState.faceDetected) {
+      return { borderColor: 'rgba(255, 255, 255, 0.7)' }; // Initial state - white
+    }
+    
+    // If face is detected but not properly positioned
+    if (cameraState.facePosition) {
+      // Check if face is centered and good size
+      const { x, y, size } = cameraState.facePosition;
+      const isCentered = Math.abs(x) < 0.2 && Math.abs(y) < 0.2;
+      const isGoodSize = size > 0.1;
+      
+      if (isCentered && isGoodSize) {
+        if (verificationState.step === 4) {
+          return { borderColor: '#00FF7F', boxShadow: '0 0 0 4px #00FF7F, 0 0 20px rgba(0, 255, 127, 0.7)' }; // Success - green
+        }
+        return { borderColor: '#ADFF2F', boxShadow: '0 0 10px rgba(173, 255, 47, 0.5)' }; // Ready - yellow-green
+      }
+      
+      return { borderColor: 'rgba(255, 255, 255, 0.9)' }; // Detected but not centered - brighter white
+    }
+    
+    return { borderColor: 'rgba(255, 255, 255, 0.7)' }; // Default - white
+  };
+  
+  // Update checkmark visibility based on verification state
   useEffect(() => {
     // Detectar quando a verificação foi concluída com sucesso
     if (verificationState.step === 4 && !showCheckmark) {
@@ -50,6 +76,24 @@ const CameraView: React.FC<CameraViewProps> = ({ videoRef }) => {
         ref={videoRef} 
         className="camera-video" 
         style={{ transform: 'scaleX(-1)' }} 
+      />
+      
+      {/* Face positioning guide oval */}
+      <div 
+        className="face-positioning-guide" 
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          width: '70%',
+          height: '85%',
+          transform: 'translate(-50%, -50%)',
+          border: '3px solid white',
+          borderRadius: '50%',
+          pointerEvents: 'none',
+          transition: 'all 0.3s ease-in-out',
+          ...getFaceGuideStyle()
+        }}
       />
       
       {/* Checkmark de verificação concluída */}

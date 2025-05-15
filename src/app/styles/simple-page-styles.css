@@ -625,3 +625,71 @@
   opacity: 0;
   transition: opacity 0.8s ease-in-out;
 }
+
+/* Face positioning guide styling */
+.face-positioning-guide {
+  box-sizing: border-box;
+  z-index: 10;
+  transition: all 0.5s ease-in-out;
+}
+
+/* Animation for success state */
+@keyframes pulseGuide {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 255, 127, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(0, 255, 127, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 255, 127, 0);
+  }
+}
+
+.verification-success .face-positioning-guide {
+  border-color: #00FF7F;
+  animation: pulseGuide 2s infinite;
+}
+
+/* Enhance the existing checkmark animation */
+.verification-checkmark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 20;
+  animation: popCheckmark 0.5s ease-out forwards;
+}
+
+@keyframes popCheckmark {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0);
+  }
+  70% {
+    transform: translate(-50%, -50%) scale(1.2);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* Estilos para câmera com borda verde neon quando a verificação for bem-sucedida */
+.camera-bubble.verification-success {
+  box-shadow: 0 0 0 4px #00FF7F, 0 0 20px rgba(0, 255, 127, 0.7);
+  animation: glow 1.5s ease-in-out;
+  transition: box-shadow 0.5s ease-in-out;
+}
+
+@keyframes glow {
+  0% {
+    box-shadow: 0 0 0 0px #00FF7F, 0 0 0px rgba(0, 255, 127, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 4px #00FF7F, 0 0 30px rgba(0, 255, 127, 1);
+  }
+  100% {
+    box-shadow: 0 0 0 4px #00FF7F, 0 0 20px rgba(0, 255, 127, 0.7);
+  }
+}

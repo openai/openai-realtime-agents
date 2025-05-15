@@ -3,6 +3,7 @@ import React, { createContext, useContext, useReducer, useRef, useEffect } from 
 import { VerificationState } from '../types';
 import { useConnection } from './ConnectionContext';
 import { useCamera } from './CameraContext';
+import { setCameraVerified } from "@/app/agentConfigs/utils";
 
 // Estado inicial
 const initialState: VerificationState = {
@@ -272,6 +273,9 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                   dispatch({ type: 'FACE_STATUS', status: 'verified', value: true });
                   dispatch({ type: 'SET_STEP', step: 4 });
                   verificationCompleteRef.current = true;
+                  
+                  // Marcar verificação como concluída no contexto
+                  setCameraVerified(true);
                   
                   safeSendMessage({ 
                     type: "conversation.item.create",
