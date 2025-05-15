@@ -59,10 +59,17 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const faceDetectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastFeedbackTimeRef = useRef<number>(0);
+  const modelsLoadingRef = useRef<boolean>(false);
+  const streamTrackRef = useRef<MediaStreamTrack[]>([]);
   
   // Carregar modelos de detecção facial
   useEffect(() => {
     const loadModels = async () => {
+      // Evitar carregamentos duplicados
+      if (modelsLoadingRef.current || state.modelsLoaded) return;
+      
+      modelsLoadingRef.current = true;
+      
       try {
         // Carregar o modelo TinyFaceDetector que é mais leve
         await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
@@ -70,10 +77,24 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         dispatch({ type: 'MODELS_LOADED' });
       } catch (err) {
         console.error("Error loading face detection models:", err);
+      } finally {
+        modelsLoadingRef.current = false;
       }
     };
     
     loadModels();
+  }, []);
+  
+  // Limpar recursos quando o componente é desmontado
+  useEffect(() => {
+    return () => {
+      if (faceDetectionIntervalRef.current) {
+        clearInterval(faceDetectionIntervalRef.current);
+        faceDetectionIntervalRef.current = null;
+      }
+      
+      closeCamera();
+    };
   }, []);
   
   // Função para abrir a câmera com detecção facial
@@ -82,14 +103,19 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Fechar qualquer stream existente
       closeCamera();
       
-      // Solicitar acesso à câmera
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      // Solicitar acesso à câmera com configurações aprimoradas
+      const constraints = { 
         video: { 
           facingMode: 'user', // Usar câmera frontal
           width: { ideal: 1280 },
-          height: { ideal: 720 }
+          height: { ideal: 720 },
         } 
-      });
+      };
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      // Armazenar referências a tracks para limpar depois
+      streamTrackRef.current = stream.getTracks();
       
       // Atualizar o estado
       dispatch({ type: 'CAMERA_OPENED', stream });
@@ -99,11 +125,25 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         videoRef.current = document.createElement('video');
         videoRef.current.autoplay = true;
         videoRef.current.muted = true;
+        videoRef.current.playsInline = true; // Melhora comportamento em dispositivos móveis
       }
       
       // Conectar stream ao vídeo
       videoRef.current.srcObject = stream;
-      videoRef.current.play().catch(err => console.error("Error playing video:", err));
+      try {
+        await videoRef.current.play();
+      } catch (err) {
+        console.error("Error playing video:", err);
+        // Tentativa de recuperação com interação do usuário
+        const handleUserInteraction = () => {
+          videoRef.current?.play()
+            .then(() => {
+              document.removeEventListener('click', handleUserInteraction);
+            })
+            .catch(error => console.error("Still failed to play video:", error));
+        };
+        document.addEventListener('click', handleUserInteraction, { once: true });
+      }
       
       // Iniciar detecção facial após certificar que o vídeo está pronto
       videoRef.current.onloadedmetadata = () => {
@@ -114,61 +154,73 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }));
         }, 1000);
         
-        // Iniciar detecção facial
+        // Iniciar detecção facial com intervalo maior para economizar recursos
         faceDetectionIntervalRef.current = setInterval(async () => {
-          if (videoRef.current && videoRef.current.readyState === 4) {
-            try {
-              const detections = await faceapi.detectAllFaces(
-                videoRef.current, 
-                new faceapi.TinyFaceDetectorOptions()
-              );
+          if (!videoRef.current || videoRef.current.readyState < 2) return;
+          
+          try {
+            // Verificar se o contexto ainda está ativo para evitar processamento desnecessário
+            if (!state.active) {
+              if (faceDetectionIntervalRef.current) {
+                clearInterval(faceDetectionIntervalRef.current);
+                faceDetectionIntervalRef.current = null;
+              }
+              return;
+            }
+            
+            const detections = await faceapi.detectAllFaces(
+              videoRef.current, 
+              new faceapi.TinyFaceDetectorOptions({
+                inputSize: 320, // Valor menor para melhor performance
+                scoreThreshold: 0.5
+              })
+            );
+            
+            if (detections.length > 0) {
+              const detection = detections[0];
+              const { x, y, width, height } = detection.box;
               
-              if (detections.length > 0) {
-                const detection = detections[0];
-                const { x, y, width, height } = detection.box;
-                
-                // Calcular posição relativa ao centro e tamanho
-                const videoWidth = videoRef.current.videoWidth;
-                const videoHeight = videoRef.current.videoHeight;
-                const centerX = x + width/2;
-                const centerY = y + height/2;
-                
-                // Valor normalizado entre -1 e 1 (0 é o centro)
-                // Invertendo o valor de X para compensar o espelhamento da câmera
-                const relX = -((centerX / videoWidth) * 2 - 1); // Invertido aqui
-                const relY = (centerY / videoHeight) * 2 - 1;
-                
-                // Tamanho do rosto em relação ao frame
-                const faceSize = (width * height) / (videoWidth * videoHeight);
-                
-                const position = { x: relX, y: relY, size: faceSize };
-                
-                // Atualizar estado
-                dispatch({ type: 'FACE_DETECTED', position });
-                
-                // Gerar feedback para Marlene se houver mudança significativa
-                handleFaceDetection(position);
-              } else {
-                // Nenhum rosto detectado
-                dispatch({ type: 'FACE_DETECTED', position: null });
-                
-                // Avisar Marlene que não há rosto visível
-                if (state.faceDetected) {
-                  // Limitar a frequência de feedback para não sobrecarregar
-                  const now = Date.now();
-                  if (now - lastFeedbackTimeRef.current > 3000) {
-                    document.dispatchEvent(new CustomEvent('camera-event', {
-                      detail: { type: 'FACE_NOT_VISIBLE' }
-                    }));
-                    lastFeedbackTimeRef.current = now;
-                  }
+              // Calcular posição relativa ao centro e tamanho
+              const videoWidth = videoRef.current.videoWidth;
+              const videoHeight = videoRef.current.videoHeight;
+              const centerX = x + width/2;
+              const centerY = y + height/2;
+              
+              // Valor normalizado entre -1 e 1 (0 é o centro)
+              // Invertendo o valor de X para compensar o espelhamento da câmera
+              const relX = -((centerX / videoWidth) * 2 - 1); // Invertido aqui
+              const relY = (centerY / videoHeight) * 2 - 1;
+              
+              // Tamanho do rosto em relação ao frame
+              const faceSize = (width * height) / (videoWidth * videoHeight);
+              
+              const position = { x: relX, y: relY, size: faceSize };
+              
+              // Atualizar estado
+              dispatch({ type: 'FACE_DETECTED', position });
+              
+              // Gerar feedback para Marlene se houver mudança significativa
+              handleFaceDetection(position);
+            } else {
+              // Nenhum rosto detectado
+              dispatch({ type: 'FACE_DETECTED', position: null });
+              
+              // Avisar Marlene que não há rosto visível, com limite de frequência
+              if (state.faceDetected) {
+                // Limitar a frequência de feedback para não sobrecarregar - a cada 3 segundos
+                const now = Date.now();
+                if (now - lastFeedbackTimeRef.current > 3000) {
+                  document.dispatchEvent(new CustomEvent('camera-event', {
+                    detail: { type: 'FACE_NOT_VISIBLE' }
+                  }));
+                  lastFeedbackTimeRef.current = now;
                 }
               }
-            } catch (err) {
-              console.error("Error in face detection:", err);
             }
+          } catch (err) {
+            console.error("Error in face detection:", err);
           }
-        }, 200); // Executar a cada 200ms
+        }, 500); // Aumentado para 500ms para reduzir carga no sistema
       };
       
       return true;
@@ -178,6 +230,15 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         type: 'CAMERA_ERROR', 
         error: err instanceof Error ? err : new Error('Failed to open camera') 
       });
+      
+      // Notificar sobre o erro para tratamento adequado
+      document.dispatchEvent(new CustomEvent('camera-event', {
+        detail: { 
+          type: 'CAMERA_ERROR',
+          error: err instanceof Error ? err.message : 'Unknown camera error'
+        }
+      }));
+      
       return false;
     }
   };
@@ -207,16 +268,18 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }));
       lastFeedbackTimeRef.current = now;
     } else {
-      // Gerar feedback direcional
+      // Gerar feedback direcional com menos frequência
       let direction = "";
-      // Inverter direções para corresponder à visão do usuário com a câmera espelhada
-      if (x < -0.2) direction += " à direita"; // Invertido de "à esquerda"
-      else if (x > 0.2) direction += " à esquerda"; // Invertido de "à direita"
       
-      if (y < -0.2) direction += " para cima";
-      else if (y > 0.2) direction += " para baixo";
+      // Aumentar o limiar para reduzir avisos desnecessários
+      if (x < -0.25) direction += " à direita"; // Invertido de "à esquerda"
+      else if (x > 0.25) direction += " à esquerda"; // Invertido de "à direita"
       
-      if (size < 0.1) direction += ", aproxime-se da câmera";
+      if (y < -0.25) direction += " para cima";
+      else if (y > 0.25) direction += " para baixo";
+      
+      // Só mencionar tamanho se for realmente pequeno
+      if (size < 0.08) direction += ", aproxime-se da câmera";
       
       if (direction) {
         document.dispatchEvent(new CustomEvent('camera-event', {
@@ -233,13 +296,30 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   
   // Função para fechar a câmera
   const closeCamera = () => {
+    // Limpar intervalo de detecção
     if (faceDetectionIntervalRef.current) {
       clearInterval(faceDetectionIntervalRef.current);
       faceDetectionIntervalRef.current = null;
     }
     
+    // Parar todos os tracks armazenados
+    streamTrackRef.current.forEach(track => {
+      try {
+        track.stop();
+      } catch (e) {
+        console.warn("Error stopping track:", e);
+      }
+    });
+    streamTrackRef.current = [];
+    
+    // Parar tracks do stream atual
     if (state.stream) {
-      state.stream.getTracks().forEach(track => track.stop());
+      try {
+        state.stream.getTracks().forEach(track => track.stop());
+      } catch (e) {
+        console.warn("Error stopping stream tracks:", e);
+      }
+      
       dispatch({ type: 'CAMERA_CLOSED' });
       
       document.dispatchEvent(new CustomEvent('camera-event', {
@@ -247,8 +327,13 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }));
     }
     
+    // Limpar elemento de vídeo
     if (videoRef.current) {
-      videoRef.current.srcObject = null;
+      try {
+        videoRef.current.srcObject = null;
+      } catch (e) {
+        console.warn("Error clearing video source:", e);
+      }
     }
   };
   

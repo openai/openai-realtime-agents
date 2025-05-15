@@ -7,66 +7,147 @@ export async function createRealtimeConnection(
 ): Promise<{ pc: RTCPeerConnection; dc: RTCDataChannel }> {
   console.log("Starting WebRTC connection setup...");
   
-  // Configuração básica do RTCPeerConnection
+  // Configuração aprimorada do RTCPeerConnection com servidores STUN e TURN
   const pcConfig: RTCConfiguration = {
-    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+    iceServers: [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun2.l.google.com:19302" },
+      // Adicione seus próprios servidores TURN aqui se disponíveis
+      // { 
+      //   urls: "turn:your-turn-server.com",
+      //   username: "username",
+      //   credential: "password"
+      // }
+    ],
+    iceCandidatePoolSize: 10, // Melhorar a coleta de candidatos ICE
+    iceTransportPolicy: 'all' // Permitir todos os tipos de conexões
   };
   
   const pc = new RTCPeerConnection(pcConfig);
 
-  // Configurar evento de track
+  // Configuração avançada para melhorar a qualidade de áudio/vídeo
+  try {
+    // @ts-ignore - Algumas configurações específicas podem não estar no tipo
+    pc.setConfiguration({
+      ...pcConfig,
+      sdpSemantics: 'unified-plan'
+    });
+  } catch (e) {
+    console.warn("Advanced config not supported:", e);
+  }
+
+  // Configurar evento de track com melhor tratamento de erros
   pc.ontrack = (e) => {
     console.log("Track received from server");
     if (audioElement.current) {
-      audioElement.current.srcObject = e.streams[0];
-      audioElement.current.autoplay = true;
-      audioElement.current.play()
-        .then(() => console.log("Audio playback started successfully"))
-        .catch(err => console.error("Failed to start audio playback:", err));
+      if (audioElement.current.srcObject !== e.streams[0]) {
+        audioElement.current.srcObject = e.streams[0];
+        audioElement.current.autoplay = true;
+        
+        // Melhor tratamento de erros na reprodução de áudio
+        audioElement.current.play()
+          .then(() => console.log("Audio playback started successfully"))
+          .catch(err => {
+            console.error("Failed to start audio playback:", err);
+            // Tentar novamente após interação do usuário
+            const retryPlayback = () => {
+              audioElement.current?.play()
+                .then(() => {
+                  console.log("Audio playback started on user interaction");
+                  document.removeEventListener("click", retryPlayback);
+                })
+                .catch(e => console.error("Still failed to play audio:", e));
+            };
+            document.addEventListener("click", retryPlayback, { once: true });
+          });
+      }
     } else {
       console.warn("No audio element available to attach track");
     }
   };
 
-  // Solicitar acesso ao microfone
-  console.log("Requesting microphone access...");
-  const ms = await navigator.mediaDevices.getUserMedia({ audio: true });
-  console.log("Microphone access granted");
-  
-  // Adicionar track de áudio
-  pc.addTrack(ms.getTracks()[0]);
+  // Tratamento de eventos de estado de conexão
+  pc.oniceconnectionstatechange = () => {
+    console.log("ICE connection state changed:", pc.iceConnectionState);
+  };
 
-  // Criar canal de dados
-  const dc = pc.createDataChannel("oai-events");
+  // Solicitar acesso ao microfone com tratamento de erros aprimorado
+  console.log("Requesting microphone access...");
+  try {
+    const ms = await navigator.mediaDevices.getUserMedia({ 
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      } 
+    });
+    console.log("Microphone access granted");
+    
+    // Adicionar track de áudio
+    ms.getTracks().forEach(track => {
+      pc.addTrack(track, ms);
+      console.log(`Added track: ${track.kind}`);
+    });
+  } catch (err) {
+    console.error("Failed to get microphone access:", err);
+    throw new Error(`Microphone access denied: ${err.message}`);
+  }
+
+  // Criar canal de dados com configurações otimizadas
+  const dc = pc.createDataChannel("oai-events", {
+    ordered: true,
+    maxRetransmits: 3  // Limitar número de retransmissões para mensagens mais recentes
+  });
   console.log("Data channel created");
 
-  // Criar oferta SDP sem modificações
+  // Criar oferta SDP com preferências para áudio de alta qualidade
   console.log("Creating offer...");
-  const offer = await pc.createOffer({ 
+  const offerOptions = { 
     offerToReceiveAudio: true,
-    offerToReceiveVideo: false
-  });
+    offerToReceiveVideo: false,
+    voiceActivityDetection: true
+  };
   
-  // Definir a descrição local sem modificações
-  await pc.setLocalDescription(offer);
+  const offer = await pc.createOffer(offerOptions);
+  
+  // Melhorar a qualidade de áudio
+  if (offer.sdp) {
+    let sdp = offer.sdp;
+    // Aumentar prioridade de áudio
+    sdp = sdp.replace('a=mid:0', 'a=mid:0\na=content:main');
+    
+    // Definir a descrição local com SDP aprimorado
+    const enhancedOffer = new RTCSessionDescription({
+      type: 'offer',
+      sdp: sdp
+    });
+    
+    await pc.setLocalDescription(enhancedOffer);
+  } else {
+    await pc.setLocalDescription(offer);
+  }
+  
   console.log("Local description set");
 
-  // Fazer a solicitação para a API
+  // Fazer a solicitação para a API com tratamento de erro aprimorado
   console.log("Making request to OpenAI Realtime API...");
   const baseUrl = "https://api.openai.com/v1/realtime";
   const model = "gpt-4o-realtime-preview"; // Usando apenas o modelo base sem a data
   
   try {
     // Log para debug
-    console.log("SDP offer being sent:", offer.sdp?.substring(0, 100) + "...");
+    console.log("SDP offer being sent:", pc.localDescription?.sdp?.substring(0, 100) + "...");
     
     const sdpResponse = await fetch(`${baseUrl}?model=${model}`, {
       method: "POST",
-      body: offer.sdp,
+      body: pc.localDescription?.sdp,
       headers: {
         Authorization: `Bearer ${EPHEMERAL_KEY}`,
         "Content-Type": "application/sdp",
       },
+      // Adicionar timeout e melhorar tolerância a falhas de rede
+      signal: AbortSignal.timeout(20000) // 20 segundos de timeout
     });
 
     if (!sdpResponse.ok) {
@@ -89,6 +170,15 @@ export async function createRealtimeConnection(
     return { pc, dc };
   } catch (error) {
     console.error("Realtime connection error:", error);
+    
+    // Limpar recursos em caso de erro
+    pc.getSenders().forEach(sender => {
+      if (sender.track) {
+        sender.track.stop();
+      }
+    });
+    
+    pc.close();
     throw error;
   }
 }

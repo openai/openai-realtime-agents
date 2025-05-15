@@ -66,6 +66,26 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // === INÍCIO MODIFICAÇÕES SIMULAÇÃO ===
   const { simulationMode, offlineMode } = useSimulation();
   // === FIM MODIFICAÇÕES SIMULAÇÃO ===
+  
+  // Função auxiliar para tentativas de reconexão com backoff exponencial e jitter
+  const attemptReconnection = (reconnectAttempts: number) => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+    }
+    
+    // Backoff exponencial com jitter para evitar tempestades de reconexão
+    const baseBackoffDelay = Math.min(30000, 5000 * Math.pow(1.5, reconnectAttempts || 0));
+    // Adicionar variação aleatória de até 30%
+    const jitter = Math.random() * 0.3 * baseBackoffDelay;
+    const finalDelay = Math.floor(baseBackoffDelay + jitter);
+    
+    console.log(`Tentativa de reconexão ${reconnectAttempts + 1} em ${(finalDelay / 1000).toFixed(1)} segundos...`);
+    
+    reconnectTimeoutRef.current = setTimeout(() => {
+      console.log("Attempting to reconnect automatically...");
+      connect();
+    }, finalDelay);
+  };
 
   // Função para conectar
   const connect = async () => {
@@ -76,6 +96,12 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     // Resetar flag de desconexão manual
     manualDisconnectRef.current = false;
+    
+    // Limpar timeout de reconexão anterior se existir
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
 
     // === INÍCIO SIMULAÇÃO CONEXÃO ===
     if (simulationMode && offlineMode) {
@@ -102,7 +128,15 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     try {
       console.log("Fetching ephemeral key from server...");
-      const response = await fetch("/api/session");
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos timeout
+      
+      const response = await fetch("/api/session", {
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
         console.error("Failed to get session token:", response.status);
         throw new Error(`Failed to get session token: ${response.status}`);
@@ -142,6 +176,13 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         audioRef.current.onplay = () => console.log("🔊 Áudio iniciou a reprodução!");
         audioRef.current.oncanplay = () => console.log("🔊 Áudio pode ser reproduzido!");
         audioRef.current.onerror = (e) => console.error("❌ Erro no elemento de áudio:", e);
+        
+        // Tentativa de reprodução com interação do usuário
+        const attemptPlay = () => {
+          audioRef.current?.play().catch(e => console.warn("Ainda não foi possível reproduzir áudio:", e));
+          document.removeEventListener('click', attemptPlay);
+        };
+        document.addEventListener('click', attemptPlay, { once: true });
       }
 
       console.log("Creating WebRTC connection...");
@@ -168,19 +209,8 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (!manualDisconnectRef.current) {
             dispatch({ type: 'INCREMENT_RECONNECT_ATTEMPTS' });
             
-            // Iniciar tentativa de reconexão automática após um breve delay
-            if (reconnectTimeoutRef.current) {
-              clearTimeout(reconnectTimeoutRef.current);
-            }
-            
-            // Aumentar o atraso para reconexão com base no número de tentativas (exponential backoff)
-            const backoffDelay = Math.min(30000, 5000 * Math.pow(1.5, state.reconnectAttempts || 0));
-            console.log(`Tentativa de reconexão ${state.reconnectAttempts || 0 + 1} em ${backoffDelay / 1000} segundos...`);
-            
-            reconnectTimeoutRef.current = setTimeout(() => {
-              console.log("Attempting to reconnect automatically...");
-              connect();
-            }, backoffDelay);
+            // Iniciar tentativa de reconexão automática com backoff e jitter
+            attemptReconnection(state.reconnectAttempts || 0);
           }
         }
       };
@@ -199,25 +229,25 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         console.log('Sending session update with Marlene instructions');
         
         // Atualização para melhorar a qualidade do áudio
-       sendMessage({
-         type: "session.update",
-         session: { 
-           modalities: ["audio","text"], 
-           instructions: marleneConfig[0].instructions, 
-           voice: "alloy",
-           input_audio_format: "pcm16", 
-           output_audio_format: "pcm16", // Simplificado para o formato básico
-           input_audio_transcription: { model: "whisper-1" }, 
-           turn_detection: { 
-             type: "server_vad", 
-             threshold: 0.5, 
-             prefix_padding_ms: 300, 
-             silence_duration_ms: 200, 
-             create_response: true 
-           }, 
-           tools: marleneConfig[0].tools 
-         }
-       });
+        sendMessage({
+          type: "session.update",
+          session: { 
+            modalities: ["audio","text"], 
+            instructions: marleneConfig[0].instructions, 
+            voice: "alloy",
+            input_audio_format: "pcm16", 
+            output_audio_format: "pcm16", // Simplificado para o formato básico
+            input_audio_transcription: { model: "whisper-1" }, 
+            turn_detection: { 
+              type: "server_vad", 
+              threshold: 0.5, 
+              prefix_padding_ms: 300, 
+              silence_duration_ms: 200, 
+              create_response: true 
+            }, 
+            tools: marleneConfig[0].tools 
+          }
+        });
         
         console.log('Creating initial response'); 
         sendMessage({ type: "response.create" });
@@ -226,6 +256,13 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setTimeout(() => { 
           audioRef.current?.play().catch(() => {
             console.warn("Failed to autoplay audio, will try again on first message");
+            
+            // Registrar evento para tentar novamente com interação do usuário
+            const attemptPlay = () => {
+              audioRef.current?.play().catch(e => console.warn("Ainda não foi possível reproduzir áudio:", e));
+              document.removeEventListener('click', attemptPlay);
+            };
+            document.addEventListener('click', attemptPlay, { once: true });
           }); 
         }, 1000);
         
@@ -248,6 +285,13 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             
             audioRef.current?.play().catch(() => {
               console.warn("Failed to play audio on event, user interaction may be required");
+              
+              // Registrar evento para tentar novamente com interação do usuário
+              const attemptPlay = () => {
+                audioRef.current?.play().catch(e => console.warn("Still failed to play audio:", e));
+                document.removeEventListener('click', attemptPlay);
+              };
+              document.addEventListener('click', attemptPlay, { once: true });
             }); 
           }
           
@@ -269,11 +313,22 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
       };
 
-      // Manipulador de erros
+      // Manipulador de erros melhorado
       dc.onerror = err => { 
         console.warn('DataChannel error:', err);
-        // Não desconectar imediatamente, pois alguns erros são recuperáveis
-        // O handler de iceconnectionstatechange cuidará da reconexão se necessário
+        
+        // Monitorar erros que podem indicar problemas específicos
+        if (err.error && typeof err.error === 'object' && 'errorDetail' in err.error && err.error.errorDetail === 'sctp-failure') {
+          console.error("Critical SCTP failure detected - attempting immediate reconnect");
+          disconnect();
+          
+          // Tentar reconectar após um breve atraso
+          setTimeout(() => {
+            if (!manualDisconnectRef.current) {
+              connect();
+            }
+          }, 2000);
+        }
       };
       
       // Manipulador de fechamento do canal
@@ -285,13 +340,8 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (!manualDisconnectRef.current) {
           dispatch({ type: 'INCREMENT_RECONNECT_ATTEMPTS' });
           
-          // Calcular atraso de backoff
-          const backoffDelay = Math.min(30000, 5000 * Math.pow(1.5, state.reconnectAttempts || 0));
-          console.log(`Tentativa de reconexão ${state.reconnectAttempts || 0 + 1} em ${backoffDelay / 1000} segundos (onclose)...`);
-          
-          reconnectTimeoutRef.current = setTimeout(() => {
-            connect();
-          }, backoffDelay);
+          // Iniciar tentativa de reconexão automática com backoff e jitter
+          attemptReconnection(state.reconnectAttempts || 0);
         }
       };
 
@@ -303,18 +353,8 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (!manualDisconnectRef.current) {
         dispatch({ type: 'INCREMENT_RECONNECT_ATTEMPTS' });
         
-        if (reconnectTimeoutRef.current) {
-          clearTimeout(reconnectTimeoutRef.current);
-        }
-        
-        // Exponential backoff para tentativas de reconexão
-        const backoffDelay = Math.min(30000, 8000 * Math.pow(1.5, state.reconnectAttempts || 0));
-        console.log(`Tentativa de reconexão ${state.reconnectAttempts || 0 + 1} em ${backoffDelay / 1000} segundos (após erro)...`);
-        
-        reconnectTimeoutRef.current = setTimeout(() => {
-          console.log("Attempting to reconnect after error...");
-          connect();
-        }, backoffDelay);
+        // Iniciar tentativa de reconexão automática com backoff e jitter
+        attemptReconnection(state.reconnectAttempts || 0);
       }
     }
   };
@@ -397,7 +437,11 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return true; 
       }
       
-      console.warn("Cannot send message - DataChannel not open");
+      console.warn("Cannot send message - DataChannel not open", {
+        dataChannelState: dcRef.current?.readyState,
+        connectionStatus: state.status,
+        messageType: message.type
+      });
       
       // Se não estiver conectado mas não for uma desconexão manual,
       // tenta reconectar automaticamente
@@ -409,19 +453,36 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           detail: { message } 
         }));
         
-        // Tenta reconectar em breve
-        if (reconnectTimeoutRef.current) {
-          clearTimeout(reconnectTimeoutRef.current);
-        }
+        // Incrementar contagem de tentativas
+        dispatch({ type: 'INCREMENT_RECONNECT_ATTEMPTS' });
         
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connect();
-        }, 2000);
+        // Tenta reconectar com atraso adaptativo
+        attemptReconnection(state.reconnectAttempts || 0);
       }
       
       return false;
     } catch (err) { 
       console.error('Error sending message:', err); 
+      
+      // Tentar se recuperar em caso de erros não fatais
+      if (!manualDisconnectRef.current && dcRef.current) {
+        try {
+          // Verificar se é um erro de serialização JSON
+          if (err instanceof TypeError && err.message.includes('cyclic')) {
+            // Tentar enviar uma versão mais simples da mensagem
+            const simplifiedMessage = { ...message };
+            // Remover propriedades potencialmente problemáticas
+            delete simplifiedMessage.eventData;
+            delete simplifiedMessage.detail;
+            
+            console.log("Tentando enviar versão simplificada da mensagem");
+            dcRef.current.send(JSON.stringify(simplifiedMessage));
+            return true;
+          }
+        } catch {
+          // Ignora erro na tentativa de recuperação
+        }
+      }
       
       // Notifica que houve um erro durante o envio
       document.dispatchEvent(new CustomEvent('message-send-error', { 
@@ -504,7 +565,7 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.addEventListener('online', handleOnline);
+      window.removeEventListener('online', handleOnline);
     };
   }, [state.status]);
 
