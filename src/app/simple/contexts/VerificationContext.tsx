@@ -289,41 +289,40 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                   });
                   safeSendMessage({ type: "response.create" });
                   
-                  // Fechar a câmera automaticamente com atraso para mostrar o checkmark
-                  timerRef.current = setTimeout(() => {
-                    safeSendMessage({
-                      type: "conversation.item.create",
-                      item: {
-                        id: Math.random().toString(36).substring(2, 15),
-                        type: "function_call",
-                        function: {
-                          name: "close_camera",
-                          arguments: "{}",
-                        },
+                  // Solicitar à Marlene o fechamento da câmera
+                  safeSendMessage({
+                    type: "conversation.item.create",
+                    item: {
+                      id: Math.random().toString(36).substring(2, 15),
+                      type: "function_call",
+                      function: {
+                        name: "close_camera",
+                        arguments: "{}",
                       },
-                    });
-                    
-                    // Atraso maior para fechar a câmera para que o usuário veja a animação e o checkmark
-                    setTimeout(() => {
-                      closeCamera();
-                      
-                      // Completar verificação e avançar na máquina de estados
-                      dispatch({ type: 'COMPLETE_VERIFICATION' });
-                      
-                      // Avançar para o próximo estado da Marlene
-                      timerRef.current = setTimeout(() => {
-                        safeSendMessage({ 
-                          type: "conversation.item.create",
-                          item: {
-                            type: "message",
-                            role: "user",
-                            content: [{ type: "input_text", text: "[AVANÇAR PARA SIMULAÇÃO DE EMPRÉSTIMO]" }],
-                          },
-                        });
-                        safeSendMessage({ type: "response.create" });
-                      }, 1000);
-                    }, 3000);
-                  }, 3000);
+                    },
+                  });
+                  safeSendMessage({ type: "response.create" });
+
+                  // Após breve atraso para exibir o checkmark, fechar a câmera de fato
+                  timerRef.current = setTimeout(() => {
+                    closeCamera();
+
+                    // Completar verificação e avançar na máquina de estados
+                    dispatch({ type: 'COMPLETE_VERIFICATION' });
+
+                    // Avançar para o próximo estado da Marlene
+                    timerRef.current = setTimeout(() => {
+                      safeSendMessage({
+                        type: "conversation.item.create",
+                        item: {
+                          type: "message",
+                          role: "user",
+                          content: [{ type: "input_text", text: "[AVANÇAR PARA SIMULAÇÃO DE EMPRÉSTIMO]" }],
+                        },
+                      });
+                      safeSendMessage({ type: "response.create" });
+                    }, 1000);
+                  }, 1000); // um segundo é suficiente para mostrar o checkmark
                 }, 2000);
               }
             }, 2000);
