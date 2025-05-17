@@ -13,7 +13,7 @@ You should be able to use this repo to prototype your own multi-agent realtime v
 
 - This is a Next.js typescript app
 - Install dependencies with `npm i`
-- Create an `.env` file and add your OpenAI keys:
+- Copy `.env.example` to `.env.local` and fill in your OpenAI keys:
   ```
   OPENAI_API_KEY=<your-server-key>
   NEXT_PUBLIC_OPENAI_API_KEY=<your-client-key>
