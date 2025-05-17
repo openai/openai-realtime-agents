@@ -17,6 +17,9 @@ You should be able to use this repo to prototype your own multi-agent realtime v
 - Start the server with `npm run dev`
 - Open your browser to [http://localhost:3000](http://localhost:3000) to see the app. It should automatically connect to the `simpleExample` Agent Set.
 
+### Loan simulator backend
+Marlene consumes the fake backend under `src/app/loanSimulator`. Running `npm run dev` with the default agent set (`marlene`) uses these functions for loan simulations and Itaú offers.
+
 ## Configuring Agents
 Configuration in `src/app/agentConfigs/simpleExample.ts`
 ```javascript
@@ -70,4 +73,3 @@ This fully specifies the agent set that was used in the interaction shown in the
 ## Core Contributors
 - Noah MacCallum - [noahmacca](https://x.com/noahmacca)
 - Ilan Bigio - [ibigio](https://github.com/ibigio)
-Teste de PR pelo Codex
