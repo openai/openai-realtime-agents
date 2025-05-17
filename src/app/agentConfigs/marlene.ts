@@ -407,6 +407,26 @@ Apenas use a ferramenta e continue a conversa normalmente.
         }
       };
     },
+
+    // Abertura da câmera
+    open_camera: () => {
+      console.log(`[toolLogic] Abrindo câmera para verificação`);
+      // Reinicia a flag de verificação de câmera
+      setCameraVerified(false);
+      return { cameraOpened: true };
+    },
+
+    // Fechamento da câmera
+    close_camera: () => {
+      console.log(`[toolLogic] Fechando câmera`);
+      return { cameraClosed: true };
+    },
+
+    // Animação do valor de empréstimo
+    animate_loan_value: (args) => {
+      console.log(`[toolLogic] Animando valor: ${args.amount}`);
+      return { highlightedAmount: args.amount };
+    },
     
     // Ferramenta para verificação de entendimento
     verify_understanding: (args) => {
