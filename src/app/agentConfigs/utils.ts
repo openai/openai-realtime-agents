@@ -828,6 +828,30 @@ export const includeCompanionTool: Tool = {
 };
 
 /**
+ * Ferramenta para consulta de benefício e limites disponíveis
+ */
+export const consultBenefitTool: Tool = {
+  type: "function",
+  name: "consult_benefit",
+  description:
+    "Consulta informações do benefício do cliente para calcular margem e limite",
+  parameters: {
+    type: "object",
+    properties: {
+      benefitNumber: {
+        type: "string",
+        description: "Número do benefício do INSS",
+      },
+      customerName: {
+        type: "string",
+        description: "Nome do cliente",
+      },
+    },
+    required: ["benefitNumber"],
+  },
+};
+
+/**
  * Ferramenta para criação de documentação acessível
  */
 export const createAccessibleDocumentationTool: Tool = {
