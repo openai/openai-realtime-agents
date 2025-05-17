@@ -1,3 +1,5 @@
+"use client";
+
 // src/app/simple/contexts/UIContext.tsx
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { UIEvent, CameraRequest, LoanState } from '../types';
