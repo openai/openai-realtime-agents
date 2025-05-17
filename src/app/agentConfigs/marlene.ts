@@ -677,6 +677,15 @@ Apenas use a ferramenta e continue a conversa normalmente.
         benefitNumber,
         customerName || "Cliente"
       );
+
+      // Após consultar o benefício, avançamos automaticamente para a verificação
+      // por câmera, a menos que já esteja concluída. Isso evita ficar preso no
+      // estado de consulta.
+      const ctx = exportContext();
+      if (!ctx.cameraVerified) {
+        recordStateChange("5_camera_verification");
+      }
+
       return {
         fullName: customerName || info.fullName,
         benefitType: info.benefitType,
