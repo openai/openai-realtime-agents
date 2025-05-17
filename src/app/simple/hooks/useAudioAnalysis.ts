@@ -1,3 +1,4 @@
+"use client";
 // src/app/simple/hooks/useAudioAnalysis.ts
 import { useEffect, useRef } from 'react';
 import { useUI } from '../contexts/UIContext';

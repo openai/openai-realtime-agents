@@ -1,3 +1,4 @@
+"use client";
 // src/app/simple/hooks/useVerificationProcess.ts
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useCamera } from './useCamera';

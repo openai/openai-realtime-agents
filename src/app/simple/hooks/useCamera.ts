@@ -1,3 +1,4 @@
+"use client";
 // src/app/simple/hooks/useCamera.ts
 import { useState, useCallback } from 'react';
 import { handleError } from '../utils/errorHandling';
