@@ -91,7 +91,7 @@ export class AgentService {
           // Despachar o evento genérico de mensagem
           this.dispatchEvent('message', message);
         } catch (err) {
-          console.error('Failed to parse RTC message:', e.data);
+          console.error('Failed to parse RTC message:', err, e.data);
         }
       };
       

@@ -1,5 +1,5 @@
 // src/app/simple/hooks/useAudioAnalysis.ts
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useUI } from '../contexts/UIContext';
 
 export const useAudioAnalysis = (audioStream: MediaStream | null) => {

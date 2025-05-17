@@ -28,7 +28,7 @@ export async function createRealtimeConnection(
 
   // Configuração avançada para melhorar a qualidade de áudio/vídeo
   try {
-    // @ts-ignore - Algumas configurações específicas podem não estar no tipo
+    // @ts-expect-error - Algumas configurações específicas podem não estar no tipo
     pc.setConfiguration({
       ...pcConfig,
       sdpSemantics: 'unified-plan'

@@ -107,7 +107,7 @@ const VerificationContext = createContext<VerificationContextType | undefined>(u
 export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(verificationReducer, initialState);
   const { state: connectionState, sendMessage } = useConnection();
-  const { openCamera, closeCamera } = useCamera();
+  const { closeCamera } = useCamera();
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const cameraEventListenerRef = useRef<EventListener | null>(null);

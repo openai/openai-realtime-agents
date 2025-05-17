@@ -13,7 +13,6 @@ interface UIContextType {
   userIsSpeaking: boolean;
   speechIntensity: number;
   isAudioPlaybackEnabled: boolean;
-  isTransitioning: boolean;
   
   // Funções existentes
   addUIEvent: (event: UIEvent) => void;
@@ -43,7 +42,6 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   const [userIsSpeaking, setUserIsSpeaking] = useState<boolean>(false);
   const [speechIntensity, setSpeechIntensity] = useState<number>(0);
   const [isAudioPlaybackEnabled, setIsAudioPlaybackEnabled] = useState<boolean>(true);
-  const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
   
   // Estado do empréstimo
   const [loanState, setLoanState] = useState<LoanState>({
@@ -526,7 +524,7 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
               const args = JSON.parse(item.arguments);
               addUIEvent(args);
             } catch (err) {
-              console.error('Failed to parse ui_event arguments:', item.arguments);
+              console.error('Failed to parse ui_event arguments:', err, item.arguments);
             }
           }
           
@@ -570,7 +568,6 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     userIsSpeaking,
     speechIntensity,
     isAudioPlaybackEnabled,
-    isTransitioning,
     addUIEvent,
     addCameraRequest,
     removeCameraRequest,

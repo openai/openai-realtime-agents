@@ -1,5 +1,5 @@
 // src/app/simple/components/PushToTalkButton.tsx
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useConnection } from '../contexts/ConnectionContext';
 import { useUI } from '../contexts/UIContext';
 

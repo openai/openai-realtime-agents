@@ -109,4 +109,40 @@ export const verificationMachine = createMachine<VerificationContext, Verificati
             error: (_, event) => event.error,
           }),
         },
-        CANCEL:
+        CANCEL: {
+          target: 'idle',
+          actions: assign({
+            step: 0,
+            startTime: null,
+            error: null,
+          }),
+        },
+      },
+    },
+    completed: {
+      on: {
+        START: {
+          target: 'preparing',
+          actions: assign({
+            step: 1,
+            startTime: () => Date.now(),
+            error: null,
+            completionTime: null,
+          }),
+        },
+      },
+    },
+    failed: {
+      on: {
+        START: {
+          target: 'preparing',
+          actions: assign({
+            step: 1,
+            startTime: () => Date.now(),
+            error: null,
+          }),
+        },
+      },
+    },
+  },
+});
