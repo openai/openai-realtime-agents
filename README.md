@@ -13,7 +13,12 @@ You should be able to use this repo to prototype your own multi-agent realtime v
 
 - This is a Next.js typescript app
 - Install dependencies with `npm i`
-- Add your `OPENAI_API_KEY` to your env
+- Create an `.env` file and add your OpenAI keys:
+  ```
+  OPENAI_API_KEY=<your-server-key>
+  NEXT_PUBLIC_OPENAI_API_KEY=<your-client-key>
+  ```
+- After editing `package.json` run `npm install` again so new dependencies like `encoding` are installed.
 - Start the server with `npm run dev`
 - Open your browser to [http://localhost:3000](http://localhost:3000) to see the app. It should automatically connect to the `simpleExample` Agent Set.
 

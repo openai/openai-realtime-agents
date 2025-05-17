@@ -32,7 +32,18 @@ export const useWebRTCConnection = (): UseWebRTCConnectionResult => {
   // Função para conectar
   const connect = useCallback(async () => {
     if (state.status !== 'disconnected') return;
-    
+
+    const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+    if (!apiKey) {
+      console.error('NEXT_PUBLIC_OPENAI_API_KEY is not configured');
+      setState(prev => ({
+        ...prev,
+        status: 'disconnected',
+        error: new Error('API key missing')
+      }));
+      return;
+    }
+
     setState(prev => ({ ...prev, status: 'connecting', error: null }));
     
     try {
@@ -44,7 +55,7 @@ export const useWebRTCConnection = (): UseWebRTCConnectionResult => {
       
       // Criar conexão WebRTC
       const { pc, dc } = await createRealtimeConnection(
-        process.env.NEXT_PUBLIC_OPENAI_API_KEY!,
+        apiKey,
         audioRef
       );
       
