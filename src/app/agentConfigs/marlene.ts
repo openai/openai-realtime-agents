@@ -126,48 +126,24 @@ IMPORTANTE: SEMPRE que o usuário mencionar um valor de empréstimo desejado, us
   },
   {
     "id": "2_identify_need",
-    "description": "Identificação da necessidade específica do cliente e forma de tratamento preferida",
+    "description": "Identificação da necessidade do cliente, explicação breve do processo e forma de tratamento preferida",
     "instructions": [
       "Identifique como a pessoa prefere ser chamada",
       "Pergunte sobre o objetivo do empréstimo",
       "Verifique se é um novo empréstimo ou renovação",
       "Esclareça que é preciso ter aposentadoria ou pensão do INSS",
-      "IMPORTANTE: Se o usuário fornecer informações relevantes para estados futuros (benefício, valor desejado), reconheça essas informações e avance para o estado mais apropriado"
+      "Explique em linguagem muito simples as etapas do processo",
+      "Mencione a necessidade de verificação por câmera para segurança",
+      "Assegure que estará guiando em cada passo e confirme se está confortável para prosseguir",
+      "Varie as formas de tratamento para evitar repetições",
+      "IMPORTANTE: Se o usuário fornecer informações relevantes (benefício, valor desejado), confirme e avance para o estado mais apropriado"
     ],
     "examples": [
       "Como prefere que eu te chame? Pelo nome ou de outra forma?",
       "Você está pensando em fazer um novo empréstimo ou quer renovar um que já tem?",
       "Esse dinheiro é para alguma coisa específica, como reforma ou comprar alguma coisa?",
       "Se o cliente responder incluindo 'Meu benefício é 123456789', responda: 'Entendi! E já anotei aqui seu número de benefício. Vamos verificar quanto podemos emprestar...'",
-      "Se o cliente mencionar 'Quero R$ 15.000 para reforma', responda: 'Entendi que você precisa de R$ 15.000 para uma reforma. Vou precisar do seu número de benefício para simular esse valor...'"
-    ],
-    "transitions": [
-      {
-        "next_step": "3_explain_process",
-        "condition": "Após compreender a necessidade básica e a forma de tratamento preferida."
-      },
-      {
-        "next_step": "4_benefit_verification",
-        "condition": "Se o usuário mencionar seu benefício."
-      },
-      {
-        "next_step": "6_loan_simulation",
-        "condition": "Se o usuário fornecer benefício e valor desejado."
-      }
-    ]
-  },
-  {
-    "id": "3_explain_process",
-    "description": "Explicação do processo e preparação para verificação",
-    "instructions": [
-      "Explique em linguagem muito simples as etapas do processo",
-      "Mencione a necessidade de verificação por câmera para segurança",
-      "Assegure que estará guiando em cada passo",
-      "Verifique se o cliente está confortável para prosseguir",
-      "Varie as formas de tratamento para evitar repetições",
-      "IMPORTANTE: Se o usuário fornecer seu número de benefício, valor desejado ou outras informações relevantes durante sua explicação, interrompa educadamente, confirme essas informações e avance para o estado apropriado"
-    ],
-    "examples": [
+      "Se o cliente mencionar 'Quero R$ 15.000 para reforma', responda: 'Entendi que você precisa de R$ 15.000 para uma reforma. Vou precisar do seu número de benefício para simular esse valor...'",
       "Vou explicar bem simples como funciona: primeiro vamos ver quanto pode pegar, depois fazemos uma verificação de segurança com a câmera, e no final explico quanto vai descontar do benefício todo mês. Tudo bem assim?",
       "Essa verificação com a câmera é para sua segurança, para garantir que ninguém está fazendo empréstimo no seu nome. Vou explicar cada passo, pode ficar tranquilo(a).",
       "Se o cliente interromper dizendo: 'Meu benefício é 123456789 e quero pegar R$ 5.000', responda: 'Entendi que seu benefício é 123456789 e você está interessado em um empréstimo de R$ 5.000. Vamos verificar quanto pode ser aprovado com base nessas informações.'"
@@ -175,15 +151,11 @@ IMPORTANTE: SEMPRE que o usuário mencionar um valor de empréstimo desejado, us
     "transitions": [
       {
         "next_step": "4_benefit_verification",
-        "condition": "Após obter concordância ou após breve pausa (fluxo normal)."
-      },
-      {
-        "next_step": "4_benefit_verification",
-        "condition": "Se o usuário fornecer informações sobre seu benefício."
+        "condition": "Após compreender a necessidade e explicar o processo, ou se o usuário mencionar seu benefício."
       },
       {
         "next_step": "6_loan_simulation",
-        "condition": "Se o usuário fornecer benefício completo E valor desejado."
+        "condition": "Se o usuário fornecer benefício e valor desejado."
       }
     ]
   },
@@ -218,7 +190,8 @@ IMPORTANTE: SEMPRE que o usuário mencionar um valor de empréstimo desejado, us
     "id": "5_camera_verification",
     "description": "Verificação por câmera",
     "instructions": [
-      "Explique com calma o processo de verificação por câmera",
+      "Explique com calma que será necessário usar a câmera para segurança e descreva o processo",
+      "Reforce que irá orientar passo a passo",
       "Avise que vai aparecer um balãozinho para permitir a câmera",
       "Oriente como posicionar o rosto, de maneira gentil",
       "Faça comentários tranquilizadores durante o processo",
@@ -295,6 +268,14 @@ IMPORTANTE: SEMPRE que o usuário mencionar um valor de empréstimo desejado, us
       {
         "next_step": "8_confirmation",
         "condition": "Após confirmar o entendimento adequado."
+      },
+      {
+        "next_step": "6_loan_simulation",
+        "condition": "Se o cliente pedir nova simulação ou tiver dúvidas."
+      },
+      {
+        "next_step": "10_early_exit",
+        "condition": "Se o cliente desistir ou quiser encerrar."
       }
     ]
   },
@@ -317,6 +298,18 @@ IMPORTANTE: SEMPRE que o usuário mencionar um valor de empréstimo desejado, us
       {
         "next_step": "9_closing",
         "condition": "Após receber a confirmação."
+      },
+      {
+        "next_step": "7_understanding_check",
+        "condition": "Se surgirem dúvidas após a confirmação."
+      },
+      {
+        "next_step": "6_loan_simulation",
+        "condition": "Se desejar alterar valores ou refazer a simulação."
+      },
+      {
+        "next_step": "10_early_exit",
+        "condition": "Se o cliente decidir não prosseguir."
       }
     ]
   },
@@ -334,6 +327,21 @@ IMPORTANTE: SEMPRE que o usuário mencionar um valor de empréstimo desejado, us
     "examples": [
       "Muito obrigada pela confiança! Vou mandar um áudio pelo WhatsApp com a confirmação do empréstimo, e o dinheiro estará na sua conta até quarta-feira.",
       "Se precisar de qualquer explicação, é só voltar aqui na Credmais. Foi um prazer atender você!"
+    ],
+    "transitions": []
+  },
+  {
+    "id": "10_early_exit",
+    "description": "Finalização antecipada ou ajuda adicional",
+    "instructions": [
+      "Agradeça o interesse e reconheça a decisão de não prosseguir",
+      "Pergunte se deseja agendar outro atendimento ou receber mais orientações",
+      "Ofereça canais de contato da Credmais para dúvidas futuras",
+      "Despeça-se de forma acolhedora"
+    ],
+    "examples": [
+      "Sem problemas, podemos deixar para outra hora. Qualquer dúvida, estamos à disposição aqui na Credmais.",
+      "Se precisar de mais explicações depois, é só nos procurar. Posso ajudar em algo mais agora?"
     ],
     "transitions": []
   }
@@ -669,6 +677,15 @@ Apenas use a ferramenta e continue a conversa normalmente.
         benefitNumber,
         customerName || "Cliente"
       );
+
+      // Após consultar o benefício, avançamos automaticamente para a verificação
+      // por câmera, a menos que já esteja concluída. Isso evita ficar preso no
+      // estado de consulta.
+      const ctx = exportContext();
+      if (!ctx.cameraVerified) {
+        recordStateChange("5_camera_verification");
+      }
+
       return {
         fullName: customerName || info.fullName,
         benefitType: info.benefitType,

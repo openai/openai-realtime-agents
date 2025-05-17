@@ -282,7 +282,7 @@ function determineIfShouldAdvance(entities: ExtractedEntities, timeSinceLastInpu
   const isQuickFollowup = timeSinceLastInput < 10000;
   
   // Se estamos em um dos primeiros estados
-  const inEarlyState = ['1_greeting', '2_identify_need', '3_explain_process'].includes(conversationContext.currentState);
+  const inEarlyState = ['1_greeting', '2_identify_need'].includes(conversationContext.currentState);
   
   // Critérios para avançar:
   // 1. Muitas entidades significativas (especialmente benefício e valor)
@@ -329,10 +329,10 @@ function determineRecommendedState(entities: ExtractedEntities, context: Convers
   }
   
   // Se temos propósito mas não outras informações importantes
-  if (entities.purpose && 
-      !entities.benefitNumber && 
+  if (entities.purpose &&
+      !entities.benefitNumber &&
       !context.benefitNumber) {
-    return "3_explain_process";
+    return "2_identify_need";
   }
   
   // Se temos nome ou tratamento preferido
@@ -385,17 +385,13 @@ function calculateConfidence(entities: ExtractedEntities, recommendedState: stri
       }
       break;
       
-    case "3_explain_process":
-      // Média confiança para propósito sem outras informações críticas
-      if (entities.purpose && !entities.benefitNumber && !conversationContext.benefitNumber) {
-        confidence = 0.6;
-      }
-      break;
       
-    case "2_identify_need":
-      // Baixa-média confiança para nome/tratamento sem informações críticas
+  case "2_identify_need":
+      // Baixa-média confiança para nome/tratamento ou propósito sem outras informações críticas
       if ((entities.name || entities.preferredTreatment) && !entities.benefitNumber && !entities.requestedAmount) {
         confidence = 0.5;
+      } else if (entities.purpose && !entities.benefitNumber) {
+        confidence = 0.6;
       }
       break;
       
