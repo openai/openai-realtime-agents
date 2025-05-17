@@ -28,11 +28,10 @@ export async function createRealtimeConnection(
 
   // Configuração avançada para melhorar a qualidade de áudio/vídeo
   try {
-    // @ts-expect-error - Algumas configurações específicas podem não estar no tipo
     pc.setConfiguration({
       ...pcConfig,
       sdpSemantics: 'unified-plan'
-    });
+    } as RTCConfiguration & { sdpSemantics?: string });
   } catch (e) {
     console.warn("Advanced config not supported:", e);
   }
@@ -91,7 +90,8 @@ export async function createRealtimeConnection(
     });
   } catch (err) {
     console.error("Failed to get microphone access:", err);
-    throw new Error(`Microphone access denied: ${err.message}`);
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`Microphone access denied: ${message}`);
   }
 
   // Criar canal de dados com configurações otimizadas

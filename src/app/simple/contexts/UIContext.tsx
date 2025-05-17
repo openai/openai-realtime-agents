@@ -486,7 +486,7 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
           msg.response?.output) {
         
         // Verificar cada item de saída
-        msg.response.output.forEach(output => {
+        msg.response.output.forEach((output: any) => {
           // Detectar especificamente chamadas da função animate_loan_value
           if (output.type === 'function_call' && 
               output.name === 'animate_loan_value') {
@@ -519,7 +519,7 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       
       // Processar chamadas de função
       if (msg.type === 'response.done' && Array.isArray(msg.response?.output)) {
-        msg.response.output.forEach((item) => {
+        msg.response.output.forEach((item: any) => {
           // Processar eventos de UI
           if (item.type === 'function_call' && item.name === 'ui_event' && item.arguments) {
             try {

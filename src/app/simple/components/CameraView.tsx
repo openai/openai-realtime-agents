@@ -4,7 +4,7 @@ import { useCamera } from '../contexts/CameraContext';
 import { useVerification } from '../contexts/VerificationContext';
 
 interface CameraViewProps {
-  videoRef: RefObject<HTMLVideoElement>;
+  videoRef: RefObject<HTMLVideoElement | null>;
 }
 
 const CameraView: React.FC<CameraViewProps> = ({ videoRef }) => {

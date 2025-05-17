@@ -244,7 +244,10 @@ export function useHandleServerEvent({
 
     if (currentAgent?.toolLogic?.[functionCallParams.name]) {
       const fn = currentAgent.toolLogic[functionCallParams.name];
-      const fnResult = await fn(JSON.parse(functionCallParams.arguments));
+      const fnResult = await fn(
+        JSON.parse(functionCallParams.arguments),
+        []
+      );
       sendClientEvent({
         type: "conversation.item.create",
         item: {
@@ -347,7 +350,7 @@ export function useHandleServerEvent({
               // Se o usuário forneceu múltiplas informações importantes, registrar um evento
               addTranscriptBreadcrumb(
                 `Múltiplas informações detectadas: ${Object.keys(processResult.entities)
-                  .filter(k => processResult.entities[k])
+                  .filter(k => processResult.entities[k as keyof typeof processResult.entities])
                   .join(', ')}`,
                 processResult
               );
