@@ -1,5 +1,5 @@
 // src/app/agentConfigs/utils.ts
-import { AgentConfig, Tool, TranscriptItem } from "@/app/types";
+import { AgentConfig, Tool } from "@/app/types";
 
 /**
  * Interface para o contexto de conversa persistente
@@ -103,7 +103,7 @@ export function injectTransferTools(agentDefs: AgentConfig[]): AgentConfig[] {
  * Processa a entrada do usuário para extrair informações relevantes
  * e determinar o próximo estado
  */
-export function processUserInput(input: string, transcriptItems: TranscriptItem[]): ProcessingResult {
+export function processUserInput(input: string): ProcessingResult {
   const entities = extractEntities(input);
   const hasMultipleEntities = countSignificantEntities(entities) > 1;
   

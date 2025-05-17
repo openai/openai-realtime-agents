@@ -117,7 +117,7 @@ export const useWebRTCConnection = (): UseWebRTCConnectionResult => {
             }
           });
         } catch (err) {
-          console.error('Failed to parse RTC message:', e.data);
+          console.error('Failed to parse RTC message:', err, e.data);
         }
       };
       

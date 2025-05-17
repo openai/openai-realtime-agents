@@ -5,11 +5,9 @@ import { useTranscript } from "@/app/contexts/TranscriptContext";
 import { useEvent } from "@/app/contexts/EventContext";
 import { useRef, useState, useEffect } from "react";
 import { useSimulation } from "../simple/contexts/SimulationContext";
-import { 
-  processUserInput, 
-  exportContext, 
-  recordStateChange, 
-  setCameraVerified 
+import {
+  processUserInput,
+  recordStateChange
 } from "@/app/agentConfigs/utils";
 
 export interface UseHandleServerEventParams {
@@ -29,10 +27,8 @@ export function useHandleServerEvent({
   setSelectedAgentName,
 }: UseHandleServerEventParams) {
   const {
-    transcriptItems,
     addTranscriptBreadcrumb,
     addTranscriptMessage,
-    updateTranscriptMessage,
     updateTranscriptItemStatus,
   } = useTranscript();
 
@@ -43,14 +39,14 @@ export function useHandleServerEvent({
   const [detectedAmount, setDetectedAmount] = useState<string | null>(null);
 
   // UI events state for rendering icons or other UI triggers
-  const [uiEvents, setUIEvents] = useState<{
+  const [, setUIEvents] = useState<{
     name: string;
     icon: string;
     color: string;
   }[]>([]);
 
   // Debug logs state for inspecting raw events
-  const [debugLogs, setDebugLogs] = useState<any[]>([]);
+  const [, setDebugLogs] = useState<any[]>([]);
 
   // Efeito para ouvir eventos simulados
   useEffect(() => {
@@ -248,7 +244,7 @@ export function useHandleServerEvent({
 
     if (currentAgent?.toolLogic?.[functionCallParams.name]) {
       const fn = currentAgent.toolLogic[functionCallParams.name];
-      const fnResult = await fn(JSON.parse(functionCallParams.arguments), transcriptItems);
+      const fnResult = await fn(JSON.parse(functionCallParams.arguments));
       sendClientEvent({
         type: "conversation.item.create",
         item: {
@@ -338,7 +334,7 @@ export function useHandleServerEvent({
           // NOVA FUNCIONALIDADE: Processar mensagens do usuário para extrair entidades
           if (role === "user") {
             // Processar a entrada do usuário para extrair entidades e determinar transições
-            const processResult = processUserInput(content, transcriptItems);
+            const processResult = processUserInput(content);
             
             // Se identificou várias entidades e recomenda mudança de estado
             if (processResult.hasMultipleEntities && 

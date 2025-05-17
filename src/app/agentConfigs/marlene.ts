@@ -4,7 +4,6 @@ import {
   injectTransferTools, 
   processUserInput, 
   exportContext, 
-  importContext, 
   recordStateChange,
   setCameraVerified,
   animateValueTool,
@@ -386,9 +385,9 @@ Apenas use a ferramenta e continue a conversa normalmente.
   ],
   toolLogic: {
     // Processamento de mensagens do usuário com extração de entidades e avanço de estados
-    handleUserMessage: async (args, transcriptItems) => {
+    handleUserMessage: async (args) => {
       // Usa processUserInput de utils.ts para extrair entidades da mensagem
-      const processResult = processUserInput(args.message, transcriptItems);
+      const processResult = processUserInput(args.message);
       
       // Obtém o estado atual do contexto da conversa
       const context = exportContext();

@@ -2,7 +2,6 @@
 import React, { createContext, useContext, useReducer, useRef, useEffect } from 'react';
 import { CameraState } from '../types';
 import * as faceapi from 'face-api.js';
-import { setCameraVerified } from "@/app/agentConfigs/utils";
 
 // Estado inicial
 const initialState: CameraState = {

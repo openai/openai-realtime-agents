@@ -1,9 +1,7 @@
 // src/app/simple/components/SimulationPanel.tsx
 import React, { useState } from 'react';
-import { useUI } from '../contexts/UIContext';
 
 const SimulationPanel: React.FC = () => {
-  const { setRequestedLoanAmount, showLoanAnimation } = useUI();
   const [isExpanded, setIsExpanded] = useState(true);
   const [moneyValue, setMoneyValue] = useState('10.000,00');
 
