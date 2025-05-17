@@ -15,6 +15,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^9.0.3",
+    "@xstate/fsm": "^2.0.1",
     "uuid": "^11.0.4",
     "encoding": "^0.1.13"
   },
