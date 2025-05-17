@@ -24,6 +24,11 @@ export const useWebRTCConnection = (): UseWebRTCConnectionResult => {
     sessionId: null,
     error: null
   });
+  // Mantém o último valor de status para funções estáveis
+  const statusRef = useRef<'disconnected' | 'connecting' | 'connected'>('disconnected');
+  useEffect(() => {
+    statusRef.current = state.status;
+  }, [state.status]);
   
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
@@ -32,7 +37,7 @@ export const useWebRTCConnection = (): UseWebRTCConnectionResult => {
   
   // Função para conectar
   const connect = useCallback(async () => {
-    if (state.status !== 'disconnected') return;
+    if (statusRef.current !== 'disconnected') return;
 
     const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
     if (!apiKey) {
@@ -155,7 +160,7 @@ export const useWebRTCConnection = (): UseWebRTCConnectionResult => {
         status: 'disconnected'
       }));
     }
-  }, [state.status]);
+  }, []);
   
   // Função para desconectar
   const disconnect = useCallback(() => {
