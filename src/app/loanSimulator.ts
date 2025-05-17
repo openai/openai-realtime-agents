@@ -62,7 +62,7 @@ export function simularEmprestimo(
  */
 export function calcularApresentacaoMarlene(
   simulacao: EmprestimoResultado,
-  _beneficio: BeneficioInfo
+  _beneficio: BeneficioInfo // eslint-disable-line @typescript-eslint/no-unused-vars
 ): string {
   return `Com base no benefício, a parcela seria de R$ ${simulacao.parcela.toLocaleString(
     'pt-BR'

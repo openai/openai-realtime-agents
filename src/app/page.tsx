@@ -3,10 +3,10 @@
 
 import React, { useEffect } from "react";
 import "@/app/styles/simple-page-styles.css";
-import { ConnectionProvider } from "./contexts/ConnectionContext";
-import { CameraProvider } from "./contexts/CameraContext";
-import { VerificationProvider } from "./contexts/VerificationContext";
-import { UIProvider, useUI } from "./contexts/UIContext";
+import { ConnectionProvider } from "./simple/contexts/ConnectionContext";
+import { CameraProvider } from "./simple/contexts/CameraContext";
+import { VerificationProvider } from "./simple/contexts/VerificationContext";
+import { UIProvider, useUI } from "./simple/contexts/UIContext";
 import PhoneMockup from "./components/PhoneMockup";
 
 // Componente para lidar com o evento global
