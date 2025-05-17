@@ -17,6 +17,25 @@ Here's a quick [demo video](https://x.com/OpenAIDevs/status/1880306081517432936)
 - Start the server with `npm run dev`
 - Open your browser to [http://localhost:3000](http://localhost:3000) to see the app. It should automatically connect to the `simpleExample` Agent Set.
 
+## Alternative Docker Setup
+
+- You can also run this in a Docker container.
+- Build the Docker image with the following command:
+
+  ```bash
+  docker build -t realtime-api-agents-demo .
+  ```
+
+- Run the Docker container with the following command:
+
+  ```bash
+  docker run -it --rm -p 3000:3000 
+    -e OPENAI_API_KEY=replace-with-api-key 
+    -v local-copy-of/openai-realtime-agents:/app 
+    -v /app/node_modules 
+    realtime-api-agents-demo
+  ```
+
 ## Configuring Agents
 Configuration in `src/app/agentConfigs/simpleExample.ts`
 ```javascript
