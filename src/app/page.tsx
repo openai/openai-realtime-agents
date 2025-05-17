@@ -7,7 +7,7 @@ import { ConnectionProvider } from "./simple/contexts/ConnectionContext";
 import { CameraProvider } from "./simple/contexts/CameraContext";
 import { VerificationProvider } from "./simple/contexts/VerificationContext";
 import { UIProvider, useUI } from "./simple/contexts/UIContext";
-import PhoneMockup from "./components/PhoneMockup";
+import PhoneMockup from "./simple/components/PhoneMockup";
 
 // Componente para lidar com o evento global
 const LoanAnimationHandler: React.FC = () => {

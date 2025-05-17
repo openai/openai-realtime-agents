@@ -47,8 +47,9 @@ export async function GET() {
     return NextResponse.json(data);
   } catch (error) {
     console.error("Erro detalhado em /session:", error);
+    const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: "Internal Server Error", details: error.message },
+      { error: "Internal Server Error", details: message },
       { status: 500 }
     );
   }

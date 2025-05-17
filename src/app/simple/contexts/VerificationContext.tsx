@@ -1,3 +1,5 @@
+"use client";
+
 // src/app/simple/contexts/VerificationContext.tsx
 import React, { createContext, useContext, useReducer, useRef, useEffect } from 'react';
 import { VerificationState } from '../types';

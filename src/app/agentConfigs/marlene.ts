@@ -439,7 +439,14 @@ Apenas use a ferramenta e continue a conversa normalmente.
       console.log(`[toolLogic] Verificando entendimento do cliente sobre os termos do empréstimo`);
       
       // Avalia o risco de o cliente não ter entendido completamente
-      const riskAssessment = {
+      const riskAssessment: {
+        overallRisk: string;
+        specificRisks: Array<{
+          type: string;
+          description: string;
+          recommendation: string;
+        }>;
+      } = {
         overallRisk: "baixo", // baixo, médio, alto
         specificRisks: []
       };
@@ -503,15 +510,15 @@ Apenas use a ferramenta e continue a conversa normalmente.
       console.log(`[toolLogic] Tratando erro de câmera: ${args.errorType}`);
       
       // Mapeia tipos de erro para mensagens amigáveis
-      const errorMessages = {
-        "permission_denied": "Parece que não consegui permissão para usar a câmera.",
-        "device_unavailable": "Parece que a câmera não está disponível no momento.",
-        "timeout": "A verificação está demorando mais que o esperado.",
-        "other": "Estamos tendo um problema com a verificação."
+      const errorMessages: Record<string, string> = {
+        permission_denied: "Parece que não consegui permissão para usar a câmera.",
+        device_unavailable: "Parece que a câmera não está disponível no momento.",
+        timeout: "A verificação está demorando mais que o esperado.",
+        other: "Estamos tendo um problema com a verificação."
       };
       
       // Opções alternativas para diferentes situações
-      const alternativeOptions = {
+      const alternativeOptions: Record<string, { steps: string[]; userGuidance: string }> = {
         "try_again": {
           steps: ["Vamos tentar mais uma vez. Às vezes é só tocar de novo no botão da câmera."],
           userGuidance: "Toque novamente no botão da câmera quando aparecer."
@@ -552,7 +559,7 @@ Apenas use a ferramenta e continue a conversa normalmente.
       }
       
       // Estratégias específicas por tipo de relação
-      const strategies = {
+      const strategies: Record<string, { role: string; approach: string; suggestedPrompts: string[] }> = {
         "filho(a)": {
           role: "mediador_principal",
           approach: "Inclua nas explicações, mas mantenha as decisões com o beneficiário",
@@ -597,7 +604,7 @@ Apenas use a ferramenta e continue a conversa normalmente.
     create_accessible_documentation: (args) => {
       console.log(`[toolLogic] Criando documentação acessível para ${args.customerName}`);
       
-      const deliveryOptions = {
+      const deliveryOptions: Record<string, { format: string; benefits: string[]; exampleScript?: string; exampleText?: string; visualElements?: string[] }> = {
         "whatsapp_audio": {
           format: "áudio",
           benefits: ["Não depende de leitura", "Pode ser ouvido várias vezes", "Familiar para o cliente"],

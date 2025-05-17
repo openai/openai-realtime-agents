@@ -200,13 +200,13 @@ export function recordStateChange(newState: string): void {
  */
 function extractEntities(input: string): ExtractedEntities {
   return {
-    name: extractName(input),
-    preferredTreatment: extractPreferredTreatment(input),
-    benefitNumber: extractBenefitNumber(input),
-    requestedAmount: extractMonetaryValue(input),
-    purpose: extractPurpose(input),
+    name: extractName(input) || undefined,
+    preferredTreatment: extractPreferredTreatment(input) || undefined,
+    benefitNumber: extractBenefitNumber(input) || undefined,
+    requestedAmount: extractMonetaryValue(input) || undefined,
+    purpose: extractPurpose(input) || undefined,
     hasCompanion: hasCompanion(input),
-    companionType: extractCompanionType(input)
+    companionType: extractCompanionType(input) || undefined
   };
 }
 

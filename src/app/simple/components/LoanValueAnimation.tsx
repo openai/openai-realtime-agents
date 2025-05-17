@@ -102,7 +102,7 @@ const LoanValueAnimation: React.FC = () => {
   }, [loanState.requestedAmount]);
   
   // Estilos forçados para garantir visibilidade
-  const forcedStyles = loanState.showAnimation || overlayVisible ? {
+  const forcedStyles: React.CSSProperties = loanState.showAnimation || overlayVisible ? {
     position: 'absolute',
     bottom: 0,
     left: 0,
