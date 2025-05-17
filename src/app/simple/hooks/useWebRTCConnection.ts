@@ -1,3 +1,4 @@
+"use client";
 // src/app/simple/hooks/useWebRTCConnection.ts
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { createRealtimeConnection } from '@/app/lib/realtimeConnection';
