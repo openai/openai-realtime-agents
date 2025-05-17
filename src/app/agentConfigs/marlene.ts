@@ -20,7 +20,7 @@ import {
   consultarBeneficio,
   simularEmprestimo,
   calcularApresentacaoMarlene,
-} from "../loanSimulator";
+} from "../loanSimulator/index";
 
 // Definição do agente Marlene
 const marlene: AgentConfig = {
@@ -646,7 +646,10 @@ Apenas use a ferramenta e continue a conversa normalmente.
         `[toolLogic] Consultando benefício: ${benefitNumber || "não fornecido"}`
       );
 
-      const info = consultarBeneficio(benefitNumber);
+      const info = consultarBeneficio(
+        benefitNumber,
+        customerName || "Cliente"
+      );
 
       return {
         isVerified: true,
@@ -662,7 +665,10 @@ Apenas use a ferramenta e continue a conversa normalmente.
     },
 
     consult_benefit: ({ benefitNumber, customerName }) => {
-      const info = consultarBeneficio(benefitNumber);
+      const info = consultarBeneficio(
+        benefitNumber,
+        customerName || "Cliente"
+      );
       return {
         fullName: customerName || info.fullName,
         benefitType: info.benefitType,
@@ -673,30 +679,32 @@ Apenas use a ferramenta e continue a conversa normalmente.
       };
     },
     
-    simulateLoan: ({ desiredAmount, benefitValue = 1800 }) => {
+    simulateLoan: ({ desiredAmount, benefitNumber, customerName, term = 60 }) => {
       console.log(
         `[toolLogic] Simulando empréstimo pelo módulo loanSimulator: ${desiredAmount}`
       );
 
       const amount = desiredAmount || 10000;
-      const result = simularEmprestimo(amount, benefitValue);
+      const name = customerName || "Cliente";
+      const num = benefitNumber || "00000000000";
+
+      const result = simularEmprestimo(num, name, amount, term);
+      const presentation = calcularApresentacaoMarlene(
+        name,
+        name,
+        num,
+        amount,
+        term
+      );
 
       return {
         loanAmount: `R$ ${amount.toLocaleString('pt-BR')}`,
-        installments: result.term,
+        installments: result.prazo,
         monthlyPayment: `R$ ${result.parcela.toLocaleString('pt-BR')}`,
         totalPayable: `R$ ${result.total.toLocaleString('pt-BR')}`,
-        impactOnBenefit: `${result.impactoPercentual}%`,
-        remainingBenefit: `R$ ${(benefitValue - result.parcela).toLocaleString('pt-BR')}`,
-        simplifiedExplanation: calcularApresentacaoMarlene(result, {
-          benefitNumber: '',
-          fullName: '',
-          benefitType: '',
-          benefitValue,
-          marginPercent: 0,
-          marginValue: 0,
-          availableLimit: 0,
-        }),
+        impactOnBenefit: `${((result.parcela / result.perfil.beneficio.valor) * 100).toFixed(2)}%`,
+        remainingBenefit: `R$ ${(result.perfil.beneficio.valor - result.parcela).toLocaleString('pt-BR')}`,
+        simplifiedExplanation: presentation.opcoes[0].texto,
       };
     },
     
