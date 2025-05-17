@@ -3,8 +3,7 @@ import { AgentConfig } from "@/app/types";
 import { 
   injectTransferTools, 
   processUserInput, 
-  exportContext, 
-  importContext, 
+  exportContext,
   recordStateChange,
   setCameraVerified,
   animateValueTool,
@@ -14,8 +13,14 @@ import {
   simplifyFinancialExplanationTool,
   includeCompanionTool,
   handleCameraErrorTool,
-  createAccessibleDocumentationTool
+  createAccessibleDocumentationTool,
+  consultBenefitTool
 } from "./utils";
+import {
+  consultarBeneficio,
+  simularEmprestimo,
+  calcularApresentacaoMarlene,
+} from "../loanSimulator";
 
 // Definição do agente Marlene
 const marlene: AgentConfig = {
@@ -259,9 +264,9 @@ IMPORTANTE: SEMPRE que o usuário mencionar um valor de empréstimo desejado, us
       "IMPORTANTE: Após apresentar a simulação, avance naturalmente para verificação de entendimento sem exigir resposta do usuário se o fluxo estiver fluindo"
     ],
     "examples": [
-      "Com base no benefício, é possível pegar até R$ 10.000. Se escolher esse valor, vai descontar R$ 260 por mês do benefício, durante 5 anos. Isso representa cerca de 20% do que recebe por mês. O que acha?",
+      "Com base no benefício, você pode pegar até [valor_maximo]. Se escolher esse valor, a parcela será de [valor_parcela] por mês durante [prazo] meses, cerca de [percentual]% do benefício. O que acha?",
       "Se preferir uma parcela menor, podemos ver outros valores. O importante é que fique tranquilo(a) com o desconto mensal.",
-      "Se o cliente já havia mencionado querer R$ 8.000, diga: 'Conforme solicitado, simulei um empréstimo de R$ 8.000. Com esse valor, a parcela mensal ficaria em R$ 210, descontada diretamente do seu benefício por 60 meses. Isso representa aproximadamente 18% do seu benefício mensal.'"
+      "Se o cliente já havia mencionado querer [valor_desejado], diga: 'Conforme solicitado, simulei um empréstimo de [valor_desejado]. A parcela mensal fica em [valor_parcela], descontada do benefício por [prazo] meses. Isso representa aproximadamente [percentual]% do benefício mensal.'"
     ],
     "transitions": [
       {
@@ -282,7 +287,7 @@ IMPORTANTE: SEMPRE que o usuário mencionar um valor de empréstimo desejado, us
       "IMPORTANTE: Se o cliente demonstrar claramente que entendeu e deseja prosseguir, avance diretamente para confirmação sem insistir em verificações adicionais"
     ],
     "examples": [
-      "Vamos ver se ficou claro: vai receber R$ 10.000 agora, e vai pagar R$ 260 por mês, durante 5 anos. Isso vai ser descontado direto do benefício. Faz sentido para você ou prefere que eu explique novamente?",
+      "Vamos ver se ficou claro: você recebe o valor agora e paga [valor_parcela] por mês durante [prazo] meses. Esse desconto vem direto do benefício. Faz sentido ou prefere que eu explique de novo?",
       "Tem alguma dúvida sobre os valores ou sobre como vai funcionar o desconto no benefício?",
       "Se o cliente responder 'Sim, entendi tudo e quero fazer o empréstimo', responda: 'Ótimo! Então vamos confirmar para finalizar o processo.'"
     ],
@@ -305,7 +310,7 @@ IMPORTANTE: SEMPRE que o usuário mencionar um valor de empréstimo desejado, us
       "IMPORTANTE: Use a ferramenta animate_loan_value ao mencionar o valor final do empréstimo, mas não anuncie a animação"
     ],
     "examples": [
-      "Então, deseja seguir com esse empréstimo de R$ 10.000, com parcela de R$ 260 por mês?",
+      "Então, deseja seguir com esse empréstimo de [valor_total], com parcela de [valor_parcela] por mês?",
       "Se concordar, vou finalizar o processo e o dinheiro vai estar na sua conta em até 2 dias úteis."
     ],
     "transitions": [
@@ -363,8 +368,8 @@ Exemplos:
 - Ao invés de: "O senhor entendeu o valor? O senhor concorda com as condições? O senhor quer assinar?"
 - Melhor: "Entendeu o valor? Concorda com essas condições? Quer seguir com a assinatura?"
 
-- Ao invés de: "Dona Maria, a senhora vai receber R$ 10.000 e a senhora vai pagar R$ 260 por mês."
-- Melhor: "Maria, vai receber R$ 10.000 e pagará R$ 260 por mês."
+- Ao invés de: "Dona Maria, a senhora vai receber [valor_total] e a senhora vai pagar [valor_parcela] por mês."
+- Melhor: "Maria, vai receber [valor_total] e pagará [valor_parcela] por mês."
 
 # INSTRUÇÕES IMPORTANTES SOBRE A FERRAMENTA animate_loan_value
 SEMPRE que for mencionar o valor do empréstimo que o cliente solicitou, use a ferramenta animate_loan_value.
@@ -382,7 +387,8 @@ Apenas use a ferramenta e continue a conversa normalmente.
     simplifyFinancialExplanationTool,
     includeCompanionTool,
     handleCameraErrorTool,
-    createAccessibleDocumentationTool
+    createAccessibleDocumentationTool,
+    consultBenefitTool
   ],
   toolLogic: {
     // Processamento de mensagens do usuário com extração de entidades e avanço de estados
@@ -629,48 +635,61 @@ Apenas use a ferramenta e continue a conversa normalmente.
     
     // Funções existentes de Marlene
     verifyCustomerInfo: ({ customerName, benefitNumber }) => {
-      console.log(`[toolLogic] Verificando cliente: ${customerName}, benefício: ${benefitNumber || "não fornecido"}`);
-      
-      // Simulação simples de verificação
+      console.log(
+        `[toolLogic] Consultando benefício: ${benefitNumber || "não fornecido"}`
+      );
+
+      const info = consultarBeneficio(benefitNumber);
+
       return {
         isVerified: true,
         customerInfo: {
-          fullName: customerName || "Cliente",
-          benefitType: "Aposentadoria por Tempo de Contribuição",
-          availableLimit: "R$ 15.000,00",
-          benefitValue: 1800, // Valor do benefício para cálculos
-          // Simplificado para facilitar compreensão
-          marginPercent: 30,
-          marginValue: 540 // 30% de 1800
-        }
+          fullName: customerName || info.fullName,
+          benefitType: info.benefitType,
+          availableLimit: `R$ ${info.availableLimit.toLocaleString('pt-BR')}`,
+          benefitValue: info.benefitValue,
+          marginPercent: info.marginPercent,
+          marginValue: info.marginValue,
+        },
+      };
+    },
+
+    consult_benefit: ({ benefitNumber, customerName }) => {
+      const info = consultarBeneficio(benefitNumber);
+      return {
+        fullName: customerName || info.fullName,
+        benefitType: info.benefitType,
+        availableLimit: `R$ ${info.availableLimit.toLocaleString('pt-BR')}`,
+        benefitValue: info.benefitValue,
+        marginPercent: info.marginPercent,
+        marginValue: info.marginValue,
       };
     },
     
     simulateLoan: ({ desiredAmount, benefitValue = 1800 }) => {
-      console.log(`[toolLogic] Simulando empréstimo: valor desejado: ${desiredAmount || "não especificado"}`);
-      
-      // Cálculo simplificado para facilitar compreensão
-      const amount = desiredAmount || 10000; // Valor padrão
-      const rate = 0.018; // 1.8% a.m.
-      const term = 60; // 5 anos (60 meses)
-      
-      // Cálculo simplificado da parcela
-      const monthlyPayment = Math.round(amount * (rate * Math.pow(1 + rate, term)) / 
-                            (Math.pow(1 + rate, term) - 1));
-      
-      // Impacto no benefício (para facilitar compreensão)
-      const impactPercent = Math.round((monthlyPayment / benefitValue) * 100);
-      
+      console.log(
+        `[toolLogic] Simulando empréstimo pelo módulo loanSimulator: ${desiredAmount}`
+      );
+
+      const amount = desiredAmount || 10000;
+      const result = simularEmprestimo(amount, benefitValue);
+
       return {
         loanAmount: `R$ ${amount.toLocaleString('pt-BR')}`,
-        installments: term,
-        monthlyPayment: `R$ ${monthlyPayment.toLocaleString('pt-BR')}`,
-        impactOnBenefit: `${impactPercent}%`,
-        remainingBenefit: `R$ ${(benefitValue - monthlyPayment).toLocaleString('pt-BR')}`,
-        // Explicação simplificada
-        simplifiedExplanation: `De um benefício de R$ ${benefitValue}, 
-                              R$ ${monthlyPayment} serão para o empréstimo e 
-                              R$ ${benefitValue - monthlyPayment} continuarão vindo normalmente todo mês`
+        installments: result.term,
+        monthlyPayment: `R$ ${result.parcela.toLocaleString('pt-BR')}`,
+        totalPayable: `R$ ${result.total.toLocaleString('pt-BR')}`,
+        impactOnBenefit: `${result.impactoPercentual}%`,
+        remainingBenefit: `R$ ${(benefitValue - result.parcela).toLocaleString('pt-BR')}`,
+        simplifiedExplanation: calcularApresentacaoMarlene(result, {
+          benefitNumber: '',
+          fullName: '',
+          benefitType: '',
+          benefitValue,
+          marginPercent: 0,
+          marginValue: 0,
+          availableLimit: 0,
+        }),
       };
     },
     
