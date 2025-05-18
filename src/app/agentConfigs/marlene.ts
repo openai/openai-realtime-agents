@@ -168,6 +168,8 @@ IMPORTANTE: SEMPRE que o usuário mencionar um valor de empréstimo desejado, us
       "Pergunte o valor aproximado do benefício (se o cliente souber)",
       "Mencione que vai verificar quanto pode ser emprestado",
       "Use variações no tratamento para não repetir pronomes",
+      "Assim que receber o número do benefício, chame a ferramenta consult_benefit e aguarde o retorno sem pedir nova confirmação",
+      "Quando a consulta retornar, informe algo como: 'Achei aqui seu cadastro, [nome+sobrenome]. O benefício é de [valor_beneficio] e há [contratacoes] empréstimos ativos. A margem disponível é [margemDisponivel]. Se já souber o valor pedido, diga se ele cabe ou não dentro desse limite'",
       "IMPORTANTE: Se o usuário fornecer informações além do benefício (como valor desejado ou finalidade específica), capture essas informações, confirme-as e avance para o estado mais apropriado"
     ],
     "examples": [
