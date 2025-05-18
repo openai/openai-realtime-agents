@@ -37,11 +37,11 @@ export async function POST(req: Request) {
       role: "system",
       content:
         "Você gera dados fictícios de crédito consignado em formato JSON. Responda APENAS com JSON compatível com a interface ConsultaBeneficio.",
-    };
+    } as const;
     const user = {
       role: "user",
       content: `Cliente: ${nomeCliente}. Benefício: ${numeroBeneficio}.`,
-    };
+    } as const;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
