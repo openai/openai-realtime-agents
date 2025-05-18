@@ -47,6 +47,9 @@ export const verificationMachine = createMachine<VerificationContext, Verificati
       },
     },
     preparing: {
+      after: {
+        15000: { target: 'failed' },
+      },
       on: {
         PROGRESS: {
           target: 'analyzing',
@@ -71,6 +74,9 @@ export const verificationMachine = createMachine<VerificationContext, Verificati
       },
     },
     analyzing: {
+      after: {
+        15000: { target: 'failed' },
+      },
       on: {
         PROGRESS: {
           target: 'verifying',
@@ -95,6 +101,9 @@ export const verificationMachine = createMachine<VerificationContext, Verificati
       },
     },
     verifying: {
+      after: {
+        15000: { target: 'failed' },
+      },
       on: {
         COMPLETE: {
           target: 'completed',
