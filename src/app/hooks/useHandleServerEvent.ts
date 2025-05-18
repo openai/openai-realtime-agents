@@ -6,7 +6,7 @@ import { useEvent } from "@/app/contexts/EventContext";
 import { useRef, useState, useEffect } from "react";
 import { useSimulation } from "../simple/contexts/SimulationContext";
 import {
-  processUserInput,
+  processUserInputAsync,
   recordStateChange
 } from "@/app/agentConfigs/utils";
 
@@ -302,7 +302,7 @@ export function useHandleServerEvent({
     }));
   };
 
-  const handleServerEvent = (serverEvent: ServerEvent) => {
+  const handleServerEvent = async (serverEvent: ServerEvent) => {
     console.log("📡 Server event:", serverEvent.type);
     setDebugLogs((prev) => [...prev, { type: 'server_event', data: serverEvent }]);
 
@@ -337,7 +337,7 @@ export function useHandleServerEvent({
           // NOVA FUNCIONALIDADE: Processar mensagens do usuário para extrair entidades
           if (role === "user") {
             // Processar a entrada do usuário para extrair entidades e determinar transições
-            const processResult = processUserInput(content);
+            const processResult = await processUserInputAsync(content);
             
             // Se identificou várias entidades e recomenda mudança de estado
             if (processResult.hasMultipleEntities && 
