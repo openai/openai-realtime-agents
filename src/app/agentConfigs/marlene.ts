@@ -412,7 +412,7 @@ Apenas use a ferramenta e continue a conversa normalmente.
       const prevContext = exportContext();
 
       // Analisa se deve avançar para outro estado com base nas entidades detectadas
-      if (processResult.hasMultipleEntities && processResult.shouldAdvanceState && processResult.recommendedState) {
+      if (processResult.recommendedState && processResult.recommendedState !== prevContext.currentState) {
         console.log(`[handleUserMessage] Previous state: ${prevContext.currentState}`);
         recordStateChange(processResult.recommendedState);
       }

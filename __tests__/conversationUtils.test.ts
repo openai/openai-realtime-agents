@@ -17,7 +17,7 @@ describe('processUserInput', () => {
       hasCompanion: true,
       companionType: 'filho(a)'
     }));
-    expect(result.recommendedState).toBe('5_camera_verification');
+    expect(result.recommendedState).toBe('6_loan_simulation');
 
     const context = exportContext();
     expect(context.name).toBe('Joao');

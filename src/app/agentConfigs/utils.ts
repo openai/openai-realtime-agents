@@ -383,15 +383,18 @@ function determineRecommendedState(entities: ExtractedEntities, context: Convers
 
   // Combinação de benefício e valor é o caso mais claro para simulação
   if (entities.requestedAmount &&
-      (entities.benefitNumber || context.benefitNumber) &&
-      context.cameraVerified) {
+      (entities.benefitNumber || context.benefitNumber)) {
+    return "6_loan_simulation";
+  }
+
+  // Se já temos benefício e valor no contexto, seguir para simulação
+  if (context.benefitNumber && context.requestedAmount) {
     return "6_loan_simulation";
   }
   
   // Se temos benefício e câmera verificada, mas não valor
-  if ((entities.benefitNumber || context.benefitNumber) && 
-      context.cameraVerified && 
-      !entities.requestedAmount && 
+  if ((entities.benefitNumber || context.benefitNumber) &&
+      !entities.requestedAmount &&
       !context.requestedAmount) {
     return "6_loan_simulation"; // Para perguntar valor
   }
