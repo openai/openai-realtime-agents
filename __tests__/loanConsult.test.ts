@@ -1,14 +1,17 @@
 import { POST } from '@/app/api/loan/consult/route';
 import { NextResponse } from 'next/server';
+import { consultarBeneficio } from '@/app/loanSimulator';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
 // mock OpenAI module
-let createMock: jest.Mock;
+// use `var` so the variable is hoisted and available inside the factory
+var createMock: jest.Mock;
 jest.mock('openai', () => {
   createMock = jest.fn();
   return {
+    __esModule: true,
     default: jest.fn().mockImplementation(() => ({
       chat: { completions: { create: createMock } },
     })),
@@ -38,9 +41,10 @@ describe('loan consult route', () => {
   });
 
   test('returns valid JSON when LLM responds', async () => {
+    const mockData = consultarBeneficio('1', 'Jo');
     createMock.mockResolvedValueOnce({
       choices: [
-        { message: { content: '{"beneficiario": {"nome": "Jo"}}' } },
+        { message: { content: JSON.stringify(mockData) } },
       ],
     });
     const req = makeRequest({ numeroBeneficio: '1', nomeCliente: 'Jo' });
@@ -51,9 +55,10 @@ describe('loan consult route', () => {
   });
 
   test('uses cache on subsequent call', async () => {
+    const mockData = consultarBeneficio('2', 'Ana');
     createMock.mockResolvedValueOnce({
       choices: [
-        { message: { content: '{"beneficiario": {"nome": "Ana"}}' } },
+        { message: { content: JSON.stringify(mockData) } },
       ],
     });
     const body = { numeroBeneficio: '2', nomeCliente: 'Ana' };
