@@ -32,6 +32,7 @@ interface ExtractedEntities {
   purpose?: string;
   hasCompanion?: boolean;
   companionType?: string;
+  earlyExit?: boolean;
 }
 
 /**
@@ -264,7 +265,8 @@ function extractEntities(input: string): ExtractedEntities {
     requestedAmount: extractMonetaryValue(input) || undefined,
     purpose: extractPurpose(input) || undefined,
     hasCompanion: hasCompanion(input),
-    companionType: extractCompanionType(input) || undefined
+    companionType: extractCompanionType(input) || undefined,
+    earlyExit: detectEarlyExitIntent(input)
   };
 }
 
@@ -358,9 +360,13 @@ function determineIfShouldAdvance(entities: ExtractedEntities, timeSinceLastInpu
  * Determina o estado mais adequado com base nas entidades extraídas
  */
 function determineRecommendedState(entities: ExtractedEntities, context: ConversationContext): string | null {
+  if (entities.earlyExit) {
+    return "10_early_exit";
+  }
+
   // Combinação de benefício e valor é o caso mais claro para simulação
-  if (entities.requestedAmount && 
-      (entities.benefitNumber || context.benefitNumber) && 
+  if (entities.requestedAmount &&
+      (entities.benefitNumber || context.benefitNumber) &&
       context.cameraVerified) {
     return "6_loan_simulation";
   }
@@ -426,6 +432,14 @@ function calculateConfidence(entities: ExtractedEntities, recommendedState: stri
       // Média se temos apenas benefício (contexto ou atual) e verificação de câmera
       else if ((entities.benefitNumber || conversationContext.benefitNumber) && conversationContext.cameraVerified) {
         confidence = 0.7;
+      }
+      break;
+
+    case "10_early_exit":
+      if (entities.earlyExit) {
+        confidence = 0.9;
+      } else {
+        confidence = 0.4;
       }
       break;
       
@@ -749,6 +763,19 @@ function extractCompanionType(text: string): string | null {
   }
   
   return 'acompanhante';
+}
+
+/**
+ * Detecta se o usuário quer encerrar o atendimento
+ */
+function detectEarlyExitIntent(text: string): boolean {
+  const patterns = [
+    /\bdesist(?:ir|o|iu)?\b/i,
+    /\bcancelar?\b/i,
+    /n[aã]o\s+quero/i,
+    /deixa\s+pra\s+l[aá]/i,
+  ];
+  return patterns.some((p) => p.test(text));
 }
 
 /**
