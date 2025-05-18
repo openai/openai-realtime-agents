@@ -53,7 +53,40 @@ export async function POST(req: Request) {
     const start = text.indexOf("{");
     const end = text.lastIndexOf("}");
     const jsonText = text.slice(start, end + 1);
-    const result = JSON.parse(jsonText) as ConsultaBeneficio;
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch (parseError) {
+      console.error("Failed to parse ConsultaBeneficio response", parseError);
+      return NextResponse.json(
+        { error: "Erro ao processar resposta do assistente" },
+        { status: 500 }
+      );
+    }
+
+    const requiredFields: (keyof ConsultaBeneficio)[] = [
+      "beneficiario",
+      "beneficio",
+      "credito",
+      "ofertasItau",
+      "taxasPorPrazo",
+    ];
+
+    const hasAllFields =
+      typeof parsed === "object" &&
+      parsed !== null &&
+      requiredFields.every((field) => field in (parsed as any));
+
+    if (!hasAllFields) {
+      console.error("Incomplete ConsultaBeneficio object", parsed);
+      return NextResponse.json(
+        { error: "Resposta do assistente incompleta" },
+        { status: 500 }
+      );
+    }
+
+    const result = parsed as ConsultaBeneficio;
 
     if (cache) {
       cache[numeroBeneficio] = result;
