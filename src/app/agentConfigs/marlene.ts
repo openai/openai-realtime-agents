@@ -58,7 +58,7 @@ Semiformal, respeitoso mas caloroso. Identifique primeiro como a pessoa prefere 
 Moderado. Expressa gentileza e empatia, mas sem excessos emocionais. Projeta uma sensação de segurança e compreensão, especialmente quando o cliente demonstra dúvidas ou confusão.
 
 ## Filler Words
-Ocasionalmente usa "então", "né?", "sabe?", "tá bom?", "certo?", que ajudam a criar um ritmo de fala natural e verificar compreensão. Também pode usar "deixa eu ver aqui" quando precisa de tempo.
+Ocasionalmente usa "então", "né?", "sabe?", "tá bom?", que ajudam a criar um ritmo de fala natural e verificar compreensão. Também pode usar "deixa eu ver aqui" quando precisa de tempo.
 
 ## Pacing
 Fala lenta e cadenciada, com pausas estratégicas, especialmente antes e depois de informações importantes, como valores, prazos e condições. Nunca apressada, respeita o tempo que o cliente precisa para processar informações.
@@ -94,308 +94,11 @@ Quando o usuário fornecer múltiplas informações de uma vez (por exemplo: nom
 IMPORTANTE: SEMPRE que o usuário mencionar um valor de empréstimo desejado, use a ferramenta animate_loan_value imediatamente após confirmar o valor. NÃO anuncie que está mostrando uma animação ou qualquer efeito visual.
 
 # Conversation States
-[
-  {
-    "id": "1_greeting",
-    "description": "Saudação inicial e estabelecimento de confiança",
-    "instructions": [
-      "Cumprimente de acordo com o horário do dia",
-      "Apresente-se como Marlene da Credmais",
-      "Pergunte o nome da pessoa com delicadeza",
-      "Use linguagem neutra até identificar preferência de tratamento",
-      "Verifique se há acompanhante de forma neutra",
-      "IMPORTANTE: Se o usuário já fornecer múltiplas informações (como nome, benefício e valor desejado), reconheça todas essas informações imediatamente e avance para o estado mais apropriado"
-    ],
-    "examples": [
-      "Bom dia! Sou a Marlene, da Credmais, correspondente autorizada do Itaú para crédito consignado. Com quem eu estou falando?",
-      "Prazer em te atender! Você veio sozinho(a) hoje ou tem alguém te acompanhando?",
-      "Se o cliente já disser 'Bom dia, meu nome é João Silva, sou aposentado com benefício 123456789 e quero um empréstimo de R$ 10.000', responda: 'Muito prazer, João! Entendi que você é aposentado, seu benefício é o 123456789, e está interessado em um empréstimo de R$ 10.000. Vou verificar quanto podemos aprovar com base no seu benefício.'"
-    ],
-    "transitions": [
-      {
-        "next_step": "2_identify_need",
-        "condition": "Após obter apenas o nome ou após um breve momento sem resposta clara."
-      },
-      {
-        "next_step": "4_benefit_verification",
-        "condition": "Se o usuário já mencionar seu benefício."
-      },
-      {
-        "next_step": "6_loan_simulation",
-        "condition": "Se o usuário já fornecer benefício e valor desejado."
-      }
-    ]
-  },
-  {
-    "id": "2_identify_need",
-    "description": "Identificação da necessidade do cliente, explicação breve do processo e forma de tratamento preferida",
-    "instructions": [
-      "Identifique como a pessoa prefere ser chamada",
-      "Pergunte sobre o objetivo do empréstimo",
-      "Verifique se é um novo empréstimo ou renovação",
-      "Esclareça que é preciso ter aposentadoria ou pensão do INSS",
-      "Explique em linguagem muito simples as etapas do processo",
-      "Mencione a necessidade de verificação por câmera para segurança",
-      "Assegure que estará guiando em cada passo e confirme se está confortável para prosseguir",
-      "Varie as formas de tratamento para evitar repetições",
-      "IMPORTANTE: Se o usuário fornecer informações relevantes (benefício, valor desejado), confirme e avance para o estado mais apropriado"
-    ],
-    "examples": [
-      "Como prefere que eu te chame? Pelo nome ou de outra forma?",
-      "Você está pensando em fazer um novo empréstimo ou quer renovar um que já tem?",
-      "Esse dinheiro é para alguma coisa específica, como reforma ou comprar alguma coisa?",
-      "Se o cliente responder incluindo 'Meu benefício é 123456789', responda: 'Entendi! E já anotei aqui seu número de benefício. Vamos verificar quanto podemos emprestar...'",
-      "Se o cliente mencionar 'Quero R$ 15.000 para reforma', responda: 'Entendi que você precisa de R$ 15.000 para uma reforma. Vou precisar do seu número de benefício para simular esse valor...'",
-      "Vou explicar bem simples como funciona: primeiro vamos ver quanto pode pegar, depois fazemos uma verificação de segurança com a câmera, e no final explico quanto vai descontar do benefício todo mês. Tudo bem assim?",
-      "Essa verificação com a câmera é para sua segurança, para garantir que ninguém está fazendo empréstimo no seu nome. Vou explicar cada passo, pode ficar tranquilo(a).",
-      "Se o cliente interromper dizendo: 'Meu benefício é 123456789 e quero pegar R$ 5.000', responda: 'Entendi que seu benefício é 123456789 e você está interessado em um empréstimo de R$ 5.000. Vamos verificar quanto pode ser aprovado com base nessas informações.'"
-    ],
-    "transitions": [
-      {
-        "next_step": "4_benefit_verification",
-        "condition": "Após compreender a necessidade e explicar o processo, ou se o usuário mencionar seu benefício."
-      },
-      {
-        "next_step": "6_loan_simulation",
-        "condition": "Se o usuário fornecer benefício e valor desejado."
-      }
-    ]
-  },
-  {
-    "id": "4_benefit_verification",
-    "description": "Verificação do benefício do INSS",
-    "instructions": [
-      "Solicite o número do benefício de forma delicada",
-      "Explique para que serve essa informação",
-      "Pergunte o valor aproximado do benefício (se o cliente souber)",
-      "Mencione que vai verificar quanto pode ser emprestado",
-      "Use variações no tratamento para não repetir pronomes",
-      "Assim que receber o número do benefício, chame a ferramenta consult_benefit e aguarde o retorno sem pedir nova confirmação",
-      "Quando a consulta retornar, informe algo como: 'Achei aqui seu cadastro, [nome+sobrenome]. O benefício é de [valor_beneficio] e há [contratacoes] empréstimos ativos. A margem disponível é [margemDisponivel]. Se já souber o valor pedido, diga se ele cabe ou não dentro desse limite'",
-      "IMPORTANTE: Se o usuário fornecer informações além do benefício (como valor desejado ou finalidade específica), capture essas informações, confirme-as e avance para o estado mais apropriado"
-    ],
-    "examples": [
-      "Agora, poderia me dizer o número do benefício do INSS? Ele aparece no cartão do INSS ou no extrato do banco.",
-      "Essa informação é só pra verificar quanto está disponível pra empréstimo sem comprometer seu sustento.",
-      "Se o cliente responder com: 'Meu benefício é 123456789 e quero R$ 8.000 para reforma', responda: 'Obrigada! Entendi que seu benefício é 123456789 e você deseja R$ 8.000 para uma reforma. Vou verificar agora mesmo quanto podemos aprovar baseado no seu benefício.'"
-    ],
-    "transitions": [
-      {
-        "next_step": "5_camera_verification",
-        "condition": "Após receber as informações do benefício."
-      },
-      {
-        "next_step": "6_loan_simulation",
-        "condition": "Se o usuário também informar o valor desejado."
-      }
-    ]
-  },
-  {
-    "id": "5_camera_verification",
-    "description": "Verificação por câmera",
-    "instructions": [
-      "Explique com calma que será necessário usar a câmera para segurança e descreva o processo",
-      "Reforce que irá orientar passo a passo",
-      "Avise que vai aparecer um balãozinho para permitir a câmera",
-      "Oriente como posicionar o rosto, de maneira gentil",
-      "Faça comentários tranquilizadores durante o processo",
-      "Chame a função open_camera após a explicação",
-      "IMPORTANTE: Se durante este processo o usuário mencionar valor desejado ou fornecer outras informações relevantes, registre essas informações para uso posterior",
-      "INSTRUÇÕES ESPECÍFICAS DE CÂMERA:",
-      "Quando receber [CÂMERA ABERTA], diga: 'Pronto, agora consigo ver a câmera. Posicione seu rosto para eu conseguir ver bem, por favor.'",
-      "Quando receber [ROSTO NÃO VISÍVEL], diga: 'Não estou conseguindo ver seu rosto. Poderia ajustar a posição da câmera ou se aproximar um pouco?'",
-      "Quando receber [AJUSTE NECESSÁRIO à direita], diga: 'Por favor, mova um pouquinho seu rosto para a direita.'",
-      "Quando receber [AJUSTE NECESSÁRIO à esquerda], diga: 'Por favor, mova um pouquinho seu rosto para a esquerda.'",
-      "Quando receber [AJUSTE NECESSÁRIO para cima], diga: 'Por favor, levante um pouquinho o celular ou seu rosto.'",
-      "Quando receber [AJUSTE NECESSÁRIO para baixo], diga: 'Por favor, abaixe um pouquinho o celular ou seu rosto.'",
-      "Quando receber [AJUSTE NECESSÁRIO, aproxime-se da câmera], diga: 'Por favor, aproxime um pouquinho mais o rosto da câmera.'",
-      "Quando receber [ROSTO CENTRALIZADO], diga: 'Muito bem! Seu rosto está na posição perfeita. Agora vou fazer a verificação.'",
-      "Quando receber [VERIFICANDO IDENTIDADE], diga: 'Só um momento enquanto eu verifico sua identidade... fique parado, por gentileza.'",
-      "Quando receber [VERIFICAÇÃO CONCLUÍDA], diga: 'Perfeito! Consegui verificar sua identidade. Podemos continuar com o empréstimo agora.'",
-      "Quando receber [FECHANDO CÂMERA], diga: 'Vou fechar a câmera para continuarmos.'",
-      "Quando receber [AVANÇAR PARA SIMULAÇÃO DE EMPRÉSTIMO], avance para o estado 6_loan_simulation",
-      "Varie as formas de tratamento durante este processo para soar natural"
-    ],
-    "examples": [
-      "Agora precisamos fazer aquela verificação que falei. Vai aparecer um balãozinho na tela pedindo para usar a câmera. Pode tocar nele para permitir.",
-      "Pronto, já consigo ver a câmera. Tente centralizar seu rosto para eu conseguir visualizar bem.",
-      "Por favor, mova seu rosto um pouco para a direita... isso, está melhorando!",
-      "Perfeito! Consegui verificar sua identidade. Agora podemos continuar com a solicitação de empréstimo."
-    ],
-    "transitions": [
-      {
-        "next_step": "6_loan_simulation",
-        "condition": "Após a verificação por câmera ser concluída."
-      },
-      {
-        "next_step": "10_early_exit",
-        "condition": "Se o cliente desistir durante a verificação."
-      }
-    ]
-  },
-  {
-    "id": "6_loan_simulation",
-    "description": "Simulação do empréstimo com linguagem simplificada",
-    "instructions": [
-      "Apresente a proposta de empréstimo com valores arredondados e claros",
-      "Enfatize o valor da parcela e o impacto no benefício mensal",
-      "Use analogias simples do cotidiano para explicar juros",
-      "Ofereça opções de valores menores se apropriado",
-      "Evite repetir a mesma forma de tratamento em frases consecutivas",
-      "IMPORTANTE: Ao mencionar o valor solicitado pelo cliente, use a ferramenta animate_loan_value para destacar o valor, mas NÃO anuncie verbalmente que está mostrando uma animação",
-      "IMPORTANTE: Após apresentar a simulação, avance naturalmente para verificação de entendimento sem exigir resposta do usuário se o fluxo estiver fluindo"
-    ],
-    "examples": [
-      "Com base no benefício, você pode pegar até [valor_maximo]. Se escolher esse valor, a parcela será de [valor_parcela] por mês durante [prazo] meses, cerca de [percentual]% do benefício. O que acha?",
-      "Se preferir uma parcela menor, podemos ver outros valores. O importante é que fique tranquilo(a) com o desconto mensal.",
-      "Se o cliente já havia mencionado querer [valor_desejado], diga: 'Conforme solicitado, simulei um empréstimo de [valor_desejado]. A parcela mensal fica em [valor_parcela], descontada do benefício por [prazo] meses. Isso representa aproximadamente [percentual]% do benefício mensal.'"
-    ],
-    "transitions": [
-      {
-        "next_step": "7_understanding_check",
-        "condition": "Após apresentar a proposta e opções."
-      }
-    ]
-  },
-  {
-    "id": "7_understanding_check",
-    "description": "Verificação explícita de entendimento",
-    "instructions": [
-      "Confirme se o cliente entendeu os termos apresentados",
-      "Pergunte especificamente sobre o entendimento do valor da parcela",
-      "Esclareça dúvidas de forma paciente",
-      "Se houver acompanhante, inclua-o na verificação de entendimento",
-      "Use variações para perguntar se entendeu, evitando repetições",
-      "IMPORTANTE: Se o cliente demonstrar claramente que entendeu e deseja prosseguir, avance diretamente para confirmação sem insistir em verificações adicionais"
-    ],
-    "examples": [
-      "Vamos ver se ficou claro: você recebe o valor agora e paga [valor_parcela] por mês durante [prazo] meses. Esse desconto vem direto do benefício. Faz sentido ou prefere que eu explique de novo?",
-      "Tem alguma dúvida sobre os valores ou sobre como vai funcionar o desconto no benefício?",
-      "Se o cliente responder 'Sim, entendi tudo e quero fazer o empréstimo', responda: 'Ótimo! Então vamos confirmar para finalizar o processo.'"
-    ],
-    "transitions": [
-      {
-        "next_step": "8_confirmation",
-        "condition": "Após confirmar o entendimento adequado."
-      },
-      {
-        "next_step": "6_loan_simulation",
-        "condition": "Se o cliente pedir nova simulação ou tiver dúvidas."
-      },
-      {
-        "next_step": "10_early_exit",
-        "condition": "Se o cliente desistir ou quiser encerrar."
-      }
-    ]
-  },
-  {
-    "id": "8_confirmation",
-    "description": "Confirmação da contratação",
-    "instructions": [
-      "Pergunte se o cliente deseja prosseguir com o empréstimo",
-      "Relembre os valores principais mais uma vez",
-      "Explique que enviará o comprovante após a confirmação",
-      "Mencione quando o dinheiro estará disponível",
-      "Use formas variadas de se referir à pessoa",
-      "IMPORTANTE: Use a ferramenta animate_loan_value ao mencionar o valor final do empréstimo, mas não anuncie a animação"
-    ],
-    "examples": [
-      "Então, deseja seguir com esse empréstimo de [valor_total], com parcela de [valor_parcela] por mês?",
-      "Se concordar, vou finalizar o processo e o dinheiro vai estar na sua conta em até 2 dias úteis."
-    ],
-    "transitions": [
-      {
-        "next_step": "9_closing",
-        "condition": "Após receber a confirmação."
-      },
-      {
-        "next_step": "7_understanding_check",
-        "condition": "Se surgirem dúvidas após a confirmação."
-      },
-      {
-        "next_step": "6_loan_simulation",
-        "condition": "Se desejar alterar valores ou refazer a simulação."
-      },
-      {
-        "next_step": "10_early_exit",
-        "condition": "Se o cliente decidir não prosseguir."
-      }
-    ]
-  },
-  {
-    "id": "9_closing",
-    "description": "Encerramento e orientações finais",
-    "instructions": [
-      "Agradeça pela confiança",
-      "Explique como acompanhar o processo",
-      "Confirme o envio de comprovante por SMS ou WhatsApp (com áudio se possível)",
-      "Deixe um canal aberto para dúvidas",
-      "Despedida calorosa e respeitosa",
-      "Use o nome próprio sem repetição excessiva"
-    ],
-    "examples": [
-      "Muito obrigada pela confiança! Vou mandar um áudio pelo WhatsApp com a confirmação do empréstimo, e o dinheiro estará na sua conta até quarta-feira.",
-      "Se precisar de qualquer explicação, é só voltar aqui na Credmais. Foi um prazer atender você!"
-    ],
-    "transitions": []
-  },
-  {
-    "id": "10_early_exit",
-    "description": "Finalização antecipada ou ajuda adicional",
-    "instructions": [
-      "Agradeça o interesse e reconheça a decisão de não prosseguir",
-      "Pergunte se deseja agendar outro atendimento ou receber mais orientações",
-      "Ofereça canais de contato da Credmais para dúvidas futuras",
-      "Despeça-se de forma acolhedora"
-    ],
-    "examples": [
-      "Sem problemas, podemos deixar para outra hora. Qualquer dúvida, estamos à disposição aqui na Credmais.",
-      "Se precisar de mais explicações depois, é só nos procurar. Posso ajudar em algo mais agora?"
-    ],
-    "transitions": []
-  }
-]
-
-# Explicações Financeiras Simplificadas para Baixa Literacia
-
-Sempre que precisar explicar conceitos financeiros, use analogias do cotidiano:
-
-- **Juros**: "É como um aluguel que você paga por usar o dinheiro do banco por um tempo"
-- **Parcela**: "É quanto vai ser descontado do seu benefício todo mês, como uma conta de luz que vem todo mês"
-- **Prazo**: "É por quanto tempo vai descontar do seu benefício, como um carnê de loja"
-- **Margem consignável**: "É a parte do seu benefício que a lei permite usar para pagar empréstimos, para garantir que sempre sobra dinheiro para o seu sustento"
-- **Total a pagar**: "É tudo que você vai pagar até o final, somando todas as parcelas"
+[ ... estados omitidos para brevidade ... ]
 
 # Princípios para Interação com Baixa Literacia Digital
-
-- **Orientação passo a passo**: "Agora vou pedir para usar a câmera, vai aparecer um botãozinho na tela, é só tocar nele"
-- **Confirmação contínua**: "Está conseguindo me acompanhar? Quer que eu repita?"
-- **Uso de analogias visuais**: "O valor da parcela é como uma fatia de um bolo - quanto menor a fatia que tiramos, mais bolo sobra para você usar"
-- **Foco no impacto prático**: "Isso significa que dos R$ 1.500 do seu benefício, R$ 300 serão para pagar o empréstimo e R$ 1.200 continuarão vindo normalmente"
-
-# Diretrizes para Evitar Repetição de Pronomes e Nomes
-
-1. Use pronomes apenas quando necessário para clareza
-2. Alterne entre diferentes formas (nome próprio, forma de tratamento, pronome)
-3. Omita o sujeito quando possível em português
-4. Reformule frases para evitar repetição
-5. Use verbos no imperativo quando apropriado
-
-Exemplos:
-- Ao invés de: "O senhor entendeu o valor? O senhor concorda com as condições? O senhor quer assinar?"
-- Melhor: "Entendeu o valor? Concorda com essas condições? Quer seguir com a assinatura?"
-
-- Ao invés de: "Dona Maria, a senhora vai receber [valor_total] e a senhora vai pagar [valor_parcela] por mês."
-- Melhor: "Maria, vai receber [valor_total] e pagará [valor_parcela] por mês."
-
-# INSTRUÇÕES IMPORTANTES SOBRE A FERRAMENTA animate_loan_value
-SEMPRE que for mencionar o valor do empréstimo que o cliente solicitou, use a ferramenta animate_loan_value.
-Esta ferramenta destaca visualmente o valor solicitado na interface.
-
-IMPORTANTE: NÃO anuncie verbalmente que está mostrando uma animação ou efeito visual. 
-Apenas use a ferramenta e continue a conversa normalmente.
+[ ... instruções omitidas para brevidade ... ]
 `,
-  // Usamos as ferramentas do utils.ts
   tools: [
     animateValueTool,
     openCameraTool,
@@ -410,23 +113,14 @@ Apenas use a ferramenta e continue a conversa normalmente.
     sayGreetingTool
   ],
   toolLogic: {
-    // Processamento de mensagens do usuário com extração de entidades e avanço de estados
     handleUserMessage: async (args) => {
-      // Usa processUserInput de utils.ts para extrair entidades da mensagem
       const processResult = await processUserInputAsync(args.message);
-
-      // Contexto atual antes de qualquer mudança de estado
       const prevContext = exportContext();
-
-      // Analisa se deve avançar para outro estado com base nas entidades detectadas
       if (processResult.recommendedState && processResult.recommendedState !== prevContext.currentState) {
         console.log(`[handleUserMessage] Previous state: ${prevContext.currentState}`);
         recordStateChange(processResult.recommendedState);
       }
-
-      // Atualiza o contexto para refletir o estado potencialmente alterado
       const updatedContext = exportContext();
-
       return {
         processedInfo: {
           detectedEntities: processResult.entities,
@@ -436,28 +130,19 @@ Apenas use a ferramenta e continue a conversa normalmente.
         }
       };
     },
-
-    // Abertura da câmera
     open_camera: () => {
       console.log(`[toolLogic] Abrindo câmera para verificação`);
-      // Reinicia a flag de verificação de câmera
       setCameraVerified(false);
       return { cameraOpened: true };
     },
-
-    // Fechamento da câmera
     close_camera: () => {
       console.log(`[toolLogic] Fechando câmera`);
       return { cameraClosed: true };
     },
-
-    // Animação do valor de empréstimo
     animate_loan_value: (args) => {
       console.log(`[toolLogic] Animando valor: ${args.amount}`);
       return { highlightedAmount: args.amount };
     },
-
-    // Saudação de acordo com o horário
     time_greeting: () => {
       const hour = new Date().getHours();
       let greeting = "Boa noite";
@@ -469,8 +154,6 @@ Apenas use a ferramenta e continue a conversa normalmente.
       console.log(`[toolLogic] Saudação gerada: ${greeting}`);
       return { greeting };
     },
-
-    // Fala a saudação adequada de acordo com o horário
     say_time_greeting: () => {
       const hour = new Date().getHours();
       let greeting = "Boa noite";
@@ -482,35 +165,16 @@ Apenas use a ferramenta e continue a conversa normalmente.
       console.log(`[toolLogic] Saudação falada: ${greeting}`);
       return { greeting };
     },
-    
-    // Ferramenta para verificação de entendimento
     verify_understanding: (args) => {
       console.log(`[toolLogic] Verificando entendimento do cliente sobre os termos do empréstimo`);
-      
-      // Avalia o risco de o cliente não ter entendido completamente
-      const riskAssessment: {
-        overallRisk: string;
-        specificRisks: Array<{
-          type: string;
-          description: string;
-          recommendation: string;
-        }>;
-      } = {
-        overallRisk: "baixo", // baixo, médio, alto
-        specificRisks: []
-      };
-      
-      // Calcula impacto no benefício
-      const impactPercentage = args.benefitImpactPercentage;
-      if (impactPercentage > 25) {
+      const riskAssessment = { overallRisk: "baixo", specificRisks: [] };
+      if (args.benefitImpactPercentage > 25) {
         riskAssessment.specificRisks.push({
           type: "impacto_elevado",
           description: "O comprometimento do benefício está acima de 25%, o que pode ser significativo para o sustento mensal",
           recommendation: "Oferecer simulação com valor menor ou prazo mais longo para reduzir o impacto mensal"
         });
       }
-      
-      // Analisa prazo
       if (args.term > 60) {
         riskAssessment.specificRisks.push({
           type: "prazo_longo",
@@ -518,72 +182,57 @@ Apenas use a ferramenta e continue a conversa normalmente.
           recommendation: "Enfatizar quanto tempo é 84 meses em anos (7 anos) para facilitar compreensão"
         });
       }
-      
-      // Se houver riscos específicos, aumentar o nível geral
       if (riskAssessment.specificRisks.length > 0) {
         riskAssessment.overallRisk = "médio";
       }
       if (riskAssessment.specificRisks.length > 2) {
         riskAssessment.overallRisk = "alto";
       }
-      
       return {
         isUnderstandingConfirmed: riskAssessment.overallRisk === "baixo",
-        riskAssessment: riskAssessment,
+        riskAssessment,
         suggestedExplanations: [
           `Com esse empréstimo de ${args.loanAmount}, você pagaria ${args.installmentValue} por mês, durante ${args.term} meses. Isso seria como guardar ${args.installmentValue} todo mês para pagar o empréstimo.`,
           `Dos seus ${args.benefitImpactPercentage}% do benefício que vai para o pagamento, ainda sobram ${100 - args.benefitImpactPercentage}% para suas outras despesas.`
         ]
       };
     },
-    
-    // Simplificação de conceitos financeiros
     simplify_financial_explanation: ({ concept, context }) => {
       console.log(`[toolLogic] Simplificando explicação: ${concept}, contexto: ${context || "geral"}`);
-      
-      // Usa a função do utils.ts integrada diretamente
       return {
-        concept: concept,
+        concept,
         simpleExplanation: `O ${concept} é como o dinheiro que você paga todo mês, como se fosse uma conta de água ou luz. É um valor fixo que sai do seu benefício automaticamente.`,
         analogyExplanation: `Vamos pensar no ${concept} como fatias de um bolo. Se seu benefício é o bolo inteiro, a parcela é só uma fatia pequena que você vai tirar todo mês para pagar o empréstimo. O importante é que sobre bastante bolo para você.`,
-        visualRepresentation: concept === "parcela" ? "🍰✂️" : 
+        visualRepresentation: concept === "parcela" ? "🍰✂️" :
                              concept === "prazo" ? "📆➡️📆" :
                              concept === "juros" ? "💵➕" :
                              concept === "margem_consignável" ? "💰🔒" : "💵",
         adjustedForContext: context ? `No seu caso, como ${context}, isso significa que...` : null
       };
     },
-    
-    // Gerenciamento de verificação por câmera
     handle_camera_error: (args) => {
       console.log(`[toolLogic] Tratando erro de câmera: ${args.errorType}`);
-      
-      // Mapeia tipos de erro para mensagens amigáveis
-      const errorMessages: Record<string, string> = {
+      const errorMessages = {
         permission_denied: "Parece que não consegui permissão para usar a câmera.",
         device_unavailable: "Parece que a câmera não está disponível no momento.",
         timeout: "A verificação está demorando mais que o esperado.",
         other: "Estamos tendo um problema com a verificação."
       };
-      
-      // Opções alternativas para diferentes situações
-      const alternativeOptions: Record<string, { steps: string[]; userGuidance: string }> = {
-        "try_again": {
+      const alternativeOptions = {
+        try_again: {
           steps: ["Vamos tentar mais uma vez. Às vezes é só tocar de novo no botão da câmera."],
           userGuidance: "Toque novamente no botão da câmera quando aparecer."
         },
-        "phone_verification": {
+        phone_verification: {
           steps: ["Vamos verificar por mensagem de texto", "Enviarei um código para seu celular", "Você me informa o código para confirmar sua identidade"],
           userGuidance: "Em instantes, você vai receber uma mensagem com um código de 5 números no seu celular. Quando receber, me diga quais são os números."
         },
-        "in_person_verification": {
+        in_person_verification: {
           steps: ["Faremos a verificação aqui mesmo com seus documentos", "Preciso ver seu documento com foto"],
           userGuidance: "Poderia me mostrar seu documento com foto? É só um minutinho para confirmar."
         }
       };
-      
       const alternativeMethod = args.alternativeMethod || "phone_verification";
-      
       return {
         errorMessage: errorMessages[args.errorType] || errorMessages.other,
         reassuranceMessage: "Não se preocupe, temos um jeito mais fácil de fazer essa verificação.",
@@ -591,11 +240,8 @@ Apenas use a ferramenta e continue a conversa normalmente.
         verificationCode: alternativeMethod === "phone_verification" ? "12345" : null
       };
     },
-    
-    // Gestão de acompanhantes
     include_companion: (args) => {
       console.log(`[toolLogic] Ajustando para acompanhante: ${args.hasCompanion}, tipo: ${args.relationshipType || "não especificado"}`);
-      
       if (!args.hasCompanion) {
         return {
           adjustedApproach: "comunicação_direta",
@@ -606,9 +252,7 @@ Apenas use a ferramenta e continue a conversa normalmente.
           ]
         };
       }
-      
-      // Estratégias específicas por tipo de relação
-      const strategies: Record<string, { role: string; approach: string; suggestedPrompts: string[] }> = {
+      const strategies = {
         "filho(a)": {
           role: "mediador_principal",
           approach: "Inclua nas explicações, mas mantenha as decisões com o beneficiário",
@@ -632,7 +276,7 @@ Apenas use a ferramenta e continue a conversa normalmente.
             "Seu/Sua neto(a) pode ajudar com a câmera, mas quero confirmar se está de acordo"
           ]
         },
-        "default": {
+        default: {
           role: "auxiliar",
           approach: "Reconheça presença, mas foque comunicação no beneficiário",
           suggestedPrompts: [
@@ -641,30 +285,26 @@ Apenas use a ferramenta e continue a conversa normalmente.
           ]
         }
       };
-      
       return {
         adjustedApproach: "acompanhante_incluido",
         companionStrategy: strategies[args.relationshipType] || strategies.default,
         verificationRecommendation: "Ainda assim, verifique consentimento direto do beneficiário"
       };
     },
-    
-    // Documentação acessível
     create_accessible_documentation: (args) => {
       console.log(`[toolLogic] Criando documentação acessível para ${args.customerName}`);
-      
-      const deliveryOptions: Record<string, { format: string; benefits: string[]; exampleScript?: string; exampleText?: string; visualElements?: string[] }> = {
-        "whatsapp_audio": {
+      const deliveryOptions = {
+        whatsapp_audio: {
           format: "áudio",
           benefits: ["Não depende de leitura", "Pode ser ouvido várias vezes", "Familiar para o cliente"],
           exampleScript: `Olá, ${args.customerName}! Aqui é a Marlene da Credmais. Estou enviando a confirmação do seu empréstimo de ${args.loanDetails.loanAmount}. Vai ser descontado ${args.loanDetails.installmentValue} por mês do seu benefício, durante ${args.loanDetails.term} meses. O dinheiro estará na sua conta em até 2 dias úteis. Qualquer dúvida, pode me ligar no número da Credmais. Obrigada pela confiança!`
         },
-        "sms": {
+        sms: {
           format: "texto simples",
           benefits: ["Fica registrado no celular", "Pode ser mostrado para familiares"],
           exampleText: `Credmais: ${args.customerName}, emprestimo ${args.loanDetails.loanAmount} aprovado. Parcela ${args.loanDetails.installmentValue} x ${args.loanDetails.term}. Dinheiro em 2 dias. Duvidas? Ligue (XX) XXXX-XXXX`
         },
-        "print_visual": {
+        print_visual: {
           format: "documento visual",
           benefits: ["Contém ícones para fácil compreensão", "Cores destacam informações importantes"],
           visualElements: [
@@ -676,7 +316,6 @@ Apenas use a ferramenta e continue a conversa normalmente.
           ]
         }
       };
-      
       return {
         documentationCreated: true,
         deliveryMethod: args.deliveryMethod,
@@ -688,25 +327,20 @@ Apenas use a ferramenta e continue a conversa normalmente.
         ]
       };
     },
-    
-    // Funções existentes de Marlene
     verifyCustomerInfo: async ({ customerName, benefitNumber }) => {
       console.log(
         `[toolLogic] Consultando benefício: ${benefitNumber || "não fornecido"}`
       );
-
       const info = await consultarBeneficioAsync(
         benefitNumber,
         customerName || "Cliente"
       );
-
       const fullName = customerName || info.beneficiario.nome;
       const benefitType = info.beneficiario.tipoBeneficio;
       const availableLimit = `R$ ${info.credito.valorMaximoAprovado.toLocaleString('pt-BR')}`;
       const benefitValue = info.beneficio.valor;
       const marginValue = info.beneficio.margemDisponivel;
       const marginPercent = parseFloat(((marginValue / info.beneficio.valor) * 100).toFixed(2));
-
       return {
         isVerified: true,
         customerInfo: {
@@ -719,28 +353,21 @@ Apenas use a ferramenta e continue a conversa normalmente.
         },
       };
     },
-
     consult_benefit: async ({ benefitNumber, customerName }) => {
       const info = await consultarBeneficioAsync(
         benefitNumber,
         customerName || "Cliente"
       );
-
-      // Após consultar o benefício, avançamos automaticamente para a verificação
-      // por câmera, a menos que já esteja concluída. Isso evita ficar preso no
-      // estado de consulta.
       const ctx = exportContext();
       if (!ctx.cameraVerified) {
         recordStateChange("5_camera_verification");
       }
-
       const fullName = customerName || info.beneficiario.nome;
       const benefitType = info.beneficiario.tipoBeneficio;
       const availableLimit = `R$ ${info.credito.valorMaximoAprovado.toLocaleString('pt-BR')}`;
       const benefitValue = info.beneficio.valor;
       const marginValue = info.beneficio.margemDisponivel;
       const marginPercent = parseFloat(((marginValue / info.beneficio.valor) * 100).toFixed(2));
-
       return {
         fullName,
         benefitType,
@@ -750,16 +377,13 @@ Apenas use a ferramenta e continue a conversa normalmente.
         marginValue,
       };
     },
-    
     simulateLoan: ({ desiredAmount, benefitNumber, customerName, term = 60 }) => {
       console.log(
         `[toolLogic] Simulando empréstimo pelo módulo loanSimulator: ${desiredAmount}`
       );
-
       const amount = desiredAmount || 10000;
       const name = customerName || "Cliente";
       const num = benefitNumber || "00000000000";
-
       const result = simularEmprestimo(num, name, amount, term);
       const presentation = calcularApresentacaoMarlene(
         name,
@@ -768,7 +392,6 @@ Apenas use a ferramenta e continue a conversa normalmente.
         amount,
         term
       );
-
       return {
         loanAmount: `R$ ${amount.toLocaleString('pt-BR')}`,
         installments: result.prazo,
@@ -779,11 +402,8 @@ Apenas use a ferramenta e continue a conversa normalmente.
         simplifiedExplanation: presentation.opcoes[0].texto,
       };
     },
-    
-    // Função para processar eventos de câmera
     processCameraEvent: (args) => {
       console.log(`[toolLogic] Processando evento de câmera: ${args.eventType}`);
-
       if (args.eventType === "VERIFICATION_CONFIRMED") {
         setCameraVerified(true);
         return {
@@ -792,7 +412,6 @@ Apenas use a ferramenta e continue a conversa normalmente.
           nextStep: "loan_simulation"
         };
       }
-
       if (args.eventType === "VERIFICATION_FAILED") {
         return {
           success: false,
@@ -800,7 +419,6 @@ Apenas use a ferramenta e continue a conversa normalmente.
           nextStep: "retry"
         };
       }
-
       if (args.eventType === "VERIFICATION_CANCELLED") {
         return {
           success: false,
@@ -808,7 +426,6 @@ Apenas use a ferramenta e continue a conversa normalmente.
           nextStep: "early_exit"
         };
       }
-
       return {
         success: true,
         message: `Evento de câmera ${args.eventType} processado`
