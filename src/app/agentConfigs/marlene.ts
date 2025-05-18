@@ -778,17 +778,24 @@ Apenas use a ferramenta e continue a conversa normalmente.
     // Função para processar eventos de câmera
     processCameraEvent: (args) => {
       console.log(`[toolLogic] Processando evento de câmera: ${args.eventType}`);
-      
-      if (args.eventType === "VERIFICATION_COMPLETED") {
-        // Marca a verificação como concluída no contexto persistente
+
+      if (args.eventType === "VERIFICATION_CONFIRMED") {
         setCameraVerified(true);
         return {
           success: true,
-          message: "Verificação concluída com sucesso",
+          message: "Verificação confirmada",
           nextStep: "loan_simulation"
         };
       }
-      
+
+      if (args.eventType === "VERIFICATION_FAILED") {
+        return {
+          success: false,
+          message: "Verificação falhou",
+          nextStep: "retry"
+        };
+      }
+
       return {
         success: true,
         message: `Evento de câmera ${args.eventType} processado`
