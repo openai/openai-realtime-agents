@@ -205,6 +205,22 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           });
           safeSendMessage({ type: "response.create" });
 
+          const errorMsg = event.detail.result?.error;
+          if (errorMsg) {
+            dispatch({ type: 'VERIFICATION_ERROR', error: new Error(errorMsg) });
+            safeSendMessage({
+              type: "conversation.item.create",
+              item: { type: "message", role: "user", content: [{ type: "input_text", text: "[ERRO NA VERIFICAÇÃO]" }] },
+            });
+            safeSendMessage({
+              type: "conversation.item.create",
+              item: { type: "message", role: "user", content: [{ type: "input_text", text: "[TENTE NOVAMENTE OU USE OUTRO MÉTODO]" }] },
+            });
+            safeSendMessage({ type: "response.create" });
+            document.dispatchEvent(new CustomEvent('camera-event', { detail: { type: 'VERIFICATION_ERROR' } }));
+            break;
+          }
+
           const verified = !!event.detail.result?.verified;
           if (verified) {
             dispatch({ type: 'FACE_STATUS', status: 'verified', value: true });
