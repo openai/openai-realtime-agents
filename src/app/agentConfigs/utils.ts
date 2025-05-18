@@ -991,6 +991,17 @@ export const handleCameraErrorTool: Tool = {
 };
 
 /**
+ * Ferramenta para gerar saudação de acordo com o horário
+ */
+export const timeGreetingTool: Tool = {
+  type: "function",
+  name: "time_greeting",
+  description:
+    "Retorna 'Bom dia', 'Boa tarde' ou 'Boa noite' conforme o horário atual.",
+  parameters: { type: "object", properties: {}, required: [] }
+};
+
+/**
  * Resetar o contexto da conversa para uma nova interação
  */
 export function resetConversationContext(): void {
