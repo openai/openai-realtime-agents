@@ -8,6 +8,7 @@ import { CameraProvider } from "./simple/contexts/CameraContext";
 import { VerificationProvider } from "./simple/contexts/VerificationContext";
 import { UIProvider, useUI } from "./simple/contexts/UIContext";
 import PhoneMockup from "./simple/components/PhoneMockup";
+import { useConnection } from "./simple/contexts/ConnectionContext";
 
 // Componente para lidar com o evento global
 const LoanAnimationHandler: React.FC = () => {
@@ -34,6 +35,19 @@ const LoanAnimationHandler: React.FC = () => {
   }, [loanState.requestedAmount, showLoanAnimation]);
   
   return null; // Componente não renderiza nada visualmente
+};
+
+// Componente para logar mudanças de conexão
+const ConnectionLogger: React.FC = () => {
+  const { state } = useConnection();
+  useEffect(() => {
+    console.log('[ConnectionLogger] state', {
+      status: state.status,
+      sessionId: state.sessionId,
+      error: state.error?.message,
+    });
+  }, [state.status, state.sessionId, state.error]);
+  return null;
 };
 
 // Componente principal da página
@@ -77,6 +91,7 @@ const SimplePage: React.FC = () => {
       <CameraProvider>
         <VerificationProvider>
           <UIProvider>
+            <ConnectionLogger />
             {/* Componente handler para eventos globais */}
             <LoanAnimationHandler />
             

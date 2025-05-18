@@ -37,7 +37,11 @@ export const useWebRTCConnection = (): UseWebRTCConnectionResult => {
   
   // Função para conectar
   const connect = useCallback(async () => {
-    if (statusRef.current !== 'disconnected') return;
+    console.log('[useWebRTCConnection] connect called');
+    if (statusRef.current !== 'disconnected') {
+      console.log('[useWebRTCConnection] connect aborted - already connecting');
+      return;
+    }
 
     const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
     if (!apiKey) {
@@ -51,6 +55,7 @@ export const useWebRTCConnection = (): UseWebRTCConnectionResult => {
     }
 
     setState(prev => ({ ...prev, status: 'connecting', error: null }));
+    console.log('[useWebRTCConnection] requesting realtime connection');
     
     try {
       // Garantir que temos um elemento de áudio
@@ -64,6 +69,7 @@ export const useWebRTCConnection = (): UseWebRTCConnectionResult => {
         apiKey,
         audioRef
       );
+      console.log('[useWebRTCConnection] realtime connection created');
       
       pcRef.current = pc;
       dcRef.current = dc;
@@ -80,10 +86,10 @@ export const useWebRTCConnection = (): UseWebRTCConnectionResult => {
       };
       
       dc.onopen = () => {
-        console.log('DataChannel opened');
-        setState(prev => ({ 
-          ...prev, 
-          status: 'connected', 
+        console.log('[useWebRTCConnection] DataChannel opened');
+        setState(prev => ({
+          ...prev,
+          status: 'connected',
           sessionId: Date.now().toString(),
           error: null
         }));
@@ -114,6 +120,7 @@ export const useWebRTCConnection = (): UseWebRTCConnectionResult => {
       };
       
       dc.onmessage = (e) => {
+        console.log('[useWebRTCConnection] message received', e.data);
         try {
           const message = JSON.parse(e.data);
           
@@ -164,6 +171,7 @@ export const useWebRTCConnection = (): UseWebRTCConnectionResult => {
   
   // Função para desconectar
   const disconnect = useCallback(() => {
+    console.log('[useWebRTCConnection] disconnect called');
     const dc = dcRef.current, pc = pcRef.current;
     
     // Tentar enviar mensagem de parada
@@ -194,17 +202,19 @@ export const useWebRTCConnection = (): UseWebRTCConnectionResult => {
     }
     
     // Atualizar o estado
-    setState(prev => ({ 
-      ...prev, 
+    setState(prev => ({
+      ...prev,
       status: 'disconnected',
       sessionId: null
     }));
+    console.log('[useWebRTCConnection] disconnected');
   }, []);
   
   // Função para enviar mensagem
   const sendMessage = useCallback((message: any): boolean => {
     try {
       if (dcRef.current && dcRef.current.readyState === 'open') {
+        console.log('[useWebRTCConnection] sending message', message);
         dcRef.current.send(JSON.stringify(message));
         return true;
       } else {

@@ -128,15 +128,17 @@ export function processUserInput(input: string): ProcessingResult {
   
   // Atualizar o contexto da conversa com as novas informações
   updateContext(entities);
-  
-  return {
+  const result = {
     entities,
     hasMultipleEntities,
     shouldAdvanceState: shouldAdvance,
     recommendedState,
     confidence,
-    conflictingEntities
+    conflictingEntities,
   };
+
+  console.log('[processUserInput]', result);
+  return result;
 }
 
 /**
@@ -156,6 +158,7 @@ export async function processUserInputAsync(input: string): Promise<ProcessingRe
     console.error("LLM state recommendation failed", err);
   }
 
+  console.log('[processUserInputAsync]', result);
   return result;
 }
 
@@ -190,7 +193,11 @@ async function getLLMRecommendedState(
     const match = text.match(
       /(1_greeting|2_identify_need|4_benefit_verification|5_camera_verification|6_loan_simulation|7_understanding_check|8_confirmation|9_closing|10_early_exit)/
     );
-    return match ? match[1] : null;
+    const state = match ? match[1] : null;
+    if (state) {
+      console.log('[getLLMRecommendedState] LLM suggested', state);
+    }
+    return state;
   } catch (err) {
     console.error("Failed to fetch LLM state", err);
     return null;
@@ -236,6 +243,11 @@ export function updateContext(entities: ExtractedEntities): void {
     conversationContext.companionType = entities.companionType;
     conversationContext.confirmedEntities.add('companionType');
   }
+
+  console.log('[updateContext]', {
+    currentState: conversationContext.currentState,
+    confirmed: Array.from(conversationContext.confirmedEntities),
+  });
 }
 
 /**
@@ -243,15 +255,20 @@ export function updateContext(entities: ExtractedEntities): void {
  */
 export function recordStateChange(newState: string): void {
   // Adicionar estado atual ao histórico
-  conversationContext.previousStates.push(conversationContext.currentState);
-  
+  const prev = conversationContext.currentState;
+  conversationContext.previousStates.push(prev);
+
   // Atualizar estado atual
   conversationContext.currentState = newState;
-  
+
   // Registrar o momento da mudança
   conversationContext.lastStateChangeTime = Date.now();
-  
-  console.log(`[StateChange] Transitioned to state: ${newState}`);
+
+  console.log('[StateChange]', {
+    from: prev,
+    to: newState,
+    at: new Date(conversationContext.lastStateChangeTime).toISOString(),
+  });
 }
 
 /**
