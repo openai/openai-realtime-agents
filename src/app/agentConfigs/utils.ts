@@ -529,7 +529,7 @@ function extractBenefitNumber(text: string): string | null {
     /(?:meu )?benefício\s+(?:é|eh|e)?\s*[:]?\s*(\d[\d\s.]*\d)/i,
     /(?:número|numero|nº)\s+(?:do|de)\s+benefício\s+(?:é|eh|e)?\s*[:]?\s*(\d[\d\s.]*\d)/i,
     /(?:benefício|nb|número do benefício)[:#]?\s*(\d[\d\s.]*\d)/i,
-    /\b(\d{10,})\b/,  // Números longos isolados (possíveis benefícios)
+    /\b(\d{6,})\b/,  // Sequências numéricas isoladas (possíveis benefícios)
   ];
 
   for (const pattern of patterns) {
@@ -538,8 +538,8 @@ function extractBenefitNumber(text: string): string | null {
       // Normalizar removendo espaços e pontos
       const normalizedBenefit = match[1].replace(/[\s.]/g, '');
       
-      // Validar comprimento do benefício (tipicamente 10-12 dígitos)
-      if (normalizedBenefit.length >= 10 && normalizedBenefit.length <= 12) {
+      // Validar comprimento do benefício (tipicamente 6-12 dígitos)
+      if (normalizedBenefit.length >= 6 && normalizedBenefit.length <= 12) {
         // Validar que são apenas dígitos
         if (/^\d+$/.test(normalizedBenefit)) {
           return normalizedBenefit;
@@ -549,9 +549,9 @@ function extractBenefitNumber(text: string): string | null {
   }
 
   // Tentar encontrar sequências numéricas que pareçam benefícios
-  const digitSequences = text.match(/\b\d{10,12}\b/g);
+  const digitSequences = text.match(/\b\d{6,12}\b/g);
   if (digitSequences && digitSequences.length > 0) {
-    // Retornar a primeira sequência de 10-12 dígitos encontrada
+    // Retornar a primeira sequência de 6-12 dígitos encontrada
     return digitSequences[0];
   }
 
