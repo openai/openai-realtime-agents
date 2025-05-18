@@ -34,7 +34,7 @@
     "ts-jest": "^29.1.1",
     "@types/jest": "^29.5.11"
   },
-"browserlistrc": {
+"browserslist": {
   "production": [
     ">0.2%",
     "not dead",
