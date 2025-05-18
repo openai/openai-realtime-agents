@@ -680,15 +680,22 @@ Apenas use a ferramenta e continue a conversa normalmente.
         customerName || "Cliente"
       );
 
+      const fullName = customerName || info.beneficiario.nome;
+      const benefitType = info.beneficiario.tipoBeneficio;
+      const availableLimit = `R$ ${info.credito.valorMaximoAprovado.toLocaleString('pt-BR')}`;
+      const benefitValue = info.beneficio.valor;
+      const marginValue = info.beneficio.margemDisponivel;
+      const marginPercent = parseFloat(((marginValue / info.beneficio.valor) * 100).toFixed(2));
+
       return {
         isVerified: true,
         customerInfo: {
-          fullName: customerName || info.fullName,
-          benefitType: info.benefitType,
-          availableLimit: `R$ ${info.availableLimit.toLocaleString('pt-BR')}`,
-          benefitValue: info.benefitValue,
-          marginPercent: info.marginPercent,
-          marginValue: info.marginValue,
+          fullName,
+          benefitType,
+          availableLimit,
+          benefitValue,
+          marginPercent,
+          marginValue,
         },
       };
     },
@@ -707,13 +714,20 @@ Apenas use a ferramenta e continue a conversa normalmente.
         recordStateChange("5_camera_verification");
       }
 
+      const fullName = customerName || info.beneficiario.nome;
+      const benefitType = info.beneficiario.tipoBeneficio;
+      const availableLimit = `R$ ${info.credito.valorMaximoAprovado.toLocaleString('pt-BR')}`;
+      const benefitValue = info.beneficio.valor;
+      const marginValue = info.beneficio.margemDisponivel;
+      const marginPercent = parseFloat(((marginValue / info.beneficio.valor) * 100).toFixed(2));
+
       return {
-        fullName: customerName || info.fullName,
-        benefitType: info.benefitType,
-        availableLimit: `R$ ${info.availableLimit.toLocaleString('pt-BR')}`,
-        benefitValue: info.benefitValue,
-        marginPercent: info.marginPercent,
-        marginValue: info.marginValue,
+        fullName,
+        benefitType,
+        availableLimit,
+        benefitValue,
+        marginPercent,
+        marginValue,
       };
     },
     

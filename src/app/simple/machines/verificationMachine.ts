@@ -38,7 +38,7 @@ export const verificationMachine = createMachine<VerificationContext, Verificati
       on: {
         START: {
           target: 'preparing',
-          actions: assign({
+          actions: assign<any, any>({
             step: 1,
             startTime: () => Date.now(),
             error: null,
@@ -50,19 +50,19 @@ export const verificationMachine = createMachine<VerificationContext, Verificati
       on: {
         PROGRESS: {
           target: 'analyzing',
-          actions: assign({
-            step: (_, event) => event.step,
+          actions: assign<any, any>({
+            step: (_: any, event: any) => event.step,
           }),
         },
         ERROR: {
           target: 'failed',
-          actions: assign({
-            error: (_, event) => event.error,
+          actions: assign<any, any>({
+            error: (_: any, event: any) => event.error,
           }),
         },
         CANCEL: {
           target: 'idle',
-          actions: assign({
+          actions: assign<any, any>({
             step: 0,
             startTime: null,
             error: null,
@@ -74,19 +74,19 @@ export const verificationMachine = createMachine<VerificationContext, Verificati
       on: {
         PROGRESS: {
           target: 'verifying',
-          actions: assign({
-            step: (_, event) => event.step,
+          actions: assign<any, any>({
+            step: (_: any, event: any) => event.step,
           }),
         },
         ERROR: {
           target: 'failed',
-          actions: assign({
-            error: (_, event) => event.error,
+          actions: assign<any, any>({
+            error: (_: any, event: any) => event.error,
           }),
         },
         CANCEL: {
           target: 'idle',
-          actions: assign({
+          actions: assign<any, any>({
             step: 0,
             startTime: null,
             error: null,
@@ -98,20 +98,20 @@ export const verificationMachine = createMachine<VerificationContext, Verificati
       on: {
         COMPLETE: {
           target: 'completed',
-          actions: assign({
+          actions: assign<any, any>({
             step: 4,
             completionTime: () => Date.now(),
           }),
         },
         ERROR: {
           target: 'failed',
-          actions: assign({
-            error: (_, event) => event.error,
+          actions: assign<any, any>({
+            error: (_: any, event: any) => event.error,
           }),
         },
         CANCEL: {
           target: 'idle',
-          actions: assign({
+          actions: assign<any, any>({
             step: 0,
             startTime: null,
             error: null,
@@ -123,7 +123,7 @@ export const verificationMachine = createMachine<VerificationContext, Verificati
       on: {
         START: {
           target: 'preparing',
-          actions: assign({
+          actions: assign<any, any>({
             step: 1,
             startTime: () => Date.now(),
             error: null,
@@ -136,7 +136,7 @@ export const verificationMachine = createMachine<VerificationContext, Verificati
       on: {
         START: {
           target: 'preparing',
-          actions: assign({
+          actions: assign<any, any>({
             step: 1,
             startTime: () => Date.now(),
             error: null,
