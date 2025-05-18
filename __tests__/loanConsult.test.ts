@@ -31,6 +31,8 @@ describe('loan consult route', () => {
   let tmpDir: string;
   beforeEach(() => {
     jest.resetModules();
+    const realCwd = process.cwd();
+    fs.rmSync(path.join(realCwd, 'data'), { recursive: true, force: true });
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-test-'));
     cwdSpy = jest.spyOn(process, 'cwd').mockReturnValue(tmpDir);
     createMock.mockReset();
