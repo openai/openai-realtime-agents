@@ -18,9 +18,25 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const { state, connect, disconnect, sendMessage, addMessageListener } = useWebRTCConnection();
 
   useEffect(() => {
+    console.log('[ConnectionProvider] initiating connection');
     connect();
-    return () => disconnect();
+    return () => {
+      console.log('[ConnectionProvider] disconnecting');
+      disconnect();
+    };
   }, [connect, disconnect]);
+
+  // Log when connection state updates
+  useEffect(() => {
+    console.log('[ConnectionProvider] state change', {
+      status: state.status,
+      sessionId: state.sessionId,
+      error: state.error?.message,
+    });
+    if (state.error) {
+      console.error('[ConnectionProvider] connection error', state.error);
+    }
+  }, [state.status, state.sessionId, state.error]);
 
   const onAgentMessage = (listener: (message: any) => void) => {
     return addMessageListener(listener);
