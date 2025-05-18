@@ -269,6 +269,9 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       cameraEventListenerRef.current = null;
     }
     verificationCompleteRef.current = false;
+    document.dispatchEvent(
+      new CustomEvent('camera-event', { detail: { type: 'CAMERA_CLOSING' } })
+    );
     closeCamera();
     dispatch({ type: 'CANCEL_VERIFICATION' });
 

@@ -426,6 +426,12 @@ IMPORTANTE: SEMPRE que o usuário mencionar um valor de empréstimo desejado, us
           nextStep: "early_exit"
         };
       }
+      if (args.eventType === "CAMERA_CLOSING") {
+        return {
+          success: true,
+          message: "Fechando câmera",
+        };
+      }
       return {
         success: true,
         message: `Evento de câmera ${args.eventType} processado`
