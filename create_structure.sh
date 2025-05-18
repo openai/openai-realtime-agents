@@ -52,3 +52,4 @@ touch $BASE_DIR/page.tsx
 touch $BASE_DIR/types.ts
 
 echo "Estrutura de diretórios criada com sucesso em $BASE_DIR"
+
