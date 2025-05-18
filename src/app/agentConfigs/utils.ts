@@ -139,6 +139,64 @@ export function processUserInput(input: string): ProcessingResult {
 }
 
 /**
+ * Versão assíncrona que pode consultar um modelo LLM para sugerir o próximo estado
+ */
+export async function processUserInputAsync(input: string): Promise<ProcessingResult> {
+  const result = processUserInput(input);
+
+  try {
+    const llmState = await getLLMRecommendedState(input, exportContext());
+    if (llmState) {
+      result.recommendedState = llmState;
+      result.shouldAdvanceState = true;
+      result.confidence = Math.max(result.confidence, 0.8);
+    }
+  } catch (err) {
+    console.error("LLM state recommendation failed", err);
+  }
+
+  return result;
+}
+
+/**
+ * Chama a rota interna /api/chat/completions para obter recomendação de estado
+ */
+async function getLLMRecommendedState(
+  message: string,
+  context: ConversationContext
+): Promise<string | null> {
+  try {
+    const system = {
+      role: "system",
+      content: `Você é um classificador de estados para a assistente Marlene. Responda APENAS com o id do próximo estado dentre: 1_greeting, 2_identify_need, 4_benefit_verification, 5_camera_verification, 6_loan_simulation, 7_understanding_check, 8_confirmation, 9_closing, 10_early_exit.`,
+    };
+
+    const user = {
+      role: "user",
+      content: `Estado atual: ${context.currentState}. Mensagem: ${message}`,
+    };
+
+    const resp = await fetch("/api/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "gpt-3.5-turbo", messages: [system, user] }),
+    });
+
+    const json = await resp.json();
+    const text = json.choices?.[0]?.message?.content?.trim();
+    if (!text) return null;
+
+    const match = text.match(
+      /(1_greeting|2_identify_need|4_benefit_verification|5_camera_verification|6_loan_simulation|7_understanding_check|8_confirmation|9_closing|10_early_exit)/
+    );
+    return match ? match[1] : null;
+  } catch (err) {
+    console.error("Failed to fetch LLM state", err);
+    return null;
+  }
+}
+
+/**
  * Atualiza o contexto da conversa com novas entidades extraídas
  */
 export function updateContext(entities: ExtractedEntities): void {

@@ -1,8 +1,8 @@
 // src/app/agentConfigs/marlene.ts
 import { AgentConfig } from "@/app/types";
 import { 
-  injectTransferTools, 
-  processUserInput,
+  injectTransferTools,
+  processUserInputAsync,
   exportContext,
   recordStateChange,
   setCameraVerified,
@@ -402,7 +402,7 @@ Apenas use a ferramenta e continue a conversa normalmente.
     // Processamento de mensagens do usuário com extração de entidades e avanço de estados
     handleUserMessage: async (args) => {
       // Usa processUserInput de utils.ts para extrair entidades da mensagem
-      const processResult = processUserInput(args.message);
+      const processResult = await processUserInputAsync(args.message);
       
       // Obtém o estado atual do contexto da conversa
       const context = exportContext();
