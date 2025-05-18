@@ -138,7 +138,7 @@ export const useVerificationProcess = (): UseVerificationProcessResult => {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
-    
+
     closeCamera();
     setState({
       active: false,
@@ -147,6 +147,9 @@ export const useVerificationProcess = (): UseVerificationProcessResult => {
       completionTime: null,
       error: null
     });
+    document.dispatchEvent(
+      new CustomEvent('camera-event', { detail: { type: 'VERIFICATION_CANCELLED' } })
+    );
   }, [closeCamera]);
   
   return {
