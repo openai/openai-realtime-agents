@@ -17,7 +17,7 @@ import {
   consultBenefitTool
 } from "./utils";
 import {
-  consultarBeneficio,
+  consultarBeneficioAsync,
   simularEmprestimo,
   calcularApresentacaoMarlene,
 } from "../loanSimulator/index";
@@ -653,12 +653,12 @@ Apenas use a ferramenta e continue a conversa normalmente.
     },
     
     // Funções existentes de Marlene
-    verifyCustomerInfo: ({ customerName, benefitNumber }) => {
+    verifyCustomerInfo: async ({ customerName, benefitNumber }) => {
       console.log(
         `[toolLogic] Consultando benefício: ${benefitNumber || "não fornecido"}`
       );
 
-      const info = consultarBeneficio(
+      const info = await consultarBeneficioAsync(
         benefitNumber,
         customerName || "Cliente"
       );
@@ -676,8 +676,8 @@ Apenas use a ferramenta e continue a conversa normalmente.
       };
     },
 
-    consult_benefit: ({ benefitNumber, customerName }) => {
-      const info = consultarBeneficio(
+    consult_benefit: async ({ benefitNumber, customerName }) => {
+      const info = await consultarBeneficioAsync(
         benefitNumber,
         customerName || "Cliente"
       );
