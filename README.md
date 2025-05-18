@@ -12,7 +12,7 @@ You should be able to use this repo to prototype your own multi-agent realtime v
 ## Setup
 
 ### Requisitos
-- Node.js 18 ou 20.
+- Node.js >=18 <21.
 - Este projeto é uma aplicação Next.js com TypeScript.
 
 ### Instalação
