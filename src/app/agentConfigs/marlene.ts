@@ -403,21 +403,25 @@ Apenas use a ferramenta e continue a conversa normalmente.
     handleUserMessage: async (args) => {
       // Usa processUserInput de utils.ts para extrair entidades da mensagem
       const processResult = await processUserInputAsync(args.message);
-      
-      // Obtém o estado atual do contexto da conversa
-      const context = exportContext();
-      
+
+      // Contexto atual antes de qualquer mudança de estado
+      const prevContext = exportContext();
+
       // Analisa se deve avançar para outro estado com base nas entidades detectadas
       if (processResult.hasMultipleEntities && processResult.shouldAdvanceState && processResult.recommendedState) {
+        console.log(`[handleUserMessage] Previous state: ${prevContext.currentState}`);
         recordStateChange(processResult.recommendedState);
       }
-      
+
+      // Atualiza o contexto para refletir o estado potencialmente alterado
+      const updatedContext = exportContext();
+
       return {
         processedInfo: {
           detectedEntities: processResult.entities,
           advancedState: processResult.shouldAdvanceState,
           recommendedState: processResult.recommendedState,
-          currentState: context.currentState
+          currentState: updatedContext.currentState
         }
       };
     },
