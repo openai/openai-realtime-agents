@@ -24,6 +24,8 @@ You should be able to use this repo to prototype your own multi-agent realtime v
 
 ### Loan simulator backend
 Marlene consumes the fake backend under `src/app/loanSimulator`. Running `npm run dev` with the default agent set (`marlene`) uses these functions for loan simulations and Itaú offers.
+If `NEXT_PUBLIC_USE_LLM_BACKEND` is set to `true`, the simulator calls `/api/loan/consult`,
+which generates consistent data via an OpenAI model and stores it in `data/llm-benefit-cache.json`.
 
 ## Configuring Agents
 Configuration in `src/app/agentConfigs/simpleExample.ts`

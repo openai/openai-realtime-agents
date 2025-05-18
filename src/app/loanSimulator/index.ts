@@ -226,6 +226,34 @@ export function consultarBeneficio(
   return result;
 }
 
+/**
+ * Versão assíncrona que consulta a rota /api/loan/consult para obter dados
+ * gerados por LLM. Quando a variável NEXT_PUBLIC_USE_LLM_BACKEND estiver
+ * habilitada no ambiente, utiliza essa rota. Caso contrário, recai no
+ * gerador aleatório acima.
+ */
+export async function consultarBeneficioAsync(
+  numeroBeneficio: string,
+  nomeCliente: string
+): Promise<ConsultaBeneficio> {
+  if (process.env.NEXT_PUBLIC_USE_LLM_BACKEND === "true") {
+    try {
+      const resp = await fetch("/api/loan/consult", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ numeroBeneficio, nomeCliente }),
+      });
+      if (resp.ok) {
+        return (await resp.json()) as ConsultaBeneficio;
+      }
+      console.error("LLM backend error", await resp.text());
+    } catch (err) {
+      console.error("Failed to fetch LLM backend", err);
+    }
+  }
+  return consultarBeneficio(numeroBeneficio, nomeCliente);
+}
+
 export function obterOfertasItau({
   banco,
   contratacoes,
