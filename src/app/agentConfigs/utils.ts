@@ -1022,6 +1022,17 @@ export const timeGreetingTool: Tool = {
 };
 
 /**
+ * Ferramenta para falar a saudação de acordo com o horário
+ */
+export const sayGreetingTool: Tool = {
+  type: "function",
+  name: "say_time_greeting",
+  description:
+    "Retorna a saudação apropriada ('Bom dia', 'Boa tarde' ou 'Boa noite') conforme o horário atual.",
+  parameters: { type: "object", properties: {}, required: [] }
+};
+
+/**
  * Resetar o contexto da conversa para uma nova interação
  */
 export function resetConversationContext(): void {
