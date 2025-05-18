@@ -212,6 +212,7 @@ IMPORTANTE: SEMPRE que o usuário mencionar um valor de empréstimo desejado, us
       "Quando receber [ROSTO CENTRALIZADO], diga: 'Muito bem! Seu rosto está na posição perfeita. Agora vou fazer a verificação.'",
       "Quando receber [VERIFICANDO IDENTIDADE], diga: 'Só um momento enquanto eu verifico sua identidade... fique parado, por gentileza.'",
       "Quando receber [VERIFICAÇÃO CONCLUÍDA], diga: 'Perfeito! Consegui verificar sua identidade. Podemos continuar com o empréstimo agora.'",
+      "Quando receber [FECHANDO CÂMERA], diga: 'Vou fechar a câmera para continuarmos.'",
       "Quando receber [AVANÇAR PARA SIMULAÇÃO DE EMPRÉSTIMO], avance para o estado 6_loan_simulation",
       "Varie as formas de tratamento durante este processo para soar natural"
     ],
@@ -225,6 +226,10 @@ IMPORTANTE: SEMPRE que o usuário mencionar um valor de empréstimo desejado, us
       {
         "next_step": "6_loan_simulation",
         "condition": "Após a verificação por câmera ser concluída."
+      },
+      {
+        "next_step": "10_early_exit",
+        "condition": "Se o cliente desistir durante a verificação."
       }
     ]
   },
@@ -778,17 +783,32 @@ Apenas use a ferramenta e continue a conversa normalmente.
     // Função para processar eventos de câmera
     processCameraEvent: (args) => {
       console.log(`[toolLogic] Processando evento de câmera: ${args.eventType}`);
-      
-      if (args.eventType === "VERIFICATION_COMPLETED") {
-        // Marca a verificação como concluída no contexto persistente
+
+      if (args.eventType === "VERIFICATION_CONFIRMED") {
         setCameraVerified(true);
         return {
           success: true,
-          message: "Verificação concluída com sucesso",
+          message: "Verificação confirmada",
           nextStep: "loan_simulation"
         };
       }
-      
+
+      if (args.eventType === "VERIFICATION_FAILED") {
+        return {
+          success: false,
+          message: "Verificação falhou",
+          nextStep: "retry"
+        };
+      }
+
+      if (args.eventType === "VERIFICATION_CANCELLED") {
+        return {
+          success: false,
+          message: "Verificação cancelada",
+          nextStep: "early_exit"
+        };
+      }
+
       return {
         success: true,
         message: `Evento de câmera ${args.eventType} processado`

@@ -244,8 +244,8 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             dispatch({ type: 'FACE_STATUS', status: 'detected', value: true });
             dispatch({ type: 'FACE_STATUS', status: 'centered', value: true });
             dispatch({ type: 'SET_STEP', step: 2 });
-            
-            safeSendMessage({ 
+
+            safeSendMessage({
               type: "conversation.item.create",
               item: {
                 type: "message",
@@ -254,78 +254,82 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
               },
             });
             safeSendMessage({ type: "response.create" });
-            
-            // Avançar para verificação após um breve atraso
+          }
+          break;
+
+        case 'CAMERA_CLOSING':
+          safeSendMessage({
+            type: "conversation.item.create",
+            item: {
+              type: "message",
+              role: "user",
+              content: [{ type: "input_text", text: "[FECHANDO CÂMERA]" }],
+            },
+          });
+          safeSendMessage({ type: "response.create" });
+          safeSendMessage({
+            type: "conversation.item.create",
+            item: {
+              id: Math.random().toString(36).substring(2, 15),
+              type: "function_call",
+              function: {
+                name: "close_camera",
+                arguments: "{}",
+              },
+            },
+          });
+          safeSendMessage({ type: "response.create" });
+          break;
+
+        case 'VERIFICATION_API_RESULT':
+          dispatch({ type: 'SET_STEP', step: 3 });
+
+          safeSendMessage({
+            type: "conversation.item.create",
+            item: {
+              type: "message",
+              role: "user",
+              content: [{ type: "input_text", text: "[VERIFICANDO IDENTIDADE]" }],
+            },
+          });
+          safeSendMessage({ type: "response.create" });
+
+          const verified = !!event.detail.result?.verified;
+
+          if (verified) {
+            dispatch({ type: 'FACE_STATUS', status: 'verified', value: true });
+            dispatch({ type: 'SET_STEP', step: 4 });
+            verificationCompleteRef.current = true;
+            setCameraVerified(true);
+
+            safeSendMessage({
+              type: "conversation.item.create",
+              item: {
+                type: "message",
+                role: "user",
+                content: [{ type: "input_text", text: "[VERIFICAÇÃO CONCLUÍDA]" }],
+              },
+            });
+            safeSendMessage({ type: "response.create" });
+
             timerRef.current = setTimeout(() => {
-              if (!state.faceDetectionStatus.verified) {
-                dispatch({ type: 'SET_STEP', step: 3 });
-                
-                safeSendMessage({ 
+              dispatch({ type: 'COMPLETE_VERIFICATION' });
+              timerRef.current = setTimeout(() => {
+                safeSendMessage({
                   type: "conversation.item.create",
                   item: {
                     type: "message",
                     role: "user",
-                    content: [{ type: "input_text", text: "[VERIFICANDO IDENTIDADE]" }],
+                    content: [{ type: "input_text", text: "[AVANÇAR PARA SIMULAÇÃO DE EMPRÉSTIMO]" }],
                   },
                 });
                 safeSendMessage({ type: "response.create" });
-                
-                // Simular verificação de identidade (tempo para reconhecimento)
-                timerRef.current = setTimeout(() => {
-                  dispatch({ type: 'FACE_STATUS', status: 'verified', value: true });
-                  dispatch({ type: 'SET_STEP', step: 4 });
-                  verificationCompleteRef.current = true;
-                  
-                  // Marcar verificação como concluída no contexto
-                  setCameraVerified(true);
-                  
-                  safeSendMessage({ 
-                    type: "conversation.item.create",
-                    item: {
-                      type: "message",
-                      role: "user",
-                      content: [{ type: "input_text", text: "[VERIFICAÇÃO CONCLUÍDA]" }],
-                    },
-                  });
-                  safeSendMessage({ type: "response.create" });
-                  
-                  // Solicitar à Marlene o fechamento da câmera
-                  safeSendMessage({
-                    type: "conversation.item.create",
-                    item: {
-                      id: Math.random().toString(36).substring(2, 15),
-                      type: "function_call",
-                      function: {
-                        name: "close_camera",
-                        arguments: "{}",
-                      },
-                    },
-                  });
-                  safeSendMessage({ type: "response.create" });
+              }, 1000);
+            }, 1000);
 
-                  // Após breve atraso para exibir o checkmark, fechar a câmera de fato
-                  timerRef.current = setTimeout(() => {
-                    closeCamera();
-
-                    // Completar verificação e avançar na máquina de estados
-                    dispatch({ type: 'COMPLETE_VERIFICATION' });
-
-                    // Avançar para o próximo estado da Marlene
-                    timerRef.current = setTimeout(() => {
-                      safeSendMessage({
-                        type: "conversation.item.create",
-                        item: {
-                          type: "message",
-                          role: "user",
-                          content: [{ type: "input_text", text: "[AVANÇAR PARA SIMULAÇÃO DE EMPRÉSTIMO]" }],
-                        },
-                      });
-                      safeSendMessage({ type: "response.create" });
-                    }, 1000);
-                  }, 1000); // um segundo é suficiente para mostrar o checkmark
-                }, 2000);
-              }
-            }, 2000);
+            document.dispatchEvent(new CustomEvent('camera-event', { detail: { type: 'VERIFICATION_CONFIRMED' } }));
+          } else {
+            document.dispatchEvent(new CustomEvent('camera-event', { detail: { type: 'VERIFICATION_FAILED' } }));
           }
           break;
           
@@ -334,6 +338,10 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           if (verificationCompleteRef.current) {
             // Transição concluída
           }
+          break;
+
+        case 'VERIFICATION_CANCELLED':
+          dispatch({ type: 'CANCEL_VERIFICATION' });
           break;
       }
     };
@@ -366,6 +374,18 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     verificationCompleteRef.current = false;
     closeCamera();
     dispatch({ type: 'CANCEL_VERIFICATION' });
+    safeSendMessage({
+      type: "conversation.item.create",
+      item: {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: "[CANCELAR VERIFICAÇÃO]" }],
+      },
+    });
+    safeSendMessage({ type: "response.create" });
+    document.dispatchEvent(
+      new CustomEvent('camera-event', { detail: { type: 'VERIFICATION_CANCELLED' } })
+    );
   };
   
   const contextValue: VerificationContextType = {

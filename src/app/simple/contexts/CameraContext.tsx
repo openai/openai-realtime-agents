@@ -3,7 +3,6 @@
 import React, { createContext, useContext, useReducer, useRef, useEffect } from 'react';
 import { CameraState } from '../types';
 import * as faceapi from 'face-api.js';
-import { setCameraVerified } from "@/app/agentConfigs/utils";
 
 // Estado inicial
 const initialState: CameraState = {
@@ -63,6 +62,7 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const lastFeedbackTimeRef = useRef<number>(0);
   const modelsLoadingRef = useRef<boolean>(false);
   const streamTrackRef = useRef<MediaStreamTrack[]>([]);
+  const verificationInProgressRef = useRef<boolean>(false);
   
   // Carregar modelos de detecção facial
   useEffect(() => {
@@ -259,16 +259,55 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     // Verificar centralização do rosto
     if (isCentered && isGoodSize) {
-      // Marcar verificação como concluída no contexto da Marlene
-      setCameraVerified(true);
-      
       document.dispatchEvent(new CustomEvent('camera-event', {
-        detail: { 
+        detail: {
           type: 'FACE_CENTERED',
           position
         }
       }));
       lastFeedbackTimeRef.current = now;
+
+      if (!verificationInProgressRef.current && videoRef.current) {
+        verificationInProgressRef.current = true;
+        const canvas = document.createElement('canvas');
+        canvas.width = videoRef.current.videoWidth;
+        canvas.height = videoRef.current.videoHeight;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL('image/jpeg');
+          document.dispatchEvent(
+            new CustomEvent('camera-event', { detail: { type: 'CAMERA_CLOSING' } })
+          );
+          closeCamera();
+          fetch('/api/verification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: dataUrl })
+          })
+            .then(res => res.json())
+            .then(result => {
+              document.dispatchEvent(
+                new CustomEvent('camera-event', {
+                  detail: { type: 'VERIFICATION_API_RESULT', result }
+                })
+              );
+            })
+            .catch(err => {
+              console.error('verification request failed', err);
+              document.dispatchEvent(
+                new CustomEvent('camera-event', {
+                  detail: { type: 'VERIFICATION_API_RESULT', result: { error: err?.message || 'error' } }
+                })
+              );
+            })
+            .finally(() => {
+              verificationInProgressRef.current = false;
+            });
+        } else {
+          verificationInProgressRef.current = false;
+        }
+      }
     } else {
       // Gerar feedback direcional com menos frequência
       let direction = "";
@@ -297,7 +336,7 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
   
   // Função para fechar a câmera
-  const closeCamera = () => {
+  function closeCamera() {
     // Limpar intervalo de detecção
     if (faceDetectionIntervalRef.current) {
       clearInterval(faceDetectionIntervalRef.current);
