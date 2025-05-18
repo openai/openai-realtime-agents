@@ -1,4 +1,4 @@
-import { POST } from '@/app/api/loan/consult/route';
+let POST: typeof import('@/app/api/loan/consult/route').POST;
 import { NextResponse } from 'next/server';
 import { consultarBeneficio } from '@/app/loanSimulator';
 import fs from 'fs';
@@ -8,15 +8,6 @@ import os from 'os';
 // mock OpenAI module
 // use `var` so the variable is hoisted and available inside the factory
 var createMock: jest.Mock;
-jest.mock('openai', () => {
-  createMock = jest.fn();
-  return {
-    __esModule: true,
-    default: jest.fn().mockImplementation(() => ({
-      chat: { completions: { create: createMock } },
-    })),
-  };
-});
 
 function makeRequest(body: any) {
   return new Request('http://localhost/api/loan/consult', {
@@ -35,7 +26,14 @@ describe('loan consult route', () => {
     fs.rmSync(path.join(realCwd, 'data'), { recursive: true, force: true });
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-test-'));
     cwdSpy = jest.spyOn(process, 'cwd').mockReturnValue(tmpDir);
-    createMock.mockReset();
+    createMock = jest.fn();
+    jest.doMock('openai', () => ({
+      __esModule: true,
+      default: jest.fn().mockImplementation(() => ({
+        chat: { completions: { create: createMock } },
+      })),
+    }));
+    POST = require('@/app/api/loan/consult/route').POST;
   });
   afterEach(() => {
     cwdSpy.mockRestore();
