@@ -339,9 +339,8 @@ export function useHandleServerEvent({
             // Processar a entrada do usuário para extrair entidades e determinar transições
             const processResult = await processUserInputAsync(content);
             
-            // Se identificou várias entidades e recomenda mudança de estado
-            if (processResult.hasMultipleEntities && 
-                processResult.shouldAdvanceState && 
+            // Se recomenda mudança de estado
+            if (processResult.shouldAdvanceState &&
                 processResult.recommendedState) {
               
               console.log("🔄 Transição de estado recomendada:", processResult.recommendedState);
