@@ -27,6 +27,9 @@ Marlene consumes the fake backend under `src/app/loanSimulator`. Running `npm ru
 If `NEXT_PUBLIC_USE_LLM_BACKEND` is set to `true`, the simulator calls `/api/loan/consult`,
 which generates consistent data via an OpenAI model and stores it in `data/llm-benefit-cache.json`.
 
+## Running tests
+Use `npm test` to execute the Jest suite. Make sure you have installed the development dependencies first with `npm install`.
+
 ## Configuring Agents
 Configuration in `src/app/agentConfigs/simpleExample.ts`
 ```javascript
