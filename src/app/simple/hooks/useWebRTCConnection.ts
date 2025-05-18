@@ -123,15 +123,29 @@ export const useWebRTCConnection = (): UseWebRTCConnectionResult => {
         console.log('[useWebRTCConnection] message received', e.data);
         try {
           const message = JSON.parse(e.data);
-          
+
           // Extrair sessionId se disponível
           if (message.type === 'session.created' && message.session?.id) {
-            setState(prev => ({ 
-              ...prev, 
-              sessionId: message.session.id 
+            setState(prev => ({
+              ...prev,
+              sessionId: message.session.id
             }));
           }
-          
+
+          // Retry automaticamente se a resposta falhar por limite de tokens
+          if (
+            message.type === 'response.done' &&
+            message.response?.status === 'failed' &&
+            message.response?.status_details?.error?.code === 'rate_limit_exceeded'
+          ) {
+            console.warn('[useWebRTCConnection] rate limit hit, will retry response');
+            setTimeout(() => {
+              if (dcRef.current?.readyState === 'open') {
+                sendMessage({ type: 'response.create' });
+              }
+            }, 10000);
+          }
+
           // Notificar todos os ouvintes registrados
           messageListenersRef.current.forEach(listener => {
             try {
