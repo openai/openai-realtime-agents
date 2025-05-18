@@ -11,27 +11,38 @@ You should be able to use this repo to prototype your own multi-agent realtime v
 
 ## Setup
 
-- This is a Next.js typescript app
-- Install dependencies with `npm i`
-- Copy `.env.example` to `.env.local` and fill in your OpenAI keys:
-  ```
-  OPENAI_API_KEY=<your-server-key>
-  NEXT_PUBLIC_OPENAI_API_KEY=<your-client-key>
-  ```
-- After editing `package.json` run `npm install` again so new dependencies like `encoding` are installed.
-- Start the server with `npm run dev`
-- Open your browser to [http://localhost:3000](http://localhost:3000) to see the app. It should automatically connect to the `simpleExample` Agent Set.
+### Requisitos
+- Node.js 18 ou 20.
+- Este projeto é uma aplicação Next.js com TypeScript.
+
+### Instalação
+- Execute `npm install` para instalar as dependências.
+
+### Configuração do ambiente
+- Copie `.env.example` para `.env.local` e preencha as variáveis abaixo:
+  - `OPENAI_API_KEY` – chave usada pelo backend.
+  - `NEXT_PUBLIC_OPENAI_API_KEY` – chave visível no frontend.
+  - `NEXT_PUBLIC_USE_LLM_BACKEND` – quando `true` o backend utiliza o LLM para gerar dados fictícios; nesse caso o diretório `data/` será criado automaticamente para armazenar `llm-benefit-cache.json`.
+- Após editar `package.json`, rode `npm install` novamente caso novas dependências (como `encoding`) tenham sido adicionadas.
+
+### Servidor de desenvolvimento
+- Inicie com `npm run dev` e acesse [http://localhost:3000](http://localhost:3000). O app conecta automaticamente ao Agent Set `simpleExample`.
 
 ### Loan simulator backend
-Marlene consumes the fake backend under `src/app/loanSimulator`. Running `npm run dev` with the default agent set (`marlene`) uses these functions for loan simulations and Itaú offers.
-If `NEXT_PUBLIC_USE_LLM_BACKEND` is set to `true`, the simulator calls `/api/loan/consult`,
-which generates consistent data via an OpenAI model and stores it in `data/llm-benefit-cache.json`.
+Marlene consome o backend falso em `src/app/loanSimulator`. Rodar `npm run dev` com o Agent Set padrão (`marlene`) utiliza essas funções para simulações de empréstimo e ofertas Itaú.
+Com `NEXT_PUBLIC_USE_LLM_BACKEND=true`, o simulador passa a chamar `/api/loan/consult`, gerando dados consistentes via modelo OpenAI. O resultado fica em `data/llm-benefit-cache.json` e o diretório `data/` é criado automaticamente se ainda não existir.
 
-## Running tests
-Use `npm test` to execute the Jest suite. Make sure you have installed the development dependencies first with `npm install`.
+## Testes e lint
+- `npm test` executa a suíte Jest.
+- `npm run lint` roda o linter do projeto.
 
-## Configuring Agents
-Configuration in `src/app/agentConfigs/simpleExample.ts`
+## Build para produção
+- Gere o build com `npm run build`.
+- Em seguida inicie o servidor com `npm start`.
+
+## Configurando agentes
+Escolha um dos arquivos em `src/app/agentConfigs` para definir o comportamento dos agentes ou crie o seu próprio.
+O exemplo abaixo mostra a configuração em `src/app/agentConfigs/simpleExample.ts`:
 ```javascript
 import { AgentConfig } from "@/app/types";
 import { injectTransferTools } from "./utils";
@@ -67,8 +78,8 @@ This fully specifies the agent set that was used in the interaction shown in the
 - [frontDeskAuthentication](src/app/agentConfigs/frontDeskAuthentication) Guides the user through a step-by-step authentication flow, confirming each value character-by-character, authenticates the user with a tool call, and then transfers to another agent. Note that the second agent is intentionally "bored" to show how to prompt for personality and tone.
 - [customerServiceRetail](src/app/agentConfigs/customerServiceRetail) Also guides through an authentication flow, reads a long offer from a canned script verbatim, and then walks through a complex return flow which requires looking up orders and policies, gathering user context, and checking with `o1-mini` to ensure the return is eligible. To test this flow, say that you'd like to return your snowboard and go through the necessary prompts!
 
-### Defining your own agents
-- You can copy these to make your own multi-agent voice app! Once you make a new agent set config, add it to `src/app/agentConfigs/index.ts` and you should be able to select it in the UI in the "Scenario" dropdown menu.
+### Definindo seus próprios agentes
+- Você pode copiar esses exemplos para criar seu próprio voice app multiagente! Após criar uma nova configuração, adicione-a em `src/app/agentConfigs/index.ts` para que ela apareça no menu "Scenario" da interface.
 - To see how to define tools and toolLogic, including a background LLM call, see [src/app/agentConfigs/customerServiceRetail/returns.ts](src/app/agentConfigs/customerServiceRetail/returns.ts)
 - To see how to define a detailed personality and tone, and use a prompt state machine to collect user information step by step, see [src/app/agentConfigs/frontDeskAuthentication/authentication.ts](src/app/agentConfigs/frontDeskAuthentication/authentication.ts)
 - To see how to wire up Agents into a single Agent Set, see [src/app/agentConfigs/frontDeskAuthentication/index.ts](src/app/agentConfigs/frontDeskAuthentication/index.ts)
