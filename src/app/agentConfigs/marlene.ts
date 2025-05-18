@@ -15,7 +15,8 @@ import {
   handleCameraErrorTool,
   createAccessibleDocumentationTool,
   consultBenefitTool,
-  timeGreetingTool
+  timeGreetingTool,
+  sayGreetingTool
 } from "./utils";
 import {
   consultarBeneficioAsync,
@@ -400,7 +401,8 @@ Apenas use a ferramenta e continue a conversa normalmente.
     handleCameraErrorTool,
     createAccessibleDocumentationTool,
     consultBenefitTool,
-    timeGreetingTool
+    timeGreetingTool,
+    sayGreetingTool
   ],
   toolLogic: {
     // Processamento de mensagens do usuário com extração de entidades e avanço de estados
@@ -460,6 +462,19 @@ Apenas use a ferramenta e continue a conversa normalmente.
         greeting = "Boa tarde";
       }
       console.log(`[toolLogic] Saudação gerada: ${greeting}`);
+      return { greeting };
+    },
+
+    // Fala a saudação adequada de acordo com o horário
+    say_time_greeting: () => {
+      const hour = new Date().getHours();
+      let greeting = "Boa noite";
+      if (hour >= 6 && hour < 12) {
+        greeting = "Bom dia";
+      } else if (hour >= 12 && hour < 18) {
+        greeting = "Boa tarde";
+      }
+      console.log(`[toolLogic] Saudação falada: ${greeting}`);
       return { greeting };
     },
     
