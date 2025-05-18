@@ -59,18 +59,6 @@ const SimplePage: React.FC = () => {
       `Key starts with: ${process.env.NEXT_PUBLIC_OPENAI_API_KEY.substring(0, 3)}...` : 
       "No API key found");
       
-    // Define um valor de teste durante o desenvolvimento para ver a animação
-    const testTimeout = setTimeout(() => {
-      // Simular que o usuário mencionou um valor
-      document.dispatchEvent(new CustomEvent('detect-loan-amount', {
-        detail: { amount: '12.000,00' }
-      }));
-      
-      // Depois de um tempo, simular que o agente está repetindo o valor
-      setTimeout(() => {
-        document.dispatchEvent(new CustomEvent('loan-animation-trigger'));
-      }, 5000);
-    }, 3000);
     
     // Intercept Audio playback events
     const originalPlay = HTMLAudioElement.prototype.play;
@@ -82,7 +70,6 @@ const SimplePage: React.FC = () => {
     return () => {
       // Restore original function
       HTMLAudioElement.prototype.play = originalPlay;
-      clearTimeout(testTimeout);
     };
   }, []);
 
