@@ -142,6 +142,16 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             item: { type: "message", role: "user", content: [{ type: "input_text", text: "[CÂMERA ABERTA]" }] },
           });
           safeSendMessage({ type: "response.create" });
+          safeSendMessage({
+            type: "conversation.item.create",
+            item: { type: "message", role: "user", content: [{ type: "input_text", text: "[POSICIONE O ROSTO NO CENTRO DA TELA]" }] },
+          });
+          safeSendMessage({ type: "response.create" });
+          safeSendMessage({
+            type: "conversation.item.create",
+            item: { type: "message", role: "user", content: [{ type: "input_text", text: "[MOSTRE A FRENTE DO SEU DOCUMENTO COM FOTO]" }] },
+          });
+          safeSendMessage({ type: "response.create" });
           dispatch({ type: 'FACE_STATUS', status: 'detected', value: false });
           break;
 
@@ -261,6 +271,19 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           }
           break;
         }
+
+        case 'VERIFICATION_CONFIRMED':
+        case 'VERIFICATION_FAILED':
+          safeSendMessage({
+            type: "conversation.item.create",
+            item: {
+              id: Math.random().toString(36).substring(2, 15),
+              type: "function_call",
+              function: { name: "close_camera", arguments: "{}" },
+            },
+          });
+          safeSendMessage({ type: "response.create" });
+          break;
 
         case 'CAMERA_CLOSED':
           // Se verificação já estiver completa, a máquina de estados pode prosseguir
