@@ -18,7 +18,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: radial-gradient(circle at center, rgba(252, 98, 0, 0.1) 0%, rgba(252, 98, 0, 0) 70%);
+  background: radial-gradient(circle at center, rgba(var(--color-agent-rgb), 0.1) 0%, rgba(var(--color-agent-rgb), 0) 70%);
   filter: blur(100px);
   z-index: 0;
 }
@@ -130,11 +130,11 @@
   opacity: 1;
   background: linear-gradient(
     to top,
-    rgba(252, 98, 0, 0.9) 0%,
-    rgba(252, 98, 0, 0.7) 30%,
-    rgba(252, 98, 0, 0.4) 60%,
-    rgba(252, 98, 0, 0.1) 90%,
-    rgba(252, 98, 0, 0) 100%
+    rgba(var(--color-agent-rgb), 0.9) 0%,
+    rgba(var(--color-agent-rgb), 0.7) 30%,
+    rgba(var(--color-agent-rgb), 0.4) 60%,
+    rgba(var(--color-agent-rgb), 0.1) 90%,
+    rgba(var(--color-agent-rgb), 0) 100%
   );
   animation: pulse-gradient 4s ease-in-out infinite;
 }
@@ -144,26 +144,25 @@
   opacity: 1;
   background: linear-gradient(
     to top,
-    rgba(0, 102, 204, 0.9) 0%,
-    rgba(0, 102, 204, 0.7) 30%,
-    rgba(0, 102, 204, 0.4) 60%,
-    rgba(0, 102, 204, 0.1) 90%,
-    rgba(0, 102, 204, 0) 100%
+    rgba(var(--color-user-rgb), 0.9) 0%,
+    rgba(var(--color-user-rgb), 0.7) 30%,
+    rgba(var(--color-user-rgb), 0.4) 60%,
+    rgba(var(--color-user-rgb), 0.1) 90%,
+    rgba(var(--color-user-rgb), 0) 100%
   );
   animation: pulse-gradient 4s ease-in-out infinite;
 }
 
-/* Estilo intermediário para transição */
-.animated-footer.transitioning::after {
+/* Estilo para animação de valor do empréstimo */
+.animated-footer.loan-animation::after {
   opacity: 1;
   background: linear-gradient(
     to top,
-    rgba(126, 100, 153, 0.9) 0%, /* Cor intermediária entre laranja e azul */
-    rgba(126, 100, 153, 0.7) 30%,
-    rgba(126, 100, 153, 0.4) 60%,
-    rgba(126, 100, 153, 0.1) 90%,
-    rgba(126, 100, 153, 0) 100%
+    rgba(var(--color-loan-rgb), 0.95) 0%,
+    rgba(var(--color-loan-rgb), 0.7) 50%,
+    rgba(var(--color-loan-rgb), 0) 100%
   );
+  animation: pulse-gradient 4s ease-in-out infinite;
 }
 
 /* Nova animação mais suave */
@@ -569,10 +568,12 @@
   left: 0;
   right: 0;
   height: 150px;
-  background: linear-gradient(to top, 
-    rgba(255, 133, 0, 0.95) 0%, 
-    rgba(255, 153, 0, 0.7) 50%, 
-    rgba(255, 173, 0, 0) 100%);
+  background: linear-gradient(
+    to top,
+    rgba(var(--color-loan-rgb), 0.95) 0%,
+    rgba(var(--color-loan-rgb), 0.7) 50%,
+    rgba(var(--color-loan-rgb), 0) 100%
+  );
   opacity: 0;
   transition: opacity 0.5s ease-in-out;
   pointer-events: none;
