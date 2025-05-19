@@ -25,7 +25,6 @@ const AnimatedFooter: React.FC = () => {
       console.log("🎨 Rodapé sem classe de fala");
     }
   }, [speakingClass]);
-  
   return (
     <div className={`animated-footer ${speakingClass}`}></div>
   );
