@@ -7,7 +7,8 @@ import { useRef, useState, useEffect } from "react";
 import { useSimulation } from "../simple/contexts/SimulationContext";
 import {
   processUserInputAsync,
-  recordStateChange
+  recordStateChange,
+  exportContext
 } from "@/app/agentConfigs/utils";
 
 export interface UseHandleServerEventParams {
@@ -340,8 +341,9 @@ export function useHandleServerEvent({
             const processResult = await processUserInputAsync(content);
             
             // Se recomenda mudança de estado
-            if (processResult.shouldAdvanceState &&
-                processResult.recommendedState) {
+            const currentState = exportContext().currentState;
+            if (processResult.recommendedState &&
+                processResult.recommendedState !== currentState) {
               
               console.log("🔄 Transição de estado recomendada:", processResult.recommendedState);
               recordStateChange(processResult.recommendedState);
