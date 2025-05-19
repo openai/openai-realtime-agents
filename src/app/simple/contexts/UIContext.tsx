@@ -504,8 +504,6 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   useEffect(() => {
     console.log("🔄 Estado de animação atualizado:", loanState);
   }, [loanState]);
-
-  // Logar sempre que o falante atual mudar
   useEffect(() => {
     console.log("🗣️ currentSpeaker atualizado:", currentSpeaker);
   }, [currentSpeaker]);
