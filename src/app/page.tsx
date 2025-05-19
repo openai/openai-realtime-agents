@@ -55,9 +55,12 @@ const SimplePage: React.FC = () => {
   useEffect(() => {
     // Debug logging
     console.log("SimplePage mounted");
-    console.log("API Key format check:", process.env.NEXT_PUBLIC_OPENAI_API_KEY ? 
-      `Key starts with: ${process.env.NEXT_PUBLIC_OPENAI_API_KEY.substring(0, 3)}...` : 
-      "No API key found");
+    // console.log(
+    //   "API Key format check:",
+    //   process.env.NEXT_PUBLIC_OPENAI_API_KEY
+    //     ? `Key starts with: ${process.env.NEXT_PUBLIC_OPENAI_API_KEY.substring(0, 3)}...`
+    //     : "No API key found"
+    // );
       
     
     // Intercept Audio playback events
