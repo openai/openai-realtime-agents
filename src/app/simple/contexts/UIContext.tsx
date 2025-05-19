@@ -499,13 +499,11 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       }
     };
   }, []);
-  
+
   // Logging do estado de animação quando muda
   useEffect(() => {
     console.log("🔄 Estado de animação atualizado:", loanState);
   }, [loanState]);
-
-  // Logging do falante atual quando muda
   useEffect(() => {
     console.log("🗣️ currentSpeaker atualizado:", currentSpeaker);
   }, [currentSpeaker]);
