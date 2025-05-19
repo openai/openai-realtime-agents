@@ -1,5 +1,5 @@
 // src/app/simple/components/AnimatedFooter.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useUI } from '../contexts/UIContext';
 
 const AnimatedFooter: React.FC = () => {
@@ -16,6 +16,15 @@ const AnimatedFooter: React.FC = () => {
   } else if (currentSpeaker === 'user') {
     speakingClass = "user-speaking";
   }
+
+  // Logar sempre que a classe do rodapé mudar
+  useEffect(() => {
+    if (speakingClass) {
+      console.log("🎨 Classe do rodapé:", speakingClass);
+    } else {
+      console.log("🎨 Rodapé sem classe de fala");
+    }
+  }, [speakingClass]);
   
   return (
     <div className={`animated-footer ${speakingClass}`}></div>
