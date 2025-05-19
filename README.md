@@ -40,6 +40,11 @@ Com `NEXT_PUBLIC_USE_LLM_BACKEND=true`, o simulador passa a chamar `/api/loan/co
 - Gere o build com `npm run build`.
 - Em seguida inicie o servidor com `npm start`.
 
+## Integração contínua
+Este repositório possui um workflow de CI em `.github/workflows/ci.yml` que instala as dependências,
+executa `npm test` e `npm run lint` usando Node.js 18. O fluxo utiliza o cache do `actions/setup-node`
+para agilizar as execuções.
+
 ## Configurando agentes
 Escolha um dos arquivos em `src/app/agentConfigs` para definir o comportamento dos agentes ou crie o seu próprio.
 O exemplo abaixo mostra a configuração em `src/app/agentConfigs/simpleExample.ts`:
