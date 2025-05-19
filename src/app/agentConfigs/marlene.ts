@@ -24,6 +24,16 @@ import {
   calcularApresentacaoMarlene,
 } from "../loanSimulator/index";
 
+// Retorna a hora atual em Sao Paulo (UTC-3)
+function getSaoPauloHour(): number {
+  const formatter = new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    hour12: false,
+    timeZone: "America/Sao_Paulo"
+  });
+  return parseInt(formatter.format(new Date()), 10);
+}
+
 // Definição do agente Marlene
 const marlene: AgentConfig = {
   name: "marlene",
@@ -144,7 +154,7 @@ IMPORTANTE: SEMPRE que o usuário mencionar um valor de empréstimo desejado, us
       return { highlightedAmount: args.amount };
     },
     time_greeting: () => {
-      const hour = new Date().getHours();
+      const hour = getSaoPauloHour();
       let greeting = "Boa noite";
       if (hour >= 6 && hour < 12) {
         greeting = "Bom dia";
@@ -155,7 +165,7 @@ IMPORTANTE: SEMPRE que o usuário mencionar um valor de empréstimo desejado, us
       return { greeting };
     },
     say_time_greeting: () => {
-      const hour = new Date().getHours();
+      const hour = getSaoPauloHour();
       let greeting = "Boa noite";
       if (hour >= 6 && hour < 12) {
         greeting = "Bom dia";
