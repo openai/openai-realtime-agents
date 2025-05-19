@@ -5,6 +5,10 @@
 :root {
   --background: #fafafa;
   --foreground: #171717;
+  --color-agent-rgb: 252, 98, 0;
+  --color-user-rgb: 0, 102, 204;
+  --color-transition-rgb: 126, 100, 153;
+  --color-loan-rgb: 255, 133, 0;
 }
 
 @media (prefers-color-scheme: dark) {

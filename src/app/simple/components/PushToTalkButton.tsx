@@ -5,7 +5,7 @@ import { useUI } from '../contexts/UIContext';
 
 const PushToTalkButton: React.FC = () => {
   const { state, connect, disconnect } = useConnection();
-  const { agentIsSpeaking } = useUI();
+  const { currentSpeaker } = useUI();
   const isConnected = state.status === 'connected';
   
   // Não precisamos mais de uma conexão iniciada manualmente
@@ -14,7 +14,7 @@ const PushToTalkButton: React.FC = () => {
   // No entanto, mantemos o botão para mostrar o status e para desconectar se necessário
   return (
     <button
-      className={`ptt-button ${isConnected ? (agentIsSpeaking ? "speaking" : "") : "paused"}`}
+      className={`ptt-button ${isConnected ? (currentSpeaker === 'agent' ? 'speaking' : '') : 'paused'}`}
       onClick={() => {
         if (isConnected) {
           disconnect();

@@ -11,17 +11,16 @@ interface UIContextType {
   uiEvents: UIEvent[];
   cameraRequests: CameraRequest[];
   currentTime: string;
-  agentIsSpeaking: boolean;
-  userIsSpeaking: boolean;
+  currentSpeaker: 'agent' | 'user' | null;
   speechIntensity: number;
   isAudioPlaybackEnabled: boolean;
-  
+
   // Funções existentes
   addUIEvent: (event: UIEvent) => void;
   addCameraRequest: (left: number) => string;
   removeCameraRequest: (id: string) => void;
   setSpeechIntensity: (intensity: number) => void;
-  setUserIsSpeaking: (isSpeaking: boolean) => void;
+  setCurrentSpeaker: (speaker: 'agent' | 'user' | null) => void;
   setIsAudioPlaybackEnabled: (enabled: boolean) => void;
   
   // Estados e funções para valor de empréstimo
@@ -40,8 +39,7 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   const [uiEvents, setUIEvents] = useState<UIEvent[]>([]);
   const [cameraRequests, setCameraRequests] = useState<CameraRequest[]>([]);
   const [currentTime, setCurrentTime] = useState<string>('');
-  const [agentIsSpeaking, setAgentIsSpeaking] = useState<boolean>(false);
-  const [userIsSpeaking, setUserIsSpeaking] = useState<boolean>(false);
+  const [currentSpeaker, setCurrentSpeaker] = useState<'agent' | 'user' | null>(null);
   const [speechIntensity, setSpeechIntensity] = useState<number>(0);
   const [isAudioPlaybackEnabled, setIsAudioPlaybackEnabled] = useState<boolean>(true);
   
@@ -53,49 +51,29 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   });
   
   // Referências para temporizadores
-  const agentSpeakingTimerRef = useRef<number | null>(null);
-  const userSpeakingTimerRef = useRef<number | null>(null);
+  const speakingTimerRef = useRef<number | null>(null);
   const loanAnimationTimerRef = useRef<number | null>(null);
   const lastAnimationTimeRef = useRef<number>(0);
   
   const { onAgentMessage } = useConnection();
   
-  // Debounced state setters (código existente)
-  const setAgentSpeakingDebounced = (isSpeaking: boolean, delay: number = 300) => {
-    // Clear any pending timer
-    if (agentSpeakingTimerRef.current !== null) {
-      clearTimeout(agentSpeakingTimerRef.current);
-      agentSpeakingTimerRef.current = null;
+  // Debounced state setter para o falante atual
+  const setCurrentSpeakerDebounced = (
+    speaker: 'agent' | 'user' | null,
+    delay: number = 300
+  ) => {
+    if (speakingTimerRef.current !== null) {
+      clearTimeout(speakingTimerRef.current);
+      speakingTimerRef.current = null;
     }
-    
-    if (!isSpeaking && agentIsSpeaking) {
-      // If turning off agent speaking, delay the transition
-      agentSpeakingTimerRef.current = window.setTimeout(() => {
-        setAgentIsSpeaking(false);
+
+    if (speaker === null && currentSpeaker !== null) {
+      // Desligar após um atraso para transição suave
+      speakingTimerRef.current = window.setTimeout(() => {
+        setCurrentSpeaker(null);
       }, delay);
-    } else if (isSpeaking && !agentIsSpeaking) {
-      // If turning on agent speaking, do it immediately but turn off user speaking
-      setAgentIsSpeaking(true);
-      setUserIsSpeaking(false);
-    }
-  };
-  
-  const setUserSpeakingDebounced = (isSpeaking: boolean, delay: number = 300) => {
-    // Clear any pending timer
-    if (userSpeakingTimerRef.current !== null) {
-      clearTimeout(userSpeakingTimerRef.current);
-      userSpeakingTimerRef.current = null;
-    }
-    
-    if (!isSpeaking && userIsSpeaking) {
-      // If turning off user speaking, delay the transition
-      userSpeakingTimerRef.current = window.setTimeout(() => {
-        setUserIsSpeaking(false);
-      }, delay);
-    } else if (isSpeaking && !userIsSpeaking) {
-      // If turning on user speaking, do it immediately but turn off agent speaking
-      setUserIsSpeaking(true);
-      setAgentIsSpeaking(false);
+    } else if (speaker !== null && currentSpeaker !== speaker) {
+      setCurrentSpeaker(speaker);
     }
   };
   
@@ -297,37 +275,6 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     };
   }, [loanState.requestedAmount]);
   
-  // Função para simular alternância de fala para debug - com transições mais suaves
-  useEffect(() => {
-    // Para testar, simule a alternância entre falantes a cada 6 segundos (mais lento)
-    const testInterval = setInterval(() => {
-      if (agentIsSpeaking) {
-        // Se o agente está falando, simule o usuário falando
-        console.log("DEBUG: Simulando usuário falando");
-        setAgentSpeakingDebounced(false, 800); // Fade out longer
-        
-        // Wait for fade out before starting the user speaking
-        setTimeout(() => {
-          setUserSpeakingDebounced(true);
-        }, 1000);
-      } else if (userIsSpeaking) {
-        // Se o usuário está falando, simule o agente falando
-        console.log("DEBUG: Simulando agente falando");
-        setUserSpeakingDebounced(false, 800);
-        
-        // Wait for fade out before starting the agent speaking
-        setTimeout(() => {
-          setAgentSpeakingDebounced(true);
-        }, 1000);
-      } else {
-        // Se ninguém está falando, comece com o agente
-        console.log("DEBUG: Iniciando ciclo com agente falando");
-        setAgentSpeakingDebounced(true);
-      }
-    }, 6000); // Alternar a cada 6 segundos para uma demonstração mais natural
-    
-    return () => clearInterval(testInterval);
-  }, [agentIsSpeaking, userIsSpeaking]);
   
   // Função para extrair e normalizar valor monetário de um texto
   const extractMoneyValue = (text: string) => {
@@ -375,26 +322,26 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       // Detectar quando o agente começa e termina de falar
       if (msg.type === 'audio_started') {
         console.log("🎤 Agente começou a falar");
-        setAgentSpeakingDebounced(true);
+        setCurrentSpeakerDebounced('agent');
       } else if (msg.type === 'audio_ended') {
         console.log("🔇 Agente terminou de falar");
-        setAgentSpeakingDebounced(false, 800); // Slower fade-out
+        setCurrentSpeakerDebounced(null, 800); // Slower fade-out
         setSpeechIntensity(0);
       } else if (msg.type === 'output_audio_buffer.started') {
         console.log("🔊 Buffer de áudio de saída iniciado");
-        setAgentSpeakingDebounced(true);
+        setCurrentSpeakerDebounced('agent');
       } else if (msg.type === 'output_audio_buffer.stopped') {
         console.log("🔇 Buffer de áudio de saída parado");
-        setAgentSpeakingDebounced(false, 800); // Slower fade-out
+        setCurrentSpeakerDebounced(null, 800); // Slower fade-out
       } else if (msg.type === 'input_audio_buffer.started') {
         // Quando o microfone do usuário estiver ativo
         console.log("🎙️ Usuário começou a falar");
-        setUserSpeakingDebounced(true);
+        setCurrentSpeakerDebounced('user');
       } else if (msg.type === 'input_audio_buffer.stopped' || 
                  msg.type === 'input_audio_buffer.clear') {
         // Quando o microfone do usuário for desativado
         console.log("🔇 Usuário terminou de falar");
-        setUserSpeakingDebounced(false, 800); // Slower fade-out
+        setCurrentSpeakerDebounced(null, 800); // Slower fade-out
       }
       
       // Detectar quando o usuário menciona valores monetários
@@ -544,11 +491,8 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   // Limpar temporizadores na desmontagem
   useEffect(() => {
     return () => {
-      if (agentSpeakingTimerRef.current !== null) {
-        clearTimeout(agentSpeakingTimerRef.current);
-      }
-      if (userSpeakingTimerRef.current !== null) {
-        clearTimeout(userSpeakingTimerRef.current);
+      if (speakingTimerRef.current !== null) {
+        clearTimeout(speakingTimerRef.current);
       }
       if (loanAnimationTimerRef.current) {
         window.cancelAnimationFrame(loanAnimationTimerRef.current);
@@ -560,21 +504,25 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   useEffect(() => {
     console.log("🔄 Estado de animação atualizado:", loanState);
   }, [loanState]);
+
+  // Logging do falante atual quando muda
+  useEffect(() => {
+    console.log("🗣️ currentSpeaker atualizado:", currentSpeaker);
+  }, [currentSpeaker]);
   
   const contextValue: UIContextType = {
     // Valores existentes
     uiEvents,
     cameraRequests,
     currentTime,
-    agentIsSpeaking,
-    userIsSpeaking,
+    currentSpeaker,
     speechIntensity,
     isAudioPlaybackEnabled,
     addUIEvent,
     addCameraRequest,
     removeCameraRequest,
     setSpeechIntensity,
-    setUserIsSpeaking,
+    setCurrentSpeaker: setCurrentSpeakerDebounced,
     setIsAudioPlaybackEnabled,
     
     // Valores para o empréstimo
