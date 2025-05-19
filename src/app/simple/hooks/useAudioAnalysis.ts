@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useUI } from '../contexts/UIContext';
 
 export const useAudioAnalysis = (audioStream: MediaStream | null) => {
-  const { agentIsSpeaking, setSpeechIntensity } = useUI();
+  const { currentSpeaker, setSpeechIntensity } = useUI();
   
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -30,7 +30,7 @@ export const useAudioAnalysis = (audioStream: MediaStream | null) => {
     };
     
     // Se não houver stream ou o agente não estiver falando, limpar
-    if (!audioStream || !agentIsSpeaking) {
+    if (!audioStream || currentSpeaker !== 'agent') {
       cleanup();
       return;
     }
@@ -78,5 +78,5 @@ export const useAudioAnalysis = (audioStream: MediaStream | null) => {
     
     // Limpar ao desmontar
     return cleanup;
-  }, [audioStream, agentIsSpeaking, setSpeechIntensity]);
+  }, [audioStream, currentSpeaker, setSpeechIntensity]);
 };
