@@ -1,6 +1,19 @@
 // src/app/lib/realtimeConnection.ts
 import { RefObject } from "react";
 
+// Helper to create an AbortSignal with a timeout.
+// Uses AbortSignal.timeout when available (Node 18+, some browsers)
+// and falls back to AbortController with setTimeout for compatibility.
+function timeoutSignal(ms: number): AbortSignal {
+  const anyAbortSignal = AbortSignal as any;
+  if (typeof anyAbortSignal.timeout === "function") {
+    return anyAbortSignal.timeout(ms);
+  }
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
 export async function createRealtimeConnection(
   EPHEMERAL_KEY: string,
   audioElement: RefObject<HTMLAudioElement | null>
@@ -147,7 +160,7 @@ export async function createRealtimeConnection(
         "Content-Type": "application/sdp",
       },
       // Adicionar timeout e melhorar tolerância a falhas de rede
-      signal: AbortSignal.timeout(20000) // 20 segundos de timeout
+      signal: timeoutSignal(20000) // 20 segundos de timeout
     });
 
     if (!sdpResponse.ok) {
