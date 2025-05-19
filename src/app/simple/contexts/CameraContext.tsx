@@ -209,21 +209,25 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           document.dispatchEvent(new CustomEvent('camera-event', { detail: { type: 'CAMERA_CLOSING' } }));
           closeCamera();
 
-          fetch('/api/verification', {
+          fetch('/api/face-verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ image: dataUrl })
           })
-            .then(res => res.json())
+            .then(res => res.ok ? res.json() : Promise.reject(new Error('face-verify failed')))
+            .catch(firstError => {
+              console.error('face-verify request failed', firstError);
+              return fetch('/api/verification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: dataUrl })
+              })
+                .then(res => res.json())
+                .catch(error => ({ error: error.message }));
+            })
             .then(result => {
               document.dispatchEvent(new CustomEvent('camera-event', {
                 detail: { type: 'VERIFICATION_API_RESULT', result }
-              }));
-            })
-            .catch(error => {
-              console.error('verification request failed', error);
-              document.dispatchEvent(new CustomEvent('camera-event', {
-                detail: { type: 'VERIFICATION_API_RESULT', result: { error: error.message } }
               }));
             })
             .finally(() => {
