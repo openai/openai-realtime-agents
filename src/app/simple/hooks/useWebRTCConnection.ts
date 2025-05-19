@@ -156,6 +156,42 @@ export const useWebRTCConnection = (): UseWebRTCConnectionResult => {
               console.error('Error in message listener:', err);
             }
           });
+
+          // Processar chamadas de função simples usando o toolLogic do agente
+          if (
+            message.type === 'response.done' &&
+            Array.isArray(message.response?.output)
+          ) {
+            message.response.output.forEach((item: any) => {
+              if (item.type === 'function_call' && item.name) {
+                const fn =
+                  (marleneConfig[0].toolLogic as any)?.[item.name];
+                if (fn) {
+                  let args: any = {};
+                  try {
+                    args = item.arguments ? JSON.parse(item.arguments) : {};
+                  } catch (err) {
+                    console.warn('Failed to parse function args', err);
+                  }
+                  Promise.resolve(fn(args))
+                    .then((result) => {
+                      sendMessage({
+                        type: 'conversation.item.create',
+                        item: {
+                          type: 'function_call_output',
+                          call_id: item.call_id,
+                          output: JSON.stringify(result ?? {}),
+                        },
+                      });
+                      sendMessage({ type: 'response.create' });
+                    })
+                    .catch((err) =>
+                      console.error('Error executing function', err)
+                    );
+                }
+              }
+            });
+          }
         } catch (err) {
           console.error('Failed to parse RTC message:', err, e.data);
         }
