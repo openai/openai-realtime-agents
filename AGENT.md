@@ -1,102 +1,51 @@
-# Repository Guidelines
+# Guia de Desenvolvimento
 
-This project is a Next.js 15 application written in TypeScript. It demonstrates voice agent flows using the OpenAI Realtime API and includes simulation utilities for loan offers. The codebase is meant for Node.js **18** and uses npm as the package manager.
+Este projeto é uma aplicação Next.js 15 escrita em TypeScript que demonstra fluxos de agentes de voz usando a OpenAI Realtime API.
 
-## Requirements
+## Configuração do Ambiente
 
-- Node.js 18 (`.nvmrc` specifies the version).
-- npm (installed with Node).
-- An OpenAI API key for both server and client use.
-- Optional: face recognition models placed under `public/models` for `/api/face-verify`.
+### No Codex
+Quando executado no Codex:
+1. Configure as seguintes variáveis de ambiente através da interface do Codex:
+   - OPENAI_API_KEY
+   - NEXT_PUBLIC_OPENAI_API_KEY 
+   - NEXT_PUBLIC_USE_LLM_BACKEND (opcional, valor padrão: true)
+2. Execute o script setup.sh, que detectará automaticamente o ambiente Codex
 
-## Initial Setup
+### Em Desenvolvimento Local
+Para desenvolvimento local:
+1. Execute o script setup.sh
+2. O script criará um arquivo .env.local baseado em .env.example
+3. Edite o arquivo .env.local e insira suas chaves de API reais
+4. Execute o script setup.sh novamente para completar a configuração
 
-1. Install Node 18 (or activate via `nvm use`).
-2. Run `npm install` to fetch dependencies.
-3. Copy `.env.example` to `.env.local` and fill in:
-   - `OPENAI_API_KEY`
-   - `NEXT_PUBLIC_OPENAI_API_KEY`
-   - `NEXT_PUBLIC_USE_LLM_BACKEND` (set `true` to use the LLM backend for loan data).
-4. Start the dev server with `npm run dev` and open `http://localhost:3000`.
+## Estrutura do Projeto
+- `src/app/agentConfigs` – Conjuntos de agentes predefinidos e utilitários auxiliares
+- `src/app/api` – Rotas de API Next.js (`/session`, `/loan`, `/chat`, etc.)
+- `src/app/simple` – Componentes de demonstração de UI autocontidos
+- `src/app/loanSimulator` – Lógica usada para simulação de empréstimos
+- `public/` – Ativos estáticos e modelos de reconhecimento facial
+- `__tests__/` – Testes unitários Jest para módulos-chave
 
-## Testing and Linting
+## Requisitos Técnicos
+- Node.js 18 (especificado no .nvmrc)
+- npm como gerenciador de pacotes
+- Chaves de API OpenAI válidas (configuradas conforme instruções acima)
 
-- `npm test` runs the Jest test suite located in `__tests__/`.
-- `npm run lint` executes ESLint using the configuration in `eslint.config.mjs`.
-- The CI workflow (`.github/workflows/ci.yml`) mirrors these commands.
+## Comandos Úteis
+- `npm run dev` – Inicia o servidor de desenvolvimento
+- `npm test` – Executa os testes Jest
+- `npm run lint` – Executa o ESLint
+- `npm run build` – Compila a aplicação para produção
+- `npm start` – Inicia o servidor de produção
 
-## Build & Production
+## Adicionando ou Modificando Agentes
+O comportamento dos agentes é definido em `src/app/agentConfigs`. Atualize
+`index.ts` para registrar novos conjuntos de agentes ou altere `defaultAgentSetKey` para
+mudar o cenário padrão.
 
-- Build the application with `npm run build`.
-- Start the production server using `npm start`.
-
-## Directory Overview
-
-- `src/app/agentConfigs` – predefined agent sets and helper utilities.
-- `src/app/api` – Next.js API routes (`/session`, `/loan`, `/chat`, etc.).
-- `src/app/simple` – self‑contained demo UI components and contexts.
-- `src/app/loanSimulator` – logic used when simulating loan offers.
-- `public/` – static assets and face recognition models.
-- `__tests__/` – Jest unit tests for key modules.
-
-## Useful Scripts
-
-- `create_structure.sh` – scaffolds the `src/app/simple` folder structure.
-- `setup.sh` (see below) – installs dependencies and prepares the environment.
-
-## Adding or Modifying Agents
-
-Agent behaviour is defined under `src/app/agentConfigs`. Update
-`index.ts` to register new agent sets or change `defaultAgentSetKey` to
-switch the default scenario.
-
-## Contribution Notes
-
-- Use TypeScript for all new code.
-- Keep functions small and document complex logic with comments.
-- Run the tests and linter before committing.
-- Large assets (such as additional face recognition models) should be placed in `public/models` and referenced from the `/api/face-verify` route.
-
----
-
-## setup.sh
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-# Start from the script directory so relative paths work
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
-# Ensure Node 18 using nvm
-if [ -f ".nvmrc" ]; then
-  NODE_VERSION="$(cat .nvmrc)"
-else
-  NODE_VERSION="18"
-fi
-
-if ! command -v nvm >/dev/null 2>&1; then
-  curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.4/install.sh | bash
-  export NVM_DIR="$HOME/.nvm"
-  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-fi
-
-nvm install "$NODE_VERSION"
-nvm use "$NODE_VERSION"
-
-# Install dependencies
-npm install
-
-# Prepare environment file
-
-if [ ! -f .env.local ] && [ -f .env.example ]; then
-  cp .env.example .env.local
-  echo "Edit .env.local with your API keys." >&2
-fi
-
-# Run checks
-npm test
-npm run lint
-
-echo "Setup complete. Run 'npm run dev' to start the dev server."
-```
+## Notas de Contribuição
+- Use TypeScript para todo o novo código
+- Mantenha as funções pequenas e documente lógica complexa com comentários
+- Execute os testes e o linter antes de fazer commit
+- Ativos grandes (como modelos adicionais de reconhecimento facial) devem ser colocados em `public/models`
