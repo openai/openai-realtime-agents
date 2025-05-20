@@ -89,7 +89,6 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       closeCamera();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Abre a câmera e inicia detecção
@@ -280,6 +279,16 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       catch (e) { console.warn("Error clearing video source:", e); }
     }
   }
+
+  useEffect(() => {
+    const handleSimClose = () => {
+      closeCamera();
+    };
+    document.addEventListener('simulated-camera-close', handleSimClose as EventListener);
+    return () => {
+      document.removeEventListener('simulated-camera-close', handleSimClose as EventListener);
+    };
+  }, []);
 
   const contextValue: CameraContextType = {
     state,

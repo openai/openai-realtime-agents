@@ -12,25 +12,11 @@ import { useVerification } from '../contexts/VerificationContext';
 import Image from 'next/image';
 
 const PhoneMockup: React.FC = () => {
-  const { uiEvents, cameraRequests, removeCameraRequest, setRequestedLoanAmount, showLoanAnimation } = useUI();
+  const { uiEvents, cameraRequests, removeCameraRequest } = useUI();
   const { state: cameraState, openCamera } = useCamera();
   const { state: verificationState, startVerification } = useVerification();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   
-  // Função de teste para a animação de valor
-  const testAnimation = () => {
-    console.log("⭐ Teste de animação iniciado");
-    
-    // Definir valor
-    setRequestedLoanAmount('R$ 10.000,00');
-    console.log("⭐ Valor definido: R$ 10.000,00");
-    
-    // Mostrar a animação com um breve atraso
-    setTimeout(() => {
-      console.log("⭐ Acionando animação");
-      showLoanAnimation();
-    }, 500);
-  };
   
   // Quando receber o stream, anexar ao <video>
   useEffect(() => {
@@ -115,23 +101,6 @@ const PhoneMockup: React.FC = () => {
           </div>
         ))}
         
-        {/* Botão de teste da animação */}
-        <button 
-          onClick={testAnimation}
-          style={{
-            position: 'absolute',
-            top: '150px',
-            left: '10px',
-            zIndex: 100,
-            padding: '5px',
-            background: '#ff8548',
-            color: 'white',
-            border: 'none',
-            borderRadius: '5px'
-          }}
-        >
-          Testar animação
-        </button>
         
         {/* Preview da câmera */}
         {cameraState.active && (
