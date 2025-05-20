@@ -1,7 +1,8 @@
 "use client";
 
-import React, { createContext, useContext } from "react";
+import React from "react";
 import { ConnectionState } from "../../simple/types";
+import { ConnectionContext } from "../../simple/contexts/ConnectionContext";
 
 interface ConnectionContextType {
   state: ConnectionState;
@@ -10,8 +11,6 @@ interface ConnectionContextType {
   sendMessage: (message: any) => boolean;
   onAgentMessage: (listener: (message: any) => void) => () => void;
 }
-
-const MockConnectionContext = createContext<ConnectionContextType | undefined>(undefined);
 
 const fixedState: ConnectionState = {
   status: "disconnected",
@@ -28,18 +27,10 @@ export const MockConnectionProvider: React.FC<{ children: React.ReactNode }> = (
   };
 
   return (
-    <MockConnectionContext.Provider
+    <ConnectionContext.Provider
       value={{ state: fixedState, connect, disconnect, sendMessage, onAgentMessage }}
     >
       {children}
-    </MockConnectionContext.Provider>
+    </ConnectionContext.Provider>
   );
-};
-
-export const useConnection = () => {
-  const context = useContext(MockConnectionContext);
-  if (!context) {
-    throw new Error("useConnection must be used within a MockConnectionProvider");
-  }
-  return context;
 };

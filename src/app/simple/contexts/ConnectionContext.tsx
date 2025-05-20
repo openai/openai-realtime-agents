@@ -12,7 +12,7 @@ interface ConnectionContextType {
   onAgentMessage: (listener: (message: any) => void) => () => void;
 }
 
-const ConnectionContext = createContext<ConnectionContextType | undefined>(undefined);
+export const ConnectionContext = createContext<ConnectionContextType | undefined>(undefined);
 
 export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { state, connect, disconnect, sendMessage, addMessageListener } = useWebRTCConnection();
