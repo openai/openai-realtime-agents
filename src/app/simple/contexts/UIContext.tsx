@@ -274,6 +274,32 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       document.removeEventListener('loan-animation-trigger', handleAnimationTrigger);
     };
   }, [loanState.requestedAmount]);
+
+  // Eventos simulados para câmera e UI
+  useEffect(() => {
+    const handleAddCamera = (e: CustomEvent) => {
+      const left = e.detail?.left ?? 50;
+      addCameraRequest(left);
+    };
+    const handleCameraClose = () => {
+      setCameraRequests([]);
+    };
+    const handleUIEventSim = (e: CustomEvent) => {
+      if (e.detail) addUIEvent(e.detail);
+    };
+
+    document.addEventListener('add-camera-request', handleAddCamera as EventListener);
+    document.addEventListener('simulated-camera-request', handleAddCamera as EventListener);
+    document.addEventListener('simulated-camera-close', handleCameraClose as EventListener);
+    document.addEventListener('simulated-ui-event', handleUIEventSim as EventListener);
+
+    return () => {
+      document.removeEventListener('add-camera-request', handleAddCamera as EventListener);
+      document.removeEventListener('simulated-camera-request', handleAddCamera as EventListener);
+      document.removeEventListener('simulated-camera-close', handleCameraClose as EventListener);
+      document.removeEventListener('simulated-ui-event', handleUIEventSim as EventListener);
+    };
+  }, []);
   
   
   // Função para extrair e normalizar valor monetário de um texto

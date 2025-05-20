@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useUI } from '../contexts/UIContext';
 
 const LoanValueAnimation: React.FC = () => {
-  const { loanState, showLoanAnimation, setRequestedLoanAmount } = useUI();
+  const { loanState } = useUI();
   const [moneyEmojis, setMoneyEmojis] = useState<Array<{
     id: number, 
     left: number, 
@@ -17,16 +17,6 @@ const LoanValueAnimation: React.FC = () => {
   // Ref para armazenar o timer da animação
   const animationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const animationCountRef = useRef<number>(0);
-  
-  // Função de teste interna
-  const testSelf = () => {
-    console.log("🎬 Teste interno iniciado");
-    setRequestedLoanAmount('R$ 20.000,00');
-    
-    setTimeout(() => {
-      showLoanAnimation();
-    }, 500);
-  };
   
   // Gerar emojis quando a animação começa
   useEffect(() => {
@@ -126,47 +116,13 @@ const LoanValueAnimation: React.FC = () => {
     };
   }, []);
   
-  if (!loanState.showAnimation && !overlayVisible && moneyEmojis.length === 0) {
-    return (
-      <button
-        onClick={testSelf}
-        style={{
-          position: 'absolute',
-          top: '200px',
-          right: '10px',
-          zIndex: 1000,
-          padding: '5px',
-          background: '#ff0000',
-          color: 'white',
-          border: 'none',
-          borderRadius: '5px'
-        }}
-      >
-        Testar Direto
-      </button>
-    );
-  }
+if (!loanState.showAnimation && !overlayVisible && moneyEmojis.length === 0) {
+  return null;
+}
   
   return (
     <>
       {/* Botão de teste interno */}
-      <button
-        onClick={testSelf}
-        style={{
-          position: 'absolute',
-          top: '200px',
-          right: '10px',
-          zIndex: 1000,
-          padding: '5px',
-          background: '#ff0000',
-          color: 'white',
-          border: 'none',
-          borderRadius: '5px'
-        }}
-      >
-        Testar Direto
-      </button>
-      
       {/* Overlay de fundo */}
       <div 
         className={`loan-value-overlay ${overlayVisible ? 'visible' : ''}`} 

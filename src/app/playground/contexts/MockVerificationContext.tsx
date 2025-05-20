@@ -18,12 +18,6 @@ const initialState: VerificationState = {
   pendingMessages: [],
 };
 
-interface VerificationContextType {
-  state: VerificationState;
-  startVerification: () => void;
-  cancelVerification: () => void;
-  processPendingMessages: () => void;
-}
 
 export const MockVerificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<VerificationState>(initialState);
