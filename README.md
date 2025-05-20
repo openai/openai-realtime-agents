@@ -27,6 +27,7 @@ You should be able to use this repo to prototype your own multi-agent realtime v
 
 ### Servidor de desenvolvimento
 - Inicie com `npm run dev` e acesse [http://localhost:3000](http://localhost:3000). O app conecta automaticamente ao Agent Set `simpleExample`.
+- Para testar somente a interface, sem precisar de conexão com a API, use [http://localhost:3000/playground](http://localhost:3000/playground). Esse modo roda offline e serve para experimentos de UI.
 
 ### Loan simulator backend
 Marlene consome o backend falso em `src/app/loanSimulator`. Rodar `npm run dev` com o Agent Set padrão (`marlene`) utiliza essas funções para simulações de empréstimo e ofertas Itaú.
