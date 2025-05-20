@@ -82,7 +82,7 @@ interface VerificationContextType {
   cancelVerification: () => void;
   processPendingMessages: () => void;
 }
-const VerificationContext = createContext<VerificationContextType | undefined>(undefined);
+export const VerificationContext = createContext<VerificationContextType | undefined>(undefined);
 
 export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(verificationReducer, initialState);

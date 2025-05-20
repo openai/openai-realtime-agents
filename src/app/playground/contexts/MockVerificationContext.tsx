@@ -1,7 +1,8 @@
 "use client";
 
-import React, { createContext, useContext, useState } from "react";
+import React, { useState } from "react";
 import { VerificationState } from "../../simple/types";
+import { VerificationContext } from "../../simple/contexts/VerificationContext";
 
 const initialState: VerificationState = {
   active: false,
@@ -24,8 +25,6 @@ interface VerificationContextType {
   processPendingMessages: () => void;
 }
 
-const MockVerificationContext = createContext<VerificationContextType | undefined>(undefined);
-
 export const MockVerificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<VerificationState>(initialState);
 
@@ -47,16 +46,10 @@ export const MockVerificationProvider: React.FC<{ children: React.ReactNode }> =
   };
 
   return (
-    <MockVerificationContext.Provider value={{ state, startVerification, cancelVerification, processPendingMessages }}>
+    <VerificationContext.Provider
+      value={{ state, startVerification, cancelVerification, processPendingMessages }}
+    >
       {children}
-    </MockVerificationContext.Provider>
+    </VerificationContext.Provider>
   );
-};
-
-export const useVerification = () => {
-  const ctx = useContext(MockVerificationContext);
-  if (!ctx) {
-    throw new Error("useVerification must be used within a MockVerificationProvider");
-  }
-  return ctx;
 };
