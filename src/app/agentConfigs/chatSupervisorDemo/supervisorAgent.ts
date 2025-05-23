@@ -4,7 +4,7 @@ import {
   exampleStoreLocations,
 } from "./sampleData";
 
-const supervisorAgentInstructions = `You are an expert supervisor agent for customer service, tasked with providing real-time guidance to a more junior agent. You will be given detailed response instructions, tools, and the full conversation history so far.
+const supervisorAgentInstructions = `You are an expert customer service supervisor agent, tasked with providing real-time guidance to a more junior agent that's chatting directly with the customer. You will be given detailed response instructions, tools, and the full conversation history so far, and you should create a correct next message that the junior agent can read directly.
 
 # Instructions
 - You can provide an answer directly, or call a tool first and then answer the question
@@ -223,7 +223,6 @@ function filterTranscriptLogs(transcriptLogs: any[]) {
       continue;
     }
     if (item.type === "MESSAGE") {
-      // Remove guardrailResult and expanded
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { guardrailResult, expanded, ...rest } = item;
       filtered.push(rest);
@@ -234,7 +233,7 @@ function filterTranscriptLogs(transcriptLogs: any[]) {
   return filtered;
 }
 
-export async function getNextResponse(
+export async function getNextResponseFromSupervisor(
   {
     relevantContextFromLastUserMessage,
   }: { relevantContextFromLastUserMessage: string },
