@@ -1,74 +1,49 @@
+import logging
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session # Added Session for type hinting
+from sqlalchemy.orm import sessionmaker, Session 
 from sqlalchemy.ext.declarative import declarative_base
 
-# Import DATABASE_URL from main.py. This creates a slight coupling but is common in FastAPI.
-# It ensures that the database URL is defined in one central place (main.py, typically loaded from env).
 from backend.main import DATABASE_URL 
-
-# Import the Base from your specific model files where SQLAlchemy models are defined.
-# This ensures that when `init_db` is called, it knows about all tables that need to be created.
 from backend.models.conversation_history import Base as ConversationHistoryBase
+from backend.models.audit_log import AuditLogBase # Import Base from audit_log model
 
-# Create the SQLAlchemy engine.
-# The engine is the starting point for any SQLAlchemy application.
-# It's configured with the database URL and connection options.
-# `pool_pre_ping=True` helps manage stale connections.
+logger = logging.getLogger(__name__)
+
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
-
-# Create a configured "SessionLocal" class.
-# This class will be used to create individual database sessions (connections).
-# `autocommit=False` and `autoflush=False` are standard FastAPI/SQLAlchemy settings.
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Base for declarative class definitions.
-# This is a generic Base. If you have models defined directly in this file or
-# for other purposes, they would inherit from this.
-# However, for models in separate files (like conversation_history.py),
-# they should have their own Base or import a shared one.
-# For `init_db` to work correctly with models from other files,
-# ensure their respective Base objects are used (e.g., ConversationHistoryBase).
-Base = declarative_base() 
+Base = declarative_base() # General Base, not strictly necessary if all models use their own.
 
 def init_db():
     """
     Initializes the database by creating all tables defined by imported models.
-    This function should be called at application startup or via a separate script.
-    It uses the metadata associated with each Base class from your models.
     """
-    print(f"Attempting to initialize database tables for URL: {DATABASE_URL}")
+    logger.info(f"Attempting to initialize database tables.") # URL already logged in main.py
     
-    # Create tables for models inheriting from ConversationHistoryBase.
-    # This assumes ConversationHistoryBase is the declarative base used by ConversationTurn model.
     try:
+        # Create tables for ConversationHistory
         ConversationHistoryBase.metadata.create_all(bind=engine)
-        print("Tables for ConversationHistoryBase models created (if they didn't exist).")
-    except Exception as e:
-        print(f"Error creating tables for ConversationHistoryBase: {e}")
+        logger.info("Tables for ConversationHistoryBase models ensured (created if not existing).")
+        
+        # Create tables for AuditEvent
+        AuditLogBase.metadata.create_all(bind=engine)
+        logger.info("Tables for AuditLogBase models ensured (created if not existing).")
 
-    # If you had other model groups using different Base instances, create their tables too:
-    # e.g., OtherModelBase.metadata.create_all(bind=engine)
-    
-    # If any models were defined using the local `Base` in this file, create them:
-    # Base.metadata.create_all(bind=engine)
-    # print("Tables for local Base models created (if they didn't exist).")
+    except Exception as e:
+        logger.error(f"Error during init_db: {e}", exc_info=True)
+        # Depending on the application's needs, you might re-raise or handle differently.
+        raise # Re-raise to make it visible during startup if it fails
 
 if __name__ == '__main__':
-    # This block allows running `python database.py` directly from the command line
-    # to initialize the database schema. Useful for setup or migrations in development.
-    print("Running database initialization script...")
+    print("Running database initialization script (python database.py)...")
+    # To see JSON logs if running this directly, logging needs to be configured first.
+    # from logging_config import setup_logging # Assuming it's in the same directory for direct run
+    # setup_logging() 
     init_db()
     print("Database initialization script complete.")
 
-# Dependency for FastAPI to get a database session.
-# This function will be used in `Depends()` in API route handlers.
-def get_db() -> Session: # Type hint for clarity
-    """
-    FastAPI dependency that provides a SQLAlchemy database session.
-    It ensures that the database session is correctly opened and closed for each request.
-    """
+def get_db() -> Session: 
     db = SessionLocal()
     try:
-        yield db  # Provide the session to the route handler.
+        yield db  
     finally:
-        db.close() # Ensure the session is closed after the request is processed.
+        db.close() 

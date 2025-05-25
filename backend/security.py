@@ -1,100 +1,85 @@
-import os
-from fastapi import Security, HTTPException, status, Request # Added Request
-from fastapi.security.api_key import APIKeyHeader 
-from dotenv import load_dotenv
+import logging
+from fastapi import Request, HTTPException, status, Depends
+from sqlalchemy.orm import Session # For DB session in audit logging
+from pydantic import BaseModel, EmailStr, Field 
+from typing import Optional
 
-# Load environment variables from a .env file if it exists.
-# This is useful for local development.
-load_dotenv() 
+from backend.database import get_db # Import get_db for audit logging
+from backend.services.audit_logging_service import log_audit_event # Import audit logging utility
 
-# Define the name of the HTTP header that the Supabase Edge Function will add
-# after successfully authenticating the original X-API-KEY.
-FORWARDED_AUTH_HEADER_NAME = "X-Forwarded-Auth-Status"
-EXPECTED_AUTH_STATUS_VALUE = "success"
+logger = logging.getLogger(__name__)
 
-# This dependency will extract the X-Forwarded-Auth-Status header.
-# We are not using APIKeyHeader directly for this as the semantic meaning is different.
-# Instead, we'll read it directly from the Request object's headers.
-async def get_forwarded_auth_status(request: Request):
-    """
-    FastAPI dependency function to validate the X-Forwarded-Auth-Status header
-    set by the Supabase Edge Function.
+class SupabaseUser(BaseModel):
+    id: str = Field(..., description="User ID from Supabase JWT.")
+    email: Optional[EmailStr] = Field(None, description="User email from Supabase JWT (if available).")
+    role: Optional[str] = Field(None, description="User role from Supabase JWT (if available, e.g., 'authenticated', 'service_role').")
+    class Config:
+        extra = "ignore" 
 
-    This function is injected into API route handlers that require authentication
-    when the system is configured to use an Edge Function as the auth gateway.
+HEADER_SUPABASE_USER_ID = "x-supabase-user-id"
+HEADER_SUPABASE_USER_EMAIL = "x-supabase-user-email"
+HEADER_SUPABASE_USER_ROLE = "x-supabase-user-role" 
 
-    Args:
-        request (Request): The incoming FastAPI request object.
+async def get_supabase_user(request: Request, db: Session = Depends(get_db)) -> SupabaseUser: # Inject db session
+    user_id = request.headers.get(HEADER_SUPABASE_USER_ID)
+    user_email_str = request.headers.get(HEADER_SUPABASE_USER_EMAIL)
+    user_role = request.headers.get(HEADER_SUPABASE_USER_ROLE)
 
-    Raises:
-        HTTPException (403 Forbidden): If the X-Forwarded-Auth-Status header is missing or invalid,
-                                     indicating the request did not come through the authenticated path
-                                     or authentication failed at the edge.
-    Returns:
-        str: The validated auth status (typically "success").
-    """
-    auth_status = request.headers.get(FORWARDED_AUTH_HEADER_NAME)
+    audit_details = {
+        "method": request.method,
+        "path": request.url.path,
+        "client_host": request.client.host if request.client else "Unknown",
+        "provided_user_id_header": bool(user_id),
+        "provided_user_email_header": bool(user_email_str),
+        "provided_user_role_header": bool(user_role),
+    }
 
-    if not auth_status:
-        # Header is missing, meaning the request likely bypassed the Edge Function or it failed before setting it.
+    if not user_id:
+        logger.warning(
+            f"Authentication failed: Missing '{HEADER_SUPABASE_USER_ID}' header. "
+            "Request may not have passed through the Supabase auth gateway or JWT validation failed there.",
+            extra=audit_details
+        )
+        # Log failed authentication attempt
+        log_audit_event(
+            db=db, user=None, action="AUTH_GATEWAY_VALIDATION", status="FAILURE",
+            resource_type="endpoint", resource_id=request.url.path,
+            details={**audit_details, "reason": f"Missing '{HEADER_SUPABASE_USER_ID}' header"}
+        )
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Forbidden: Missing authentication header '{FORWARDED_AUTH_HEADER_NAME}'. Requests must go through the auth gateway."
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="Not authenticated: Missing or invalid user identification from gateway. Please ensure requests are authenticated and route via the API gateway."
         )
     
-    if auth_status == EXPECTED_AUTH_STATUS_VALUE:
-        # Authentication status is valid.
-        return auth_status
-    else:
-        # Header is present but has an unexpected value.
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, # Or 401 if we consider this an auth failure passed through
-            detail=f"Forbidden: Invalid authentication status in '{FORWARDED_AUTH_HEADER_NAME}'."
-        )
+    user_email = EmailStr(user_email_str) if user_email_str else None
+    
+    # Create SupabaseUser instance for audit logging context as well
+    user_for_audit = SupabaseUser(id=user_id, email=user_email, role=user_role)
 
-# Note: The original EXPECTED_API_KEY logic is removed from here as that validation
-# is now expected to be handled by the Supabase Edge Function.
-# If the FastAPI backend still needs to know the original API key for some reason
-# (e.g., for logging or associating with a user, though not for auth itself),
-# the Edge Function could be designed to pass it in another secure header.
-# For this subtask, we assume the backend only needs to know if auth succeeded at the edge.
+    logger.debug(
+        f"Authenticated user via gateway: ID='{user_id}', Email='{user_email}', Role='{user_role}'", 
+        extra={"user_id": user_id, "user_email": user_email, "user_role": user_role, "path": request.url.path}
+    )
+    # Log successful "authentication" (header validation) by the backend
+    log_audit_event(
+        db=db, user=user_for_audit, action="AUTH_GATEWAY_VALIDATION", status="SUCCESS",
+        resource_type="endpoint", resource_id=request.url.path,
+        details=audit_details # Contains info about which headers were present
+    )
+
+    return SupabaseUser(id=user_id, email=user_email, role=user_role)
 
 if __name__ == '__main__':
-    # This block is for demonstration or conceptual testing if needed.
-    # Direct testing of `get_forwarded_auth_status` requires mocking a FastAPI Request object.
-    print(f"FastAPI backend expects header '{FORWARDED_AUTH_HEADER_NAME}: {EXPECTED_AUTH_STATUS_VALUE}' for authenticated requests.")
-    # Example (conceptual):
-    # class MockHeader:
-    #     def __init__(self, headers):
-    #         self._headers = headers
-    #     def get(self, key):
-    #         return self._headers.get(key)
+    print("--- SupabaseUser Pydantic Model Example ---")
+    user_data_example = {"id": "user-uuid-from-jwt-12345", "email": "user@example.com", "role": "authenticated"}
+    try:
+        user_model_instance = SupabaseUser(**user_data_example)
+        print("Instance created successfully:"); print(user_model_instance.json(indent=2))
+    except Exception as e:
+        print(f"Error creating SupabaseUser model instance: {e}")
 
-    # class MockRequest:
-    #     def __init__(self, headers_dict):
-    #         self.headers = MockHeader(headers_dict)
-
-    # async def _test_auth_status():
-    #     try:
-    #         req_valid = MockRequest({FORWARDED_AUTH_HEADER_NAME: EXPECTED_AUTH_STATUS_VALUE})
-    #         status_valid = await get_forwarded_auth_status(req_valid)
-    #         print(f"Test with valid header passed, status: {status_valid}")
-    #     except HTTPException as e:
-    #         print(f"Test with valid header failed: {e.detail}")
-
-    #     try:
-    #         req_missing = MockRequest({})
-    #         await get_forwarded_auth_status(req_missing)
-    #         print("Test with missing header failed (no exception).")
-    #     except HTTPException as e:
-    #         print(f"Test with missing header passed: {e.detail}")
-
-    #     try:
-    #         req_invalid = MockRequest({FORWARDED_AUTH_HEADER_NAME: "failed"})
-    #         await get_forwarded_auth_status(req_invalid)
-    #         print("Test with invalid header value failed (no exception).")
-    #     except HTTPException as e:
-    #         print(f"Test with invalid header value passed: {e.detail}")
-            
-    # import asyncio
-    # asyncio.run(_test_auth_status())
+    print(f"\nFastAPI backend, using the 'get_supabase_user' dependency, expects the following headers to be set by the auth gateway (e.g., Supabase Edge Function):")
+    print(f"- '{HEADER_SUPABASE_USER_ID}': <user_id_from_jwt>")
+    print(f"- '{HEADER_SUPABASE_USER_EMAIL}': <user_email_from_jwt> (optional, will be validated if present)")
+    print(f"- '{HEADER_SUPABASE_USER_ROLE}': <user_role_from_jwt> (optional)")
+```
