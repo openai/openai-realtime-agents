@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+openai
+psycopg2-binary
+SQLAlchemy
+python-dotenv
+pytest
+httpx
+python-json-logger
+# jsonschema # Optional: Add if input/output validation is implemented

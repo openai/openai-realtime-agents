@@ -1,0 +1,3 @@
+fastapi
+uvicorn[standard]
+# pydantic is a dependency of fastapi, but can be listed explicitly if desired.
