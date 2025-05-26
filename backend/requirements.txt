@@ -1,0 +1,21 @@
+fastapi
+uvicorn[standard]
+openai
+psycopg2-binary
+SQLAlchemy
+python-dotenv
+pytest
+httpx
+python-json-logger
+cachetools # For LRU caching
+tenacity # For retries
+# jsonschema # Optional: Add if input/output validation is implemented
+
+# --- OpenTelemetry ---
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-instrumentation-fastapi
+opentelemetry-instrumentation-httpx
+opentelemetry-exporter-otlp-proto-http
+opentelemetry-instrumentation-openai # For OpenAI client instrumentation
+# opentelemetry-instrumentation-sqlalchemy # For SQLAlchemy (requires async setup or specific config for sync)
