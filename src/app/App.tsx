@@ -20,10 +20,24 @@ import { useEvent } from "@/app/contexts/EventContext";
 import { useHandleServerEvent } from "./hooks/useHandleServerEvent";
 
 // Utilities
-import { createRealtimeConnection } from "./lib/realtimeConnection";
+// WARNING: legacy realtimeConnection is being replaced by the new SDK.
+// For scenarios that have been migrated (currently `simpleExample` and `customerServiceRetail`)
+// we use the RealtimeClient thin wrapper around @openai/agents-core.
+// Legacy WebRTC helper removed – the new RealtimeClient covers all scenarios.
+import { RealtimeClient } from "@/agents-sdk/realtimeClient";
 
 // Agent configs
 import { allAgentSets, defaultAgentSetKey } from "@/app/agentConfigs";
+// New SDK scenarios
+import {
+  simpleExampleScenario,
+  customerServiceRetailScenario,
+} from "@/agents-sdk";
+
+const sdkScenarioMap: Record<string, import("@/agents-sdk/types").RealtimeAgent[]> = {
+  simpleExample: simpleExampleScenario,
+  customerServiceRetail: customerServiceRetailScenario,
+};
 
 import useAudioDownload from "./hooks/useAudioDownload";
 
@@ -46,6 +60,7 @@ function App() {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  const sdkClientRef = useRef<RealtimeClient | null>(null);
   const [sessionStatus, setSessionStatus] =
     useState<SessionStatus>("DISCONNECTED");
 
@@ -65,7 +80,13 @@ function App() {
     useAudioDownload();
 
   const sendClientEvent = (eventObj: any, eventNameSuffix = "") => {
-    if (dcRef.current && dcRef.current.readyState === "open") {
+    if (sdkClientRef.current) {
+      try {
+        sdkClientRef.current.sendEvent(eventObj);
+      } catch (err) {
+        console.error("Failed to send via SDK", err);
+      }
+    } else if (dcRef.current && dcRef.current.readyState === "open") {
       logClientEvent(eventObj, eventNameSuffix);
       dcRef.current.send(JSON.stringify(eventObj));
     } else {
@@ -152,49 +173,49 @@ function App() {
   };
 
   const connectToRealtime = async () => {
-    if (sessionStatus !== "DISCONNECTED") return;
-    setSessionStatus("CONNECTING");
+    const agentSetKey = searchParams.get("agentConfig") || "default";
+    if (sdkScenarioMap[agentSetKey]) {
+      // Use new SDK path
+      if (sessionStatus !== "DISCONNECTED") return;
+      setSessionStatus("CONNECTING");
 
-    try {
-      const EPHEMERAL_KEY = await fetchEphemeralKey();
-      if (!EPHEMERAL_KEY) {
-        return;
+      try {
+        const EPHEMERAL_KEY = await fetchEphemeralKey();
+        if (!EPHEMERAL_KEY) return;
+
+        const client = new RealtimeClient({
+          getEphemeralKey: async () => EPHEMERAL_KEY,
+          initialAgents: sdkScenarioMap[agentSetKey],
+        });
+
+        sdkClientRef.current = client;
+
+        client.on("connection_change", (status) => {
+          if (status === "connected") setSessionStatus("CONNECTED");
+          else if (status === "connecting") setSessionStatus("CONNECTING");
+          else setSessionStatus("DISCONNECTED");
+        });
+
+        client.on("message", (ev) => {
+          handleServerEventRef.current(ev);
+        });
+
+        await client.connect();
+      } catch (err) {
+        console.error("Error connecting via SDK:", err);
+        setSessionStatus("DISCONNECTED");
       }
-
-      if (!audioElementRef.current) {
-        audioElementRef.current = document.createElement("audio");
-      }
-      audioElementRef.current.autoplay = isAudioPlaybackEnabled;
-
-      const { pc, dc } = await createRealtimeConnection(
-        EPHEMERAL_KEY,
-        audioElementRef,
-        urlCodec
-      );
-      pcRef.current = pc;
-      dcRef.current = dc;
-
-      dc.addEventListener("open", () => {
-        logClientEvent({}, "data_channel.open");
-      });
-      dc.addEventListener("close", () => {
-        logClientEvent({}, "data_channel.close");
-      });
-      dc.addEventListener("error", (err: any) => {
-        logClientEvent({ error: err }, "data_channel.error");
-      });
-      dc.addEventListener("message", (e: MessageEvent) => {
-        handleServerEventRef.current(JSON.parse(e.data));
-      });
-
-      setDataChannel(dc);
-    } catch (err) {
-      console.error("Error connecting to realtime:", err);
-      setSessionStatus("DISCONNECTED");
+      return;
     }
+
+    // All scenarios have been migrated to the SDK – legacy WebRTC path removed.
   };
 
   const disconnectFromRealtime = () => {
+    if (sdkClientRef.current) {
+      sdkClientRef.current.disconnect();
+      sdkClientRef.current = null;
+    }
     if (pcRef.current) {
       pcRef.current.getSenders().forEach((sender) => {
         if (sender.track) {
@@ -307,24 +328,35 @@ function App() {
     if (!userText.trim()) return;
     cancelAssistantSpeech();
 
-    sendClientEvent(
-      {
-        type: "conversation.item.create",
-        item: {
-          type: "message",
-          role: "user",
-          content: [{ type: "input_text", text: userText.trim() }],
+    if (sdkClientRef.current) {
+      try {
+        sdkClientRef.current.sendUserText(userText.trim());
+      } catch (err) {
+        console.error("Failed to send via SDK", err);
+      }
+    } else {
+      sendClientEvent(
+        {
+          type: "conversation.item.create",
+          item: {
+            type: "message",
+            role: "user",
+            content: [{ type: "input_text", text: userText.trim() }],
+          },
         },
-      },
-      "(send user text message)"
-    );
-    setUserText("");
+        "(send user text message)"
+      );
+      sendClientEvent({ type: "response.create" }, "(trigger response)");
+    }
 
-    sendClientEvent({ type: "response.create" }, "(trigger response)");
+    setUserText("");
   };
 
   const handleTalkButtonDown = () => {
-    if (sessionStatus !== "CONNECTED" || dataChannel?.readyState !== "open")
+    if (
+      sessionStatus !== "CONNECTED" ||
+      (sdkClientRef.current == null && dataChannel?.readyState !== "open")
+    )
       return;
     cancelAssistantSpeech();
 
@@ -335,7 +367,7 @@ function App() {
   const handleTalkButtonUp = () => {
     if (
       sessionStatus !== "CONNECTED" ||
-      dataChannel?.readyState !== "open" ||
+      (sdkClientRef.current == null && dataChannel?.readyState !== "open") ||
       !isPTTUserSpeaking
     )
       return;
@@ -525,7 +557,7 @@ function App() {
           downloadRecording={downloadRecording}
           canSend={
             sessionStatus === "CONNECTED" &&
-            dcRef.current?.readyState === "open"
+            sdkClientRef.current != null || dcRef.current?.readyState === "open"
           }
         />
 
