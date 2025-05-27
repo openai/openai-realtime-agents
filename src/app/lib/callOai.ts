@@ -1,4 +1,4 @@
-import { zodResponseFormat } from 'openai/helpers/zod';
+import { zodTextFormat } from 'openai/helpers/zod';
 import { GuardrailOutputZod, GuardrailOutput } from '@/app/types';
 
 export async function runGuardrailClassifier(
@@ -34,8 +34,10 @@ export async function runGuardrailClassifier(
     },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
-      messages,
-      response_format: zodResponseFormat(GuardrailOutputZod, 'output_format'),
+      input: messages,
+      text: {
+        format: zodTextFormat(GuardrailOutputZod, 'output_format'),
+      },
     }),
   });
 
@@ -47,12 +49,7 @@ export async function runGuardrailClassifier(
   const data = await response.json();
 
   try {
-    // Responses API: extract the first text chunk from the output array
-    const firstMsg = data.output?.find((o: any) => o.type === 'message');
-    const firstPart = firstMsg?.content?.find((c: any) => c.type === 'text');
-    const text = firstPart?.text?.value ?? '';
-    const parsedContent = JSON.parse(text);
-    const output = GuardrailOutputZod.parse(parsedContent);
+    const output = GuardrailOutputZod.parse(data.output_parsed);
     return output;
   } catch (error) {
     console.error('Error parsing the message content as GuardrailOutput:', error);

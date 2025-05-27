@@ -245,6 +245,46 @@ function App() {
           // are renamed or missing.
 
           try {
+            // Guardrail trip event – mark last assistant message as FAIL
+            if (ev.type === 'guardrail_tripped') {
+              const lastAssistant = [...transcriptItemsRef.current]
+                .reverse()
+                .find((i) => i.role === 'assistant');
+
+              if (lastAssistant) {
+                updateTranscriptItem(lastAssistant.itemId, {
+                  guardrailResult: {
+                    status: 'DONE',
+                    category: 'OFF_BRAND',
+                    rationale: 'Guardrail triggered',
+                    testText: '',
+                  },
+                } as any);
+              }
+              return;
+            }
+
+            // Response finished – if we still have Pending guardrail mark as
+            // Pass. This event fires once per assistant turn.
+            if (ev.type === 'response.done') {
+              const lastAssistant = [...transcriptItemsRef.current]
+                .reverse()
+                .find((i) => i.role === 'assistant');
+
+              if (lastAssistant) {
+                const existing: any = (lastAssistant as any).guardrailResult;
+                if (!existing || existing.status === 'IN_PROGRESS') {
+                  updateTranscriptItem(lastAssistant.itemId, {
+                    guardrailResult: {
+                      status: 'DONE',
+                      category: 'NONE',
+                      rationale: '',
+                    },
+                  } as any);
+                }
+              }
+              // continue processing other logic if needed
+            }
             // Assistant text (or audio-to-text) streaming
             if (
               ev.type === 'response.text.delta' ||
@@ -257,6 +297,11 @@ function App() {
               // Ensure a transcript message exists for this assistant item.
               if (!transcriptItemsRef.current.some((t) => t.itemId === itemId)) {
                 addTranscriptMessage(itemId, 'assistant', '');
+                updateTranscriptItem(itemId, {
+                  guardrailResult: {
+                    status: 'IN_PROGRESS',
+                  },
+                } as any);
               }
 
               // Append the latest delta so the UI streams.
@@ -382,8 +427,37 @@ function App() {
 
             if (!exists) {
               addTranscriptMessage(item.itemId, role, textContent, false);
+              if (role === 'assistant') {
+                updateTranscriptItem(item.itemId, {
+                  guardrailResult: {
+                    status: 'IN_PROGRESS',
+                  },
+                } as any);
+              }
             } else {
               updateTranscriptMessage(item.itemId, textContent, false);
+            }
+
+            // After assistant message completes, add default guardrail PASS if none present.
+            if (
+              role === 'assistant' &&
+              (item as any).status === 'completed'
+            ) {
+              const current = transcriptItemsRef.current.find(
+                (t) => t.itemId === item.itemId,
+              );
+              const existing = (current as any)?.guardrailResult;
+              if (existing && existing.status !== 'IN_PROGRESS') {
+                // already final (e.g., FAIL) – leave as is.
+              } else {
+                updateTranscriptItem(item.itemId, {
+                  guardrailResult: {
+                    status: 'DONE',
+                    category: 'NONE',
+                    rationale: '',
+                  },
+                } as any);
+              }
             }
 
             if ('status' in item) {
@@ -478,8 +552,15 @@ function App() {
             const exists = transcriptItemsRef.current.some(
               (t) => t.itemId === item.itemId,
             );
-            if (!exists) {
-              addTranscriptMessage(item.itemId, role, textContent, false);
+              if (!exists) {
+                addTranscriptMessage(item.itemId, role, textContent, false);
+                if (role === 'assistant') {
+                  updateTranscriptItem(item.itemId, {
+                    guardrailResult: {
+                      status: 'IN_PROGRESS',
+                    },
+                  } as any);
+                }
             } else {
               updateTranscriptMessage(item.itemId, textContent, false);
             }

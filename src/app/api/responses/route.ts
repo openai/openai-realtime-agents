@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
   try {
-    const response = await openai.responses.create({
+    const response = await openai.responses.parse({
       ...(body as any),
       stream: false,
     } as any);
