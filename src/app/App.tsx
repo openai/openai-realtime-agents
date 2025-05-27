@@ -12,12 +12,11 @@ import Events from "./components/Events";
 import BottomToolbar from "./components/BottomToolbar";
 
 // Types
-import { AgentConfig, SessionStatus } from "@/app/types";
+import { AgentConfig, SessionStatus, TranscriptItem } from "@/app/types";
 
 // Context providers & hooks
 import { useTranscript } from "@/app/contexts/TranscriptContext";
 import { useEvent } from "@/app/contexts/EventContext";
-import { useHandleServerEvent } from "./hooks/useHandleServerEvent";
 
 // Utilities
 // WARNING: legacy realtimeConnection is being replaced by the new SDK.
@@ -42,14 +41,27 @@ const sdkScenarioMap: Record<string, import("@/agents-sdk/types").RealtimeAgent[
 import useAudioDownload from "./hooks/useAudioDownload";
 
 function App() {
-  const searchParams = useSearchParams();
+  const searchParams = useSearchParams()!;
 
   // Use urlCodec directly from URL search params (default: "opus")
   const urlCodec = searchParams.get("codec") || "opus";
 
-  const { transcriptItems, addTranscriptMessage, addTranscriptBreadcrumb } =
-    useTranscript();
-  const { logClientEvent, logServerEvent } = useEvent();
+  const {
+    transcriptItems,
+    addTranscriptMessage,
+    addTranscriptBreadcrumb,
+    updateTranscriptMessage,
+    updateTranscriptItem,
+  } = useTranscript();
+
+  // Keep a mutable reference to the latest transcriptItems so that streaming
+  // callbacks registered once during setup always have access to up-to-date
+  // data without being re-registered on every render.
+  const transcriptItemsRef = useRef<TranscriptItem[]>(transcriptItems);
+  useEffect(() => {
+    transcriptItemsRef.current = transcriptItems;
+  }, [transcriptItems]);
+  const { logClientEvent, logServerEvent, logHistoryItem } = useEvent();
 
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
   const [selectedAgentConfigSet, setSelectedAgentConfigSet] = useState<
@@ -69,6 +81,7 @@ function App() {
   const [userText, setUserText] = useState<string>("");
   const [isPTTActive, setIsPTTActive] = useState<boolean>(false);
   const [isPTTUserSpeaking, setIsPTTUserSpeaking] = useState<boolean>(false);
+  const currentPTTPlaceholderIdRef = useRef<string | null>(null);
   const [isAudioPlaybackEnabled, setIsAudioPlaybackEnabled] =
     useState<boolean>(true);
 
@@ -101,14 +114,6 @@ function App() {
     }
   };
 
-  const handleServerEventRef = useHandleServerEvent({
-    setSessionStatus,
-    selectedAgentName,
-    selectedAgentConfigSet,
-    sendClientEvent,
-    setSelectedAgentName,
-    setIsOutputAudioBufferActive,
-  });
 
   useEffect(() => {
     let finalAgentConfig = searchParams.get("agentConfig");
@@ -197,7 +202,216 @@ function App() {
         });
 
         client.on("message", (ev) => {
-          handleServerEventRef.current(ev);
+          // legacy path still logs raw transport messages
+          logServerEvent(ev);
+
+          // --- Realtime streaming handling ---------------------------------
+          // The Realtime transport emits granular *delta* events while the
+          // assistant is speaking or while the user's audio is still being
+          // transcribed. Those events were previously only logged which made
+          // the UI update only once when the final conversation.item.* event
+          // arrived – effectively disabling streaming. We now listen for the
+          // delta events and update the transcript as they arrive so that
+          // 1) assistant messages stream token-by-token, and
+          // 2) the user sees a live "Transcribing…" placeholder while we are
+          //    still converting their speech to text.
+
+          // NOTE: The exact payloads are still evolving.  We intentionally
+          // access properties defensively to avoid runtime crashes if fields
+          // are renamed or missing.
+
+          try {
+            // Assistant text (or audio-to-text) streaming
+            if (
+              ev.type === 'response.text.delta' ||
+              ev.type === 'response.audio_transcript.delta'
+            ) {
+              const itemId: string | undefined = (ev as any).item_id ?? (ev as any).itemId;
+              const delta: string | undefined = (ev as any).delta ?? (ev as any).text;
+              if (!itemId || !delta) return;
+
+              // Ensure a transcript message exists for this assistant item.
+              if (!transcriptItemsRef.current.some((t) => t.itemId === itemId)) {
+                addTranscriptMessage(itemId, 'assistant', '');
+              }
+
+              // Append the latest delta so the UI streams.
+              updateTranscriptMessage(itemId, delta, true);
+              updateTranscriptItem(itemId, { status: 'IN_PROGRESS' });
+              return;
+            }
+
+            // Live user transcription streaming
+            if (ev.type === 'conversation.input_audio_transcription.delta') {
+              const itemId: string | undefined = (ev as any).item_id ?? (ev as any).itemId;
+              const delta: string | undefined = (ev as any).delta ?? (ev as any).text;
+              if (!itemId || typeof delta !== 'string') return;
+
+              // If this is the very first chunk, create a hidden user message
+              // so that we can surface "Transcribing…" immediately.
+              if (!transcriptItemsRef.current.some((t) => t.itemId === itemId)) {
+                addTranscriptMessage(itemId, 'user', 'Transcribing…');
+              }
+
+              updateTranscriptMessage(itemId, delta, true);
+              updateTranscriptItem(itemId, { status: 'IN_PROGRESS' });
+            }
+
+            // Detect start of a new user speech segment when VAD kicks in.
+            if (ev.type === 'input_audio_buffer.speech_started') {
+              const itemId: string | undefined = (ev as any).item_id;
+              if (!itemId) return;
+
+              const exists = transcriptItemsRef.current.some(
+                (t) => t.itemId === itemId,
+              );
+              if (!exists) {
+                addTranscriptMessage(itemId, 'user', 'Transcribing…');
+                updateTranscriptItem(itemId, { status: 'IN_PROGRESS' });
+              }
+            }
+
+            // Final transcript once Whisper finishes
+            if (
+              ev.type === 'conversation.item.input_audio_transcription.completed'
+            ) {
+              const itemId: string | undefined = (ev as any).item_id;
+              const transcriptText: string | undefined = (ev as any).transcript;
+              if (!itemId || typeof transcriptText !== 'string') return;
+
+              const exists = transcriptItemsRef.current.some(
+                (t) => t.itemId === itemId,
+              );
+              if (!exists) {
+                addTranscriptMessage(itemId, 'user', transcriptText.trim());
+              } else {
+                // Replace placeholder / delta text with final transcript
+                updateTranscriptMessage(itemId, transcriptText.trim(), false);
+              }
+              updateTranscriptItem(itemId, { status: 'DONE' });
+            }
+
+            // Assistant streaming tokens or transcript
+            if (
+              ev.type === 'response.text.delta' ||
+              ev.type === 'response.audio_transcript.delta'
+            ) {
+              const responseId: string | undefined =
+                (ev as any).response_id ?? (ev as any).responseId;
+              const delta: string | undefined = (ev as any).delta ?? (ev as any).text;
+              if (!responseId || typeof delta !== 'string') return;
+
+              // We'll use responseId as part of itemId to make it deterministic.
+              const itemId = `assistant-${responseId}`;
+
+              if (!transcriptItemsRef.current.some((t) => t.itemId === itemId)) {
+                addTranscriptMessage(itemId, 'assistant', '');
+              }
+
+              updateTranscriptMessage(itemId, delta, true);
+              updateTranscriptItem(itemId, { status: 'IN_PROGRESS' });
+            }
+          } catch (err) {
+            // Streaming is best-effort – never break the session because of it.
+            console.warn('streaming-ui error', err);
+          }
+        });
+
+        client.on('history_added', (item) => {
+          logHistoryItem(item);
+
+          // Update the transcript view
+          if (item.type === 'message') {
+            const textContent = (item.content || [])
+              .map((c: any) => {
+                if (c.type === 'text') return c.text;
+                if (c.type === 'input_text') return c.text;
+                if (c.type === 'input_audio') return c.transcript ?? '';
+                if (c.type === 'audio') return c.transcript ?? '';
+                return '';
+              })
+              .join(' ')
+              .trim();
+
+            if (!textContent) return;
+
+            const role = item.role as 'user' | 'assistant';
+
+            // If we previously created a placeholder for this user message,
+            // hide it now that the real item arrived.
+            if (
+              role === 'user' &&
+              currentPTTPlaceholderIdRef.current &&
+              transcriptItemsRef.current.some(
+                (t) => t.itemId === currentPTTPlaceholderIdRef.current,
+              )
+            ) {
+              updateTranscriptItem(currentPTTPlaceholderIdRef.current, {
+                isHidden: true,
+              });
+              currentPTTPlaceholderIdRef.current = null;
+            }
+
+            const exists = transcriptItemsRef.current.some(
+              (t) => t.itemId === item.itemId,
+            );
+
+            if (!exists) {
+              addTranscriptMessage(item.itemId, role, textContent, false);
+            } else {
+              updateTranscriptMessage(item.itemId, textContent, false);
+            }
+
+            if ('status' in item) {
+              updateTranscriptItem(item.itemId, {
+                status:
+                  (item as any).status === 'completed'
+                    ? 'DONE'
+                    : 'IN_PROGRESS',
+              });
+            }
+          }
+        });
+
+        // Handle continuous updates for existing items so streaming assistant
+        // speech shows up while in_progress.
+        client.on('history_updated', (history) => {
+          history.forEach((item: any) => {
+            if (item.type !== 'message') return;
+
+            const textContent = (item.content || [])
+              .map((c: any) => {
+                if (c.type === 'text') return c.text;
+                if (c.type === 'input_text') return c.text;
+                if (c.type === 'input_audio') return c.transcript ?? '';
+                if (c.type === 'audio') return c.transcript ?? '';
+                return '';
+              })
+              .join(' ')
+              .trim();
+
+            const role = item.role as 'user' | 'assistant';
+
+            if (!textContent) return;
+
+            const exists = transcriptItemsRef.current.some(
+              (t) => t.itemId === item.itemId,
+            );
+            if (!exists) {
+              addTranscriptMessage(item.itemId, role, textContent, false);
+            } else {
+              updateTranscriptMessage(item.itemId, textContent, false);
+            }
+
+            if ('status' in item) {
+              updateTranscriptItem(item.itemId, {
+                status:
+                  (item as any).status === 'completed'
+                    ? 'DONE'
+                    : 'IN_PROGRESS',
+              });
+            }
+          });
         });
 
         await client.connect();
@@ -331,6 +545,9 @@ function App() {
     if (sdkClientRef.current) {
       try {
         sdkClientRef.current.sendUserText(userText.trim());
+        // Optimistically add user message to transcript for immediate feedback.
+        const id = uuidv4().slice(0, 32);
+        addTranscriptMessage(id, 'user', userText.trim());
       } catch (err) {
         console.error("Failed to send via SDK", err);
       }
@@ -362,6 +579,12 @@ function App() {
 
     setIsPTTUserSpeaking(true);
     sendClientEvent({ type: "input_audio_buffer.clear" }, "clear PTT buffer");
+
+    // Insert placeholder "Transcribing…" entry so it appears before assistant
+    // response even if server transcript arrives later.
+    const placeholderId = `ptt-${Date.now()}`;
+    currentPTTPlaceholderIdRef.current = placeholderId;
+    addTranscriptMessage(placeholderId, 'user', 'Transcribing…');
   };
 
   const handleTalkButtonUp = () => {

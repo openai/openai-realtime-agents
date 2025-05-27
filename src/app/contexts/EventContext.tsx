@@ -8,6 +8,7 @@ type EventContextValue = {
   loggedEvents: LoggedEvent[];
   logClientEvent: (eventObj: Record<string, any>, eventNameSuffix?: string) => void;
   logServerEvent: (eventObj: Record<string, any>, eventNameSuffix?: string) => void;
+  logHistoryItem: (item: any) => void;
   toggleExpand: (id: number | string) => void;
 };
 
@@ -41,7 +42,18 @@ export const EventProvider: FC<PropsWithChildren> = ({ children }) => {
     addLoggedEvent("server", name, eventObj);
   };
 
-  const toggleExpand: EventContextValue["toggleExpand"] = (id) => {
+  const logHistoryItem: EventContextValue['logHistoryItem'] = (item) => {
+    let eventName = item.type;
+    if (item.type === 'message') {
+      eventName = `${item.role}.${item.status}`;
+    }
+    if (item.type === 'function_call') {
+      eventName = `function.${item.name}.${item.status}`;
+    }
+    addLoggedEvent('server', eventName, item);
+  };
+
+  const toggleExpand: EventContextValue['toggleExpand'] = (id) => {
     setLoggedEvents((prev) =>
       prev.map((log) => {
         if (log.id === id) {
@@ -55,7 +67,7 @@ export const EventProvider: FC<PropsWithChildren> = ({ children }) => {
 
   return (
     <EventContext.Provider
-      value={{ loggedEvents, logClientEvent, logServerEvent, toggleExpand }}
+      value={{ loggedEvents, logClientEvent, logServerEvent, logHistoryItem, toggleExpand }}
     >
       {children}
     </EventContext.Provider>

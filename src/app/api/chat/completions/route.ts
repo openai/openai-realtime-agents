@@ -1,21 +1,20 @@
-import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import { NextRequest, NextResponse } from 'next/server';
+import OpenAI from 'openai';
 
-const openai = new OpenAI();
+export async function POST(req: NextRequest) {
+  const body = await req.json();
 
-export async function POST(req: Request) {
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
   try {
-    // Retrieve the entire JSON object from the request.
-    const body = await req.json();
-
-    // Spread the entire body into the API call.
     const completion = await openai.chat.completions.create({
       ...body,
-    });
+      stream: false,
+    } as any);
 
     return NextResponse.json(completion);
-  } catch (error: any) {
-    console.error("Error in /chat/completions:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (err: any) {
+    console.error('chat completions proxy error', err);
+    return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }

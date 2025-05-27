@@ -46,16 +46,17 @@ Use this checklist to track incremental work toward adopting **@openai/agents-co
 
 - [x] Implement `GuardrailOutputZod` equivalent as `RealtimeOutputGuardrail`.
 - [x] Register guardrail when constructing `RealtimeSession` (done in RealtimeClient).
-- [ ] Update transcript adapter to surface guardrail trips.
+- [x] Update transcript adapter to surface guardrail trips.
+- [x] Switch guardrail execution to OpenAI Moderations endpoint via SDK guardrail (no more `/api/chat/completions`).
 
 ## Phase 4 – Logging & Context providers
 
-- [ ] Switch `EventContext` data source to `RealtimeSession.history`.
-- [ ] Ensure breadcrumb logic still functions with new event objects.
+- [x] Switch `EventContext` data source to `RealtimeSession.history`.
+- [x] Ensure breadcrumb logic still functions with new event objects.
 
 ## Phase 5 – Clean-up & Documentation
 
-- [ ] Remove `useHandleServerEvent.ts` and related manual plumbing.
+- [x] Remove `useHandleServerEvent.ts` and related manual plumbing.
 - [ ] Update `ARCHITECTURE.md` references to use SDK terminology.
 - [ ] Run `pre-commit run --all-files` and ensure lint/build pass.
 

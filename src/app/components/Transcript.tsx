@@ -98,7 +98,9 @@ function Transcript({
           ref={transcriptRef}
           className="overflow-auto p-4 flex flex-col gap-y-4 h-full"
         >
-          {transcriptItems.map((item) => {
+          {[...transcriptItems]
+            .sort((a, b) => a.createdAtMs - b.createdAtMs)
+            .map((item) => {
             const {
               itemId,
               type,

@@ -39,6 +39,8 @@ export type ClientEvents = {
   connection_change: ['connected' | 'connecting' | 'disconnected'];
   message: [any]; // raw transport events (will be refined later)
   audio_interrupted: [];
+  history_added: [import('@openai/agents-core/realtime').RealtimeItem];
+  history_updated: [import('@openai/agents-core/realtime').RealtimeItem[]];
 };
 
 export interface RealtimeClientOptions {
@@ -74,20 +76,54 @@ export class RealtimeClient {
       outputGuardrails: [moderationGuardrail as any],
     });
 
-    (this.#session as any).on('connection_change', (status: any) => {
-      this.#events.emit('connection_change', status as any);
-    });
+    // Immediately notify UI that we’ve started connecting.
+    this.#events.emit('connection_change', 'connecting');
 
-    // Forward every transport event as message for legacy handler
-    (this.#session.transport as any).on('*', (ev: any) => {
+    // Forward every transport event as message for legacy handler and watch for
+    // low-level connection state changes so we can propagate *disconnections*
+    // after initial setup.
+    const transport: any = this.#session.transport;
+
+    transport.on('*', (ev: any) => {
       this.#events.emit('message', ev);
     });
+
+    transport.on('connection_change', (status: any) => {
+      if (status === 'disconnected') {
+        this.#events.emit('connection_change', 'disconnected');
+      }
+    });
+
+    // Track seen items so we can re-emit granular additions.
+    const seenItems = new Map<string, string>(); // itemId -> serialized status marker
+
+    this.#session.on('history_updated', (history: any) => {
+      (history as any[]).forEach((item) => {
+        const key = `${item.itemId}:${item.status}`;
+        if (!seenItems.has(key)) {
+          seenItems.set(key, key);
+          this.#events.emit('history_added', item);
+        }
+      });
+      // Also expose full history if callers want it.
+      this.#events.emit('history_updated', history);
+    });
+
+    // (handled via history_updated above)
 
     this.#session.on('audio_interrupted', () => {
       this.#events.emit('audio_interrupted');
     });
 
+    this.#session.on('guardrail_tripped', (info: any) => {
+      this.#events.emit('message', { type: 'guardrail_tripped', info });
+    });
+
+    // Wait for full connection establishment (data channel open).
     await this.#session.connect({ apiKey: ek });
+
+    // Now we are truly connected.
+    this.#events.emit('connection_change', 'connected');
   }
 
   disconnect() {
