@@ -164,15 +164,22 @@ export const useWebRTCConnection = (): UseWebRTCConnectionResult => {
           ) {
               message.response.output.forEach((item: any) => {
                 if (item.type === 'function_call' && item.name) {
-                  const fn =
-                    (marleneConfig[0].toolLogic as any)?.[item.name];
+                  // Parse function arguments
+                  let args: any = {};
+                  try {
+                    args = item.arguments ? JSON.parse(item.arguments) : {};
+                  } catch (err) {
+                    console.warn('Failed to parse function args', err);
+                  }
+                  // If it's the loan value animation tool, dispatch UI events
+                  if (item.name === 'animate_loan_value') {
+                    document.dispatchEvent(
+                      new CustomEvent('detect-loan-amount', { detail: { amount: args.amount } })
+                    );
+                    document.dispatchEvent(new CustomEvent('loan-animation-trigger'));
+                  }
+                  const fn = (marleneConfig[0].toolLogic as any)?.[item.name];
                   if (fn) {
-                    let args: any = {};
-                    try {
-                      args = item.arguments ? JSON.parse(item.arguments) : {};
-                    } catch (err) {
-                      console.warn('Failed to parse function args', err);
-                    }
                     Promise.resolve(fn(args))
                       .then((result) => {
                         sendMessage({

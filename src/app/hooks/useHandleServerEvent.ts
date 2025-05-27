@@ -34,7 +34,7 @@ export function useHandleServerEvent({
   } = useTranscript();
 
   const { logServerEvent } = useEvent();
-  const { simulationMode } = useSimulation();
+  const { simulationMode, currencySymbol, locale } = useSimulation();
 
   // Estado para monitorar se detectamos um valor monetário
   const [detectedAmount, setDetectedAmount] = useState<string | null>(null);
@@ -72,38 +72,34 @@ export function useHandleServerEvent({
 
   // Função para detectar valores monetários em texto
   const detectMoneyAmount = (text: string): string | null => {
-    // Padrão para detectar valores monetários (R$ 1.000,00 ou 1000 ou mil)
-    const moneyRegex = /R\$\s*(\d{1,3}(\.\d{3})*(\,\d{1,2})?|\d+)|(\d+)\s*(mil|milhão|milhões)/i;
-    const match = text.match(moneyRegex);
-    
+    const escapedSymbol = currencySymbol.replace(/[-\/\^$*+?.()|[\]{}]/g, '\$&');
+    const symbolRegex = new RegExp(
+      `${escapedSymbol}\s*(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d+)`,
+      'i'
+    );
+    const unitRegex = /(\d+)\s*(mil|milhão|milhões)/i;
+
+    let match = text.match(symbolRegex);
     if (match) {
-      console.log("💰 Detected money amount in text:", match[0]);
       let amount = match[0];
-      
-      // Se for "mil" ou similar, converter para número
-      if (match[5] && match[4]) {
-        const baseNumber = parseInt(match[4], 10);
-        if (match[5].toLowerCase() === 'mil') {
-          amount = `R$ ${(baseNumber * 1000).toLocaleString('pt-BR', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-          })}`;
-        } else if (match[5].toLowerCase() === 'milhão' || match[5].toLowerCase() === 'milhões') {
-          amount = `R$ ${(baseNumber * 1000000).toLocaleString('pt-BR', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-          })}`;
-        }
+      if (!amount.startsWith(currencySymbol)) {
+        amount = `${currencySymbol} ${amount}`;
       }
-      
-      // Se não começar com R$, adicionar
-      if (!amount.startsWith('R$')) {
-        amount = `R$ ${amount}`;
-      }
-      
       return amount;
     }
-    
+
+    match = text.match(unitRegex);
+    if (match) {
+      const baseNumber = parseInt(match[1], 10);
+      const unit = match[2].toLowerCase();
+      const multiplier = unit.includes('milhão') ? 1000000 : 1000;
+      const value = (baseNumber * multiplier).toLocaleString(locale, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+      return `${currencySymbol} ${value}`;
+    }
+
     return null;
   };
 
@@ -191,7 +187,8 @@ export function useHandleServerEvent({
         console.log("💰 Argumentos da função:", args);
         
         // Usar valor dos argumentos ou um valor padrão
-        const valueToUse = args.amount || detectedAmount || 'R$ 12.000,00';
+        const defaultValue = (12000).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const valueToUse = args.amount || detectedAmount || `${currencySymbol} ${defaultValue}`;
         console.log("💰 Valor a ser usado:", valueToUse);
         
         // Definir o valor no aplicativo
@@ -208,7 +205,8 @@ export function useHandleServerEvent({
         console.error("Erro ao processar argumentos:", e);
         
         // Usar valor padrão em caso de erro
-        const fallbackValue = detectedAmount || 'R$ 15.000,00';
+        const fallbackDefault = (15000).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const fallbackValue = detectedAmount || `${currencySymbol} ${fallbackDefault}`;
         console.log("💰 Usando valor padrão:", fallbackValue);
         
         document.dispatchEvent(new CustomEvent('detect-loan-amount', {

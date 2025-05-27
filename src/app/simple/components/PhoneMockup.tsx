@@ -6,6 +6,8 @@ import CameraView from './CameraView';
 import VerificationProgress from './VerificationProgress';
 import AnimatedFooter from './AnimatedFooter';
 import LoanValueAnimation from './LoanValueAnimation';
+import { useSimulation } from '../contexts/SimulationContext';
+import Coin3DEmbed from './Coin3DEmbed';
 import { useUI } from '../contexts/UIContext';
 import { useCamera } from '../contexts/CameraContext';
 import { useVerification } from '../contexts/VerificationContext';
@@ -48,6 +50,12 @@ const PhoneMockup: React.FC = () => {
         {/* Barra de navegação do browser */}
         <BrowserNavbar />
         
+        {/* Header com título e nome */}
+        <div className="header-content">
+          <h1 className="page-title">Crédito Consignado</h1>
+          <p className="user-name">Maria Justina Linhares</p>
+        </div>
+
         {/* Logo do Itaú */}
         <div className="itau-logo">
           <Image 
@@ -60,11 +68,6 @@ const PhoneMockup: React.FC = () => {
           />
         </div>
         
-        {/* Header com título e nome */}
-        <div className="header-content">
-          <h1 className="page-title">Crédito Consignado</h1>
-          <p className="user-name">Maria Justina Linhares</p>
-        </div>
         
         {/* Indicador de verificação */}
         {verificationState.active && (
@@ -109,7 +112,12 @@ const PhoneMockup: React.FC = () => {
         
         {/* Animação do valor do empréstimo */}
         <LoanValueAnimation />
-        
+        {/* 3D Coin Embed (toggle via Simulation Panel) */}
+        {useSimulation().show3DCoin && (
+          <div className="coin3d-container" style={{ width: '100%', height: '150px', margin: '10px 0' }}>
+            <Coin3DEmbed />
+          </div>
+        )}
         {/* Footer com animação */}
         <AnimatedFooter />
       </div>

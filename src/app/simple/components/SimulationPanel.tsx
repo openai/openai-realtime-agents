@@ -1,13 +1,29 @@
 // src/app/simple/components/SimulationPanel.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSimulation } from '../contexts/SimulationContext';
+// Static presetNames removed; use context.presetNames
 
 const SimulationPanel: React.FC = () => {
+  const {
+    currencySymbol,
+    setCurrencySymbol,
+    locale,
+    setLocale,
+    show3DCoin,
+    setShow3DCoin,
+    presets,
+    presetNames,
+    selectedPreset,
+    setSelectedPreset,
+    addPreset,
+    removePreset
+  } = useSimulation();
   const [isExpanded, setIsExpanded] = useState(true);
   const [moneyValue, setMoneyValue] = useState('10.000,00');
 
   // Simular detecção de valor monetário
   const simulateMoneyDetection = () => {
-    const formattedValue = moneyValue.includes('R$') ? moneyValue : `R$ ${moneyValue}`;
+    const formattedValue = moneyValue.includes(currencySymbol) ? moneyValue : `${currencySymbol} ${moneyValue}`;
     console.log("💰 Simulando detecção de valor:", formattedValue);
     
     // Usar o evento global para garantir que todos os componentes sejam notificados
@@ -34,7 +50,7 @@ const SimulationPanel: React.FC = () => {
 
   // Simular chamada da ferramenta animate_loan_value
   const simulateAnimateValueTool = () => {
-    const formattedValue = moneyValue.includes('R$') ? moneyValue : `R$ ${moneyValue}`;
+    const formattedValue = moneyValue.includes(currencySymbol) ? moneyValue : `${currencySymbol} ${moneyValue}`;
     console.log("🛠️ Simulando chamada da ferramenta animate_loan_value");
     
     // Primeiro definir o valor
@@ -159,6 +175,118 @@ const SimulationPanel: React.FC = () => {
 
       <div style={{ marginBottom: '12px' }}>
         <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px' }}>
+          Moeda:
+        </label>
+        <select
+          value={currencySymbol}
+          onChange={(e) => setCurrencySymbol(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '6px',
+            borderRadius: '4px',
+            border: '1px solid #555',
+            background: '#333',
+            color: 'white',
+            fontSize: '14px'
+          }}
+        >
+          <option value="R$">R$</option>
+          <option value="$">$</option>
+          <option value="€">€</option>
+          <option value="£">£</option>
+          <option value="¥">¥</option>
+        </select>
+      </div>
+
+      <div style={{ marginBottom: '12px' }}>
+        <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px' }}>
+          Ambiente (locale):
+        </label>
+        <select
+          value={locale}
+          onChange={(e) => setLocale(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '6px',
+            borderRadius: '4px',
+            border: '1px solid #555',
+            background: '#333',
+            color: 'white',
+            fontSize: '14px'
+          }}
+        >
+          <option value="pt-BR">pt-BR</option>
+          <option value="en-US">en-US</option>
+          <option value="es-ES">es-ES</option>
+        </select>
+      </div>
+      <div style={{ marginBottom: '12px' }}>
+        <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px' }}>
+          Preset da Moeda 3D:
+        </label>
+        <select
+          value={selectedPreset}
+          onChange={(e) => setSelectedPreset(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '6px',
+            borderRadius: '4px',
+            border: '1px solid #555',
+            background: '#333',
+            color: 'white',
+            fontSize: '14px'
+          }}
+        >
+          {presetNames.map(name => (
+            <option key={name} value={name}>{name}</option>
+          ))}
+        </select>
+      </div>
+      <div style={{ marginBottom: '12px' }}>
+        <button
+          onClick={() => setShow3DCoin(!show3DCoin)}
+          style={{
+            width: '100%',
+            padding: '6px',
+            borderRadius: '4px',
+            border: '1px solid #555',
+            background: show3DCoin ? '#2cb67d' : '#555',
+            color: 'white',
+            fontSize: '14px',
+            cursor: 'pointer'
+          }}
+        >
+          {show3DCoin ? 'Ocultar Moeda 3D' : 'Ver Moeda 3D'}
+        </button>
+      </div>
+      {/* Edit preset JSON */}
+      <div style={{ marginBottom: '12px' }}>
+        <label style={{ display: 'block', fontSize: '14px' }}>Editar Preset JSON:</label>
+        <textarea
+          value={JSON.stringify(presets[selectedPreset], null, 2)}
+          onChange={(e) => {
+            try {
+              const obj = JSON.parse(e.target.value);
+              addPreset(selectedPreset, obj);
+            } catch {}
+          }}
+          rows={6}
+          style={{ width: '100%', fontFamily: 'monospace', fontSize: '12px' }}
+        />
+      </div>
+      {/* Delete preset */}
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button
+          onClick={() => removePreset(selectedPreset)}
+          disabled={selectedPreset === 'default'}
+          style={{ flex: 1, padding: '6px', cursor: 'pointer' }}
+        >
+          Excluir Preset
+        </button>
+      </div>
+
+      <div style={{ marginBottom: '12px' }}>
+        <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px' }}>
           Valor a simular:
         </label>
         <div style={{ display: 'flex', gap: '10px' }}>
@@ -170,7 +298,7 @@ const SimulationPanel: React.FC = () => {
               color: '#aaa',
               fontSize: '14px'
             }}>
-              R$
+              {currencySymbol}
             </span>
             <input
               type="text"
