@@ -1,20 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
+// Proxy endpoint for the new OpenAI Responses API
 export async function POST(req: NextRequest) {
   const body = await req.json();
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
   try {
-    const completion = await openai.chat.completions.create({
-      ...body,
+    const response = await openai.responses.create({
+      ...(body as any),
       stream: false,
     } as any);
 
-    return NextResponse.json(completion);
+    return NextResponse.json(response);
   } catch (err: any) {
-    console.error('chat completions proxy error', err);
+    console.error('responses proxy error', err);
     return NextResponse.json({ error: 'failed' }, { status: 500 });
   }
 }

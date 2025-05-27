@@ -70,12 +70,6 @@ Use this checklist to track incremental work toward adopting **@openai/agents-co
 - [ ] Unplug network to test graceful disconnect & reconnect.
 - [ ] QA transcript & event panes for completeness / no console errors.
 
-## Phase 7 – Roll-out
-
-- [ ] Add `?sdk=true` flag in routing & default disabled.
-- [ ] Deploy preview build; gather telemetry for one week.
-- [ ] Remove flag and delete legacy code paths.
-
 --------------------------------------------------------------------------------
 
 *Mark items complete as pull requests merge into `main`.*

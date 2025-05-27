@@ -6,7 +6,7 @@
  * basic flows required by the `simpleExample` scenario.
  */
 
-import { RealtimeSession, RealtimeAgent } from '@openai/agents-core/realtime';
+import { RealtimeSession, RealtimeAgent, OpenAIRealtimeWebRTC } from '@openai/agents-core/realtime';
 import { moderationGuardrail } from './guardrails';
 
 // Minimal event emitter (browser-safe, no Node polyfill)
@@ -46,6 +46,7 @@ export type ClientEvents = {
 export interface RealtimeClientOptions {
   getEphemeralKey: () => Promise<string>; // returns ek_ string
   initialAgents: RealtimeAgent[]; // first item is root agent
+  audioElement?: HTMLAudioElement;
 }
 
 export class RealtimeClient {
@@ -71,8 +72,15 @@ export class RealtimeClient {
     const ek = await this.#options.getEphemeralKey();
     const rootAgent = this.#options.initialAgents[0];
 
+    const transportValue: any = this.#options.audioElement
+      ? new OpenAIRealtimeWebRTC({
+          useInsecureApiKey: true,
+          audioElement: this.#options.audioElement,
+        })
+      : 'webrtc';
+
     this.#session = new RealtimeSession(rootAgent, {
-      transport: 'webrtc',
+      transport: transportValue,
       outputGuardrails: [moderationGuardrail as any],
     });
 
@@ -159,5 +167,9 @@ export class RealtimeClient {
 
   interrupt() {
     this.#session?.transport.interrupt();
+  }
+
+  mute(muted: boolean) {
+    this.#session?.mute(muted);
   }
 }

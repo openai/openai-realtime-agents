@@ -72,6 +72,23 @@ function App() {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
+
+  const sdkAudioElement = React.useMemo(() => {
+    if (typeof window === 'undefined') return undefined;
+    const el = document.createElement('audio');
+    el.autoplay = true;
+    el.style.display = 'none';
+    document.body.appendChild(el);
+    return el;
+  }, []);
+
+  // Attach SDK audio element once it exists (after first render in browser)
+  useEffect(() => {
+    if (sdkAudioElement && !audioElementRef.current) {
+      audioElementRef.current = sdkAudioElement;
+    }
+  }, [sdkAudioElement]);
+
   const sdkClientRef = useRef<RealtimeClient | null>(null);
   const loggedFunctionCallsRef = useRef<Set<string>>(new Set());
   const [sessionStatus, setSessionStatus] =
@@ -83,8 +100,13 @@ function App() {
   const [isPTTActive, setIsPTTActive] = useState<boolean>(false);
   const [isPTTUserSpeaking, setIsPTTUserSpeaking] = useState<boolean>(false);
   const currentPTTPlaceholderIdRef = useRef<string | null>(null);
-  const [isAudioPlaybackEnabled, setIsAudioPlaybackEnabled] =
-    useState<boolean>(true);
+  const [isAudioPlaybackEnabled, setIsAudioPlaybackEnabled] = useState<boolean>(
+    () => {
+      if (typeof window === 'undefined') return true;
+      const stored = localStorage.getItem('audioPlaybackEnabled');
+      return stored ? stored === 'true' : true;
+    },
+  );
 
   const [isOutputAudioBufferActive, setIsOutputAudioBufferActive] =
     useState<boolean>(false);
@@ -192,7 +214,8 @@ function App() {
         const client = new RealtimeClient({
           getEphemeralKey: async () => EPHEMERAL_KEY,
           initialAgents: sdkScenarioMap[agentSetKey],
-        });
+          audioElement: sdkAudioElement,
+        } as any);
 
         sdkClientRef.current = client;
 
@@ -538,6 +561,32 @@ function App() {
         // without exposing it in the visible transcript.
         sendSimulatedUserMessage('hi');
       }
+
+      // Reflect Push-to-Talk UI state by (de)activating server VAD on the
+      // backend. The Realtime SDK supports live session updates via the
+      // `session.update` event.
+      const client = sdkClientRef.current;
+      if (client) {
+        const turnDetection = isPTTActive
+          ? null
+          : {
+              type: 'server_vad',
+              threshold: 0.9,
+              prefix_padding_ms: 300,
+              silence_duration_ms: 500,
+              create_response: true,
+            };
+        try {
+          client.sendEvent({
+            type: 'session.update',
+            session: {
+              turn_detection: turnDetection,
+            },
+          });
+        } catch (err) {
+          console.warn('Failed to update turn_detection', err);
+        }
+      }
       return;
     }
     sendClientEvent(
@@ -735,14 +784,39 @@ function App() {
   useEffect(() => {
     if (audioElementRef.current) {
       if (isAudioPlaybackEnabled) {
+        audioElementRef.current.muted = false;
         audioElementRef.current.play().catch((err) => {
           console.warn("Autoplay may be blocked by browser:", err);
         });
       } else {
+        // Mute and pause to avoid brief audio blips before pause takes effect.
+        audioElementRef.current.muted = true;
         audioElementRef.current.pause();
       }
     }
+
+    // Toggle server-side audio stream mute so bandwidth is saved when the
+    // user disables playback. Only supported when using the SDK path.
+    if (sdkClientRef.current) {
+      try {
+        sdkClientRef.current.mute(!isAudioPlaybackEnabled);
+      } catch (err) {
+        console.warn('Failed to toggle SDK mute', err);
+      }
+    }
   }, [isAudioPlaybackEnabled]);
+
+  // Ensure mute state is propagated to transport right after we connect or
+  // whenever the SDK client reference becomes available.
+  useEffect(() => {
+    if (sessionStatus === 'CONNECTED' && sdkClientRef.current) {
+      try {
+        sdkClientRef.current.mute(!isAudioPlaybackEnabled);
+      } catch (err) {
+        console.warn('mute sync after connect failed', err);
+      }
+    }
+  }, [sessionStatus, isAudioPlaybackEnabled]);
 
   useEffect(() => {
     if (sessionStatus === "CONNECTED" && audioElementRef.current?.srcObject) {

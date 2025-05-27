@@ -27,7 +27,7 @@ export async function runGuardrailClassifier(
     },
   ];
 
-  const response = await fetch('/api/chat/completions', {
+  const response = await fetch('/api/responses', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -47,7 +47,11 @@ export async function runGuardrailClassifier(
   const data = await response.json();
 
   try {
-    const parsedContent = JSON.parse(data.choices[0].message.content);
+    // Responses API: extract the first text chunk from the output array
+    const firstMsg = data.output?.find((o: any) => o.type === 'message');
+    const firstPart = firstMsg?.content?.find((c: any) => c.type === 'text');
+    const text = firstPart?.text?.value ?? '';
+    const parsedContent = JSON.parse(text);
     const output = GuardrailOutputZod.parse(parsedContent);
     return output;
   } catch (error) {

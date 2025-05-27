@@ -12,7 +12,7 @@ import { RealtimeAgent, tool } from '@openai/agents-core/realtime';
 // ---------------------------------------------------------------------------
 
 async function runSupervisorLLM(context: string) {
-  // Placeholder – in production this would call the /api/chat/completions route
+  // Placeholder – in production this would call the /api/responses route
   // with full conversation history and available tool set.
   return {
     message:
