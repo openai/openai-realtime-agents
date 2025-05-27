@@ -11,7 +11,7 @@ import {
 // Forward declaration because greeter references haikuWriter and vice-versa for typing.
 export const haikuWriterAgent = new RealtimeAgent({
   name: 'haikuWriter',
-  voice: 'ash',
+  voice: 'sage',
   instructions:
     'Ask the user for a topic, then reply with a haiku about that topic.',
   handoffs: [],
@@ -21,9 +21,9 @@ export const haikuWriterAgent = new RealtimeAgent({
 
 export const greeterAgent = new RealtimeAgent({
   name: 'greeter',
-  voice: 'ash',
+  voice: 'sage',
   instructions:
-    "Please greet the user and ask them if they'd like a Haiku. If yes, transfer them to the 'haiku' agent.",
+    "Please greet the user and ask them if they'd like a Haiku. If yes, hand off to the 'haiku' agent.",
   handoffs: [haikuWriterAgent],
   tools: [],
   handoffDescription: 'Agent that greets the user',
