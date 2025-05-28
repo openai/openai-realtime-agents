@@ -1,4 +1,4 @@
-import { simpleExampleScenario } from './simpleHandoff';
+import { simpleExampleScenario } from './simpleExample';
 import { customerServiceRetailScenario } from './customerServiceRetail';
 import { chatSupervisorScenario } from './chatSupervisor';
 

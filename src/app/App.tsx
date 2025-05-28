@@ -28,7 +28,7 @@ import { RealtimeClient } from "@/app/agentConfigs/realtimeClient";
 // Agent configs
 import { allAgentSets, defaultAgentSetKey } from "@/app/agentConfigs";
 // New SDK scenarios
-import { simpleExampleScenario } from "@/app/agentConfigs/simpleHandoff";
+import { simpleExampleScenario } from "@/app/agentConfigs/simpleExample";
 import { customerServiceRetailScenario } from "@/app/agentConfigs/customerServiceRetail";
 import { chatSupervisorScenario } from "@/app/agentConfigs/chatSupervisor";
 

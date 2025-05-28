@@ -1,9 +1,6 @@
 /*
  * Thin wrapper that exposes a subset of functionality needed by the React UI,
  * implemented on top of @openai/agents-core RealtimeSession.
- *
- * NOTE: This is a **work-in-progress** migration helper; it only supports the
- * basic flows required by the `simpleExample` scenario.
  */
 
 import { RealtimeSession, RealtimeAgent, OpenAIRealtimeWebRTC } from '@openai/agents-core/realtime';
