@@ -1,8 +1,8 @@
-import { authenticationAgent } from './customerServiceAuth';
-import { returnsAgent } from './customerServiceReturns';
-import { salesAgent } from './customerServiceSales';
+import { authenticationAgent } from './authenticationAgent';
+import { returnsAgent } from './returnsAgent';
+import { salesAgent } from './salesAgent';
 
-// Establish handoffs
+// Set up hand-offs exactly like the legacy downstreamAgents mapping.
 authenticationAgent.handoffs.push(returnsAgent, salesAgent);
 returnsAgent.handoffs.push(authenticationAgent, salesAgent);
 salesAgent.handoffs.push(authenticationAgent, returnsAgent);

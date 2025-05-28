@@ -1,9 +1,5 @@
 export * from './simpleExample';
 
-export * from './customerServiceReturns';
-
-export * from './customerServiceAuth';
-export * from './customerServiceSales';
 export * from './customerServiceRetail';
 
 export * from './frontDeskAuthentication';
