@@ -1,0 +1,17 @@
+name: Check AGENTS documentation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Verify AGENTS documentation updated
+        run: node scripts/check-agents-updated.js
