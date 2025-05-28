@@ -26,16 +26,16 @@ import { useEvent } from "@/app/contexts/EventContext";
 import { RealtimeClient } from "@/agents-sdk/realtimeClient";
 
 // Agent configs
-import { allAgentSets, defaultAgentSetKey } from "@/app/agentConfigs";
+import { allAgentSets, defaultAgentSetKey } from "@/agents-sdk";
 // New SDK scenarios
-import {
-  simpleExampleScenario,
-  customerServiceRetailScenario,
-} from "@/agents-sdk";
+import { simpleExampleScenario } from "@/agents-sdk/simpleHandoff";
+import { customerServiceRetailScenario } from "@/agents-sdk/customerServiceRetail";
+import { chatSupervisorScenario } from "@/agents-sdk/chatSupervisor";
 
 const sdkScenarioMap: Record<string, import("@/agents-sdk/types").RealtimeAgent[]> = {
   simpleExample: simpleExampleScenario,
   customerServiceRetail: customerServiceRetailScenario,
+  chatSupervisor: chatSupervisorScenario,
 };
 
 import useAudioDownload from "./hooks/useAudioDownload";

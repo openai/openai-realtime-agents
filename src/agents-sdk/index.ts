@@ -1,10 +1,17 @@
-export * from './simpleExample';
+import { simpleExampleScenario } from './simpleHandoff';
+import { customerServiceRetailScenario } from './customerServiceRetail';
+import { chatSupervisorScenario } from './chatSupervisor';
 
-export * from './customerServiceRetail';
 
-export * from './chatSupervisor';
+import { AllAgentConfigsType } from '@/app/types';
 
-export * from './frontDeskAuthentication';
-export * from './customerServiceWithSupervision';
 
-// When more scenarios are migrated, export them here.
+import { scenarioToLegacy } from '@/agents-sdk/legacyAdapter';
+
+export const allAgentSets: AllAgentConfigsType = {
+  simpleExample: scenarioToLegacy(simpleExampleScenario),
+  customerServiceRetail: scenarioToLegacy(customerServiceRetailScenario),
+  chatSupervisor: scenarioToLegacy(chatSupervisorScenario),
+};
+
+export const defaultAgentSetKey = 'simpleExample';

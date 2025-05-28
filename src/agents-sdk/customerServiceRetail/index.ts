@@ -1,14 +1,16 @@
 import { authenticationAgent } from './authenticationAgent';
 import { returnsAgent } from './returnsAgent';
 import { salesAgent } from './salesAgent';
+import { simulatedHumanAgent } from './simulatedHuman';
 
-// Set up hand-offs exactly like the legacy downstreamAgents mapping.
-authenticationAgent.handoffs.push(returnsAgent, salesAgent);
-returnsAgent.handoffs.push(authenticationAgent, salesAgent);
-salesAgent.handoffs.push(authenticationAgent, returnsAgent);
+authenticationAgent.handoffs.push(returnsAgent, salesAgent, simulatedHumanAgent);
+returnsAgent.handoffs.push(authenticationAgent, salesAgent, simulatedHumanAgent);
+salesAgent.handoffs.push(authenticationAgent, returnsAgent, simulatedHumanAgent);
+simulatedHumanAgent.handoffs.push(authenticationAgent, returnsAgent, salesAgent);
 
 export const customerServiceRetailScenario = [
   authenticationAgent,
   returnsAgent,
   salesAgent,
+  simulatedHumanAgent,
 ];
