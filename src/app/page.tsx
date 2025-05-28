@@ -7,6 +7,7 @@ import { ConnectionProvider } from "./simple/contexts/ConnectionContext";
 import { CameraProvider } from "./simple/contexts/CameraContext";
 import { VerificationProvider } from "./simple/contexts/VerificationContext";
 import { UIProvider, useUI } from "./simple/contexts/UIContext";
+import { SimulationProvider } from "./simple/contexts/SimulationContext";
 import PhoneMockup from "./simple/components/PhoneMockup";
 import { useConnection } from "./simple/contexts/ConnectionContext";
 
@@ -77,22 +78,24 @@ const SimplePage: React.FC = () => {
   }, []);
 
   return (
-    <ConnectionProvider>
-      <CameraProvider>
-        <VerificationProvider>
-          <UIProvider>
-            <ConnectionLogger />
-            {/* Componente handler para eventos globais */}
-            <LoanAnimationHandler />
-            
-            <div className="stage">
-              <div className="blur-backdrop"></div>
-              <PhoneMockup />
-            </div>
-          </UIProvider>
-        </VerificationProvider>
-      </CameraProvider>
-    </ConnectionProvider>
+    <SimulationProvider>
+      <ConnectionProvider>
+        <CameraProvider>
+          <VerificationProvider>
+            <UIProvider>
+              <ConnectionLogger />
+              {/* Componente handler para eventos globais */}
+              <LoanAnimationHandler />
+
+              <div className="stage">
+                <div className="blur-backdrop"></div>
+                <PhoneMockup />
+              </div>
+            </UIProvider>
+          </VerificationProvider>
+        </CameraProvider>
+      </ConnectionProvider>
+    </SimulationProvider>
   );
 };
 
