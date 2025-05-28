@@ -1,6 +1,5 @@
 import { runGuardrailClassifier } from '@/app/lib/callOai';
 
-// Minimal RealtimeOutputGuardrail object (defineRealtimeOutputGuardrail will be applied by Session)
 export const moderationGuardrail = {
   name: 'moderation_guardrail',
   async execute({ agentOutput }: { agentOutput: string }) {

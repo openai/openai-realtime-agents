@@ -1,14 +1,7 @@
 import {
   RealtimeAgent,
-  tool,
 } from '@openai/agents-core/realtime';
 
-/*
- * Migration of the original `simpleExample` scenario to the new SDK.
- * Only custom tool is `transferAgents`, which is now a handoff.
- */
-
-// Forward declaration because greeter references haikuWriter and vice-versa for typing.
 export const haikuWriterAgent = new RealtimeAgent({
   name: 'haikuWriter',
   voice: 'sage',
@@ -28,7 +21,5 @@ export const greeterAgent = new RealtimeAgent({
   tools: [],
   handoffDescription: 'Agent that greets the user',
 });
-
-// After definitions, push handoff back for completeness (haiku back to greeter? Not required).
 
 export const simpleExampleScenario = [greeterAgent, haikuWriterAgent];

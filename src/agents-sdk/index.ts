@@ -2,6 +2,8 @@ export * from './simpleExample';
 
 export * from './customerServiceRetail';
 
+export * from './chatSupervisor';
+
 export * from './frontDeskAuthentication';
 export * from './customerServiceWithSupervision';
 
