@@ -9,6 +9,7 @@ Este repositório contém uma aplicação demo que simula um atendimento de cré
 Marlene é um agente de voz configurado em `src/app/agentConfigs/marlene.ts`. Ela interage em português, com fala pausada e linguagem extremamente simples para atender principalmente idosos com baixa literacia digital. O comportamento dela envolve uma máquina de estados conversacional, ferramentas próprias e um backend de simulação de empréstimos.
 
 ## O que mudou recentemente
+- Junho/2025: migração para MediaPipe Face Detector em vez de face-api.js.
 - Maio/2025: modularizacao do prompt e estados da Marlene.
 - Julho/2024: adicionada opcao de pre-commit hook com testes e lint.
 - Agosto/2024: gerenciamento da conversa movido para uma XState machine dedicada.

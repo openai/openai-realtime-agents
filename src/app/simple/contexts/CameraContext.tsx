@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useReducer, useRef, useEffect } from 'react';
 import { CameraState } from '../types';
-import * as faceapi from 'face-api.js';
+import { FilesetResolver, FaceDetector } from '@mediapipe/tasks-vision';
 
 // Estado inicial
 const initialState: CameraState = {
@@ -61,6 +61,7 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const faceDetectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastFeedbackTimeRef = useRef<number>(0);
   const modelsLoadingRef = useRef<boolean>(false);
+  const detectorRef = useRef<FaceDetector | null>(null);
   const streamTrackRef = useRef<MediaStreamTrack[]>([]);
   const verificationInProgressRef = useRef<boolean>(false);
 
@@ -70,7 +71,11 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (modelsLoadingRef.current || state.modelsLoaded) return;
       modelsLoadingRef.current = true;
       try {
-        await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
+        const vision = await FilesetResolver.forVisionTasks('/wasm');
+        detectorRef.current = await FaceDetector.createFromOptions(vision, {
+          baseOptions: { modelAssetPath: '/models/face_detection_short_range.task' },
+          runningMode: 'VIDEO'
+        });
         dispatch({ type: 'MODELS_LOADED' });
       } catch (err) {
         console.error("Error loading face detection models:", err);
@@ -137,16 +142,14 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
 
           try {
-            const detections = await faceapi.detectAllFaces(
-              videoRef.current,
-              new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })
-            );
-            if (detections.length > 0) {
-              const det = detections[0].box;
+            if (!detectorRef.current) return;
+            const results = await detectorRef.current.detectForVideo(videoRef.current, Date.now());
+            if (results && results.length > 0) {
+              const det = results[0].boundingBox;
               const videoW = videoRef.current.videoWidth;
               const videoH = videoRef.current.videoHeight;
-              const centerX = det.x + det.width / 2;
-              const centerY = det.y + det.height / 2;
+              const centerX = det.originX + det.width / 2;
+              const centerY = det.originY + det.height / 2;
               const relX = -((centerX / videoW) * 2 - 1);
               const relY = (centerY / videoH) * 2 - 1;
               const faceSize = (det.width * det.height) / (videoW * videoH);
@@ -208,26 +211,20 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           document.dispatchEvent(new CustomEvent('camera-event', { detail: { type: 'CAMERA_CLOSING' } }));
           closeCamera();
 
-          fetch('/api/face-verify', {
+          fetch('/api/verification', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ image: dataUrl })
           })
-            .then(res => res.ok ? res.json() : Promise.reject(new Error('face-verify failed')))
-            .catch(firstError => {
-              console.error('face-verify request failed', firstError);
-              return fetch('/api/verification', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image: dataUrl })
-              })
-                .then(res => res.json())
-                .catch(error => ({ error: error.message }));
-            })
+            .then(res => res.json())
             .then(result => {
               document.dispatchEvent(new CustomEvent('camera-event', {
                 detail: { type: 'VERIFICATION_API_RESULT', result }
               }));
+            })
+            .catch(error => {
+              console.error('verification request failed', error);
+              document.dispatchEvent(new CustomEvent('camera-event', { detail: { type: 'VERIFICATION_API_RESULT', result: { error: error.message } } }));
             })
             .finally(() => {
               verificationInProgressRef.current = false;

@@ -16,7 +16,7 @@
     "@xstate/fsm": "^2.0.1",
     "dat.gui": "^0.7.9",
     "encoding": "^0.1.13",
-    "face-api.js": "^0.20.0",
+    "@mediapipe/tasks-vision": "^0.10.3",
     "next": "^15.3.0",
     "openai": "^4.77.3",
     "react": "^19.0.0",
