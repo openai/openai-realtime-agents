@@ -9,6 +9,7 @@ Este repositório contém uma aplicação demo que simula um atendimento de cré
 Marlene é um agente de voz configurado em `src/app/agentConfigs/marlene.ts`. Ela interage em português, com fala pausada e linguagem extremamente simples para atender principalmente idosos com baixa literacia digital. O comportamento dela envolve uma máquina de estados conversacional, ferramentas próprias e um backend de simulação de empréstimos.
 
 ## O que mudou recentemente
+- Maio/2025: modularizacao do prompt e estados da Marlene.
 - Julho/2024: adicionada opcao de pre-commit hook com testes e lint.
 - Agosto/2024: gerenciamento da conversa movido para uma XState machine dedicada.
 - Setembro/2024: adicionada persistência de contexto via run-id e localStorage.
@@ -17,7 +18,7 @@ Marlene é um agente de voz configurado em `src/app/agentConfigs/marlene.ts`. El
 
 
 ## Principais Arquivos
-- `src/app/agentConfigs/marlene.ts` – define a personalidade de Marlene, suas ferramentas e como cada chamada de ferramenta processa a conversa.
+- `src/app/agentConfigs/marlene.ts` – monta o AgentConfig da Marlene; prompts e lógica estão em `src/app/agentConfigs/marlene/`.
 - `src/app/agentConfigs/utils.ts` – contém o contexto global da conversa, extração de entidades e funções para avançar a máquina de estados.
 - `src/app/loanSimulator/index.ts` – backend falso que gera dados de benefício e simulações de empréstimo.
 - `src/app/simple/machines/verificationMachine.ts` – máquina de estados para a verificação facial via câmera.
