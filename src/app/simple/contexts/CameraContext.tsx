@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useReducer, useRef, useEffect } from 'react';
 import { CameraState } from '../types';
-import { FaceDetection } from '@mediapipe/face_detection';
+import * as faceapi from 'face-api.js';
 
 // Estado inicial
 const initialState: CameraState = {
@@ -63,22 +63,17 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const modelsLoadingRef = useRef<boolean>(false);
   const streamTrackRef = useRef<MediaStreamTrack[]>([]);
   const verificationInProgressRef = useRef<boolean>(false);
-  const faceDetectorRef = useRef<FaceDetection | null>(null);
 
-  // Carregar modelos de detecção facial (MediaPipe)
+  // Carregar modelos de detecção facial
   useEffect(() => {
     const loadModels = async () => {
       if (modelsLoadingRef.current || state.modelsLoaded) return;
       modelsLoadingRef.current = true;
       try {
-        faceDetectorRef.current = new FaceDetection({
-          locateFile: (file: string) =>
-            `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`,
-        });
-        faceDetectorRef.current.setOptions({ model: 'short', selfieMode: true });
+        await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
         dispatch({ type: 'MODELS_LOADED' });
       } catch (err) {
-        console.error('Error loading face detection models:', err);
+        console.error("Error loading face detection models:", err);
       } finally {
         modelsLoadingRef.current = false;
       }
@@ -134,23 +129,29 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           document.dispatchEvent(new CustomEvent('camera-event', { detail: { type: 'CAMERA_OPENED' } }));
         }, 1000);
 
-        if (faceDetectorRef.current) {
-          faceDetectorRef.current.onResults(results => {
-            if (!videoRef.current) return;
-            if (results.detections && results.detections.length > 0) {
-              const bb = results.detections[0].boundingBox;
+        faceDetectionIntervalRef.current = setInterval(async () => {
+          if (!videoRef.current || videoRef.current.readyState < 2) return;
+          if (!state.active) {
+            clearInterval(faceDetectionIntervalRef.current!);
+            return;
+          }
+
+          try {
+            const detections = await faceapi.detectAllFaces(
+              videoRef.current,
+              new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })
+            );
+            if (detections.length > 0) {
+              const det = detections[0].box;
               const videoW = videoRef.current.videoWidth;
               const videoH = videoRef.current.videoHeight;
-              const xMin = bb.xMin * videoW;
-              const yMin = bb.yMin * videoH;
-              const width = bb.width * videoW;
-              const height = bb.height * videoH;
-              const centerX = xMin + width / 2;
-              const centerY = yMin + height / 2;
+              const centerX = det.x + det.width / 2;
+              const centerY = det.y + det.height / 2;
               const relX = -((centerX / videoW) * 2 - 1);
               const relY = (centerY / videoH) * 2 - 1;
-              const faceSize = (width * height) / (videoW * videoH);
+              const faceSize = (det.width * det.height) / (videoW * videoH);
               const position = { x: relX, y: relY, size: faceSize };
+
               dispatch({ type: 'FACE_DETECTED', position });
               handleFaceDetection(position);
             } else {
@@ -161,22 +162,10 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 lastFeedbackTimeRef.current = now;
               }
             }
-          });
-
-          faceDetectionIntervalRef.current = setInterval(async () => {
-            if (!videoRef.current || videoRef.current.readyState < 2) return;
-            if (!state.active) {
-              clearInterval(faceDetectionIntervalRef.current!);
-              return;
-            }
-
-            try {
-              await faceDetectorRef.current!.send({ image: videoRef.current });
-            } catch (err) {
-              console.error('Error in face detection:', err);
-            }
-          }, 500);
-        }
+          } catch (err) {
+            console.error("Error in face detection:", err);
+          }
+        }, 500);
       };
 
       return true;

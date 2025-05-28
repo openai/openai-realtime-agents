@@ -7,23 +7,6 @@ import { useConnection } from './ConnectionContext';
 import { useCamera } from './CameraContext';
 import { setCameraVerified } from "@/app/agentConfigs/utils";
 
-const playBeep = (frequency = 600, duration = 150) => {
-  try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.value = frequency;
-    osc.connect(ctx.destination);
-    osc.start();
-    setTimeout(() => {
-      osc.stop();
-      ctx.close();
-    }, duration);
-  } catch (err) {
-    console.warn('beep failed', err);
-  }
-};
-
 // Estado inicial
 const initialState: VerificationState = {
   active: false,
@@ -151,16 +134,34 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     verificationCompleteRef.current = false;
 
     const handleCameraEvent = (event: CustomEvent) => {
-      const { type } = event.detail;
+      const { type, direction } = event.detail;
       switch (type) {
         case 'CAMERA_OPENED':
-          playBeep(500, 200);
+          safeSendMessage({
+            type: "conversation.item.create",
+            item: { type: "message", role: "user", content: [{ type: "input_text", text: "[CÂMERA ABERTA]" }] },
+          });
+          safeSendMessage({ type: "response.create" });
+          safeSendMessage({
+            type: "conversation.item.create",
+            item: { type: "message", role: "user", content: [{ type: "input_text", text: "[POSICIONE O ROSTO NO CENTRO DA TELA]" }] },
+          });
+          safeSendMessage({ type: "response.create" });
+          safeSendMessage({
+            type: "conversation.item.create",
+            item: { type: "message", role: "user", content: [{ type: "input_text", text: "[MOSTRE A FRENTE DO SEU DOCUMENTO COM FOTO]" }] },
+          });
+          safeSendMessage({ type: "response.create" });
           dispatch({ type: 'FACE_STATUS', status: 'detected', value: false });
           break;
 
         case 'FACE_NOT_VISIBLE':
           if (state.faceDetectionStatus.detected) {
-            playBeep(300, 150);
+            safeSendMessage({
+              type: "conversation.item.create",
+              item: { type: "message", role: "user", content: [{ type: "input_text", text: "[ROSTO NÃO VISÍVEL]" }] },
+            });
+            safeSendMessage({ type: "response.create" });
             dispatch({ type: 'FACE_STATUS', status: 'detected', value: false });
           }
           break;
@@ -168,7 +169,11 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         case 'FACE_NEEDS_ADJUSTMENT':
           if (!state.faceDetectionStatus.centered) {
             dispatch({ type: 'FACE_STATUS', status: 'detected', value: true });
-            playBeep(400, 150);
+            safeSendMessage({
+              type: "conversation.item.create",
+              item: { type: "message", role: "user", content: [{ type: "input_text", text: `[AJUSTE NECESSÁRIO${direction}]` }] },
+            });
+            safeSendMessage({ type: "response.create" });
           }
           break;
 
@@ -177,12 +182,20 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             dispatch({ type: 'FACE_STATUS', status: 'detected', value: true });
             dispatch({ type: 'FACE_STATUS', status: 'centered', value: true });
             dispatch({ type: 'SET_STEP', step: 2 });
-            playBeep(700, 150);
+            safeSendMessage({
+              type: "conversation.item.create",
+              item: { type: "message", role: "user", content: [{ type: "input_text", text: "[ROSTO CENTRALIZADO]" }] },
+            });
+            safeSendMessage({ type: "response.create" });
           }
           break;
 
         case 'CAMERA_CLOSING':
-          playBeep(500, 150);
+          safeSendMessage({
+            type: "conversation.item.create",
+            item: { type: "message", role: "user", content: [{ type: "input_text", text: "[FECHANDO CÂMERA]" }] },
+          });
+          safeSendMessage({ type: "response.create" });
           safeSendMessage({
             type: "conversation.item.create",
             item: {
@@ -196,12 +209,24 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
         case 'VERIFICATION_API_RESULT': {
           dispatch({ type: 'SET_STEP', step: 3 });
-          playBeep(600, 150);
+          safeSendMessage({
+            type: "conversation.item.create",
+            item: { type: "message", role: "user", content: [{ type: "input_text", text: "[VERIFICANDO IDENTIDADE]" }] },
+          });
+          safeSendMessage({ type: "response.create" });
 
           const errorMsg = event.detail.result?.error;
           if (errorMsg) {
             dispatch({ type: 'VERIFICATION_ERROR', error: new Error(errorMsg) });
-            playBeep(200, 300);
+            safeSendMessage({
+              type: "conversation.item.create",
+              item: { type: "message", role: "user", content: [{ type: "input_text", text: "[ERRO NA VERIFICAÇÃO]" }] },
+            });
+            safeSendMessage({
+              type: "conversation.item.create",
+              item: { type: "message", role: "user", content: [{ type: "input_text", text: "[TENTE NOVAMENTE OU USE OUTRO MÉTODO]" }] },
+            });
+            safeSendMessage({ type: "response.create" });
             document.dispatchEvent(new CustomEvent('camera-event', { detail: { type: 'VERIFICATION_ERROR' } }));
             break;
           }
@@ -213,7 +238,11 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             verificationCompleteRef.current = true;
             setCameraVerified(true);
 
-            playBeep(800, 200);
+            safeSendMessage({
+              type: "conversation.item.create",
+              item: { type: "message", role: "user", content: [{ type: "input_text", text: "[VERIFICAÇÃO CONCLUÍDA]" }] },
+            });
+            safeSendMessage({ type: "response.create" });
 
             safeSendMessage({
               type: "conversation.item.create",
@@ -227,6 +256,13 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
             timerRef.current = setTimeout(() => {
               dispatch({ type: 'COMPLETE_VERIFICATION' });
+              timerRef.current = setTimeout(() => {
+                safeSendMessage({
+                  type: "conversation.item.create",
+                  item: { type: "message", role: "user", content: [{ type: "input_text", text: "[AVANÇAR PARA SIMULAÇÃO DE EMPRÉSTIMO]" }] },
+                });
+                safeSendMessage({ type: "response.create" });
+              }, 1000);
             }, 1000);
 
             document.dispatchEvent(new CustomEvent('camera-event', { detail: { type: 'VERIFICATION_CONFIRMED' } }));
@@ -278,7 +314,11 @@ export const VerificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     closeCamera();
     dispatch({ type: 'CANCEL_VERIFICATION' });
 
-    playBeep(200, 200);
+    safeSendMessage({
+      type: "conversation.item.create",
+      item: { type: "message", role: "user", content: [{ type: "input_text", text: "[CANCELAR VERIFICAÇÃO]" }] },
+    });
+    safeSendMessage({ type: "response.create" });
     document.dispatchEvent(new CustomEvent('camera-event', { detail: { type: 'VERIFICATION_CANCELLED' } }));
   };
 
