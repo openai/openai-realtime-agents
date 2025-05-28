@@ -12,3 +12,13 @@ The workflow [`check-agents.yml`](.github/workflows/check-agents.yml) verifies t
 
 Run the existing tests and linter with `npm test` and `npm run lint` before opening a PR.
 
+
+## Optional pre-commit hook
+
+A script is available at `scripts/git-hooks/pre-commit` that runs `npm test` and `npm run lint`, the same checks executed in CI. To have it run automatically before each commit, create a symbolic link:
+
+```
+ln -s ../../scripts/git-hooks/pre-commit .git/hooks/pre-commit
+```
+
+This step is optional but recommended for frequent contributors.

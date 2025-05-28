@@ -107,4 +107,4 @@ This fully specifies the agent set that was used in the interaction shown in the
 - Ilan Bigio - [ibigio](https://github.com/ibigio)
 
 ## Contributing
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on documenting your code changes and running the checks.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on documenting your code changes and running the checks. Frequent contributors may want to install the optional pre-commit hook described there.
