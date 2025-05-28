@@ -105,3 +105,6 @@ This fully specifies the agent set that was used in the interaction shown in the
 ## Core Contributors
 - Noah MacCallum - [noahmacca](https://x.com/noahmacca)
 - Ilan Bigio - [ibigio](https://github.com/ibigio)
+
+## Contributing
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on documenting your code changes and running the checks.
