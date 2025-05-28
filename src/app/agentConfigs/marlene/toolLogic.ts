@@ -10,6 +10,8 @@ import {
   calcularApresentacaoMarlene
 } from '../../loanSimulator/index';
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 function getSaoPauloHour(): number {
   const formatter = new Intl.DateTimeFormat('pt-BR', {
     hour: '2-digit',
@@ -259,11 +261,12 @@ const toolLogic = {
     const marginPercent = parseFloat(((marginValue / info.beneficio.valor) * 100).toFixed(2));
     return { fullName, benefitType, availableLimit, benefitValue, marginPercent, marginValue };
   },
-  simulateLoan: ({ desiredAmount, benefitNumber, customerName, term = 60 }: { desiredAmount: number; benefitNumber?: string; customerName?: string; term?: number }) => {
+  simulateLoan: async ({ desiredAmount, benefitNumber, customerName, term = 60 }: { desiredAmount: number; benefitNumber?: string; customerName?: string; term?: number }) => {
     console.log(`[toolLogic] Simulando empréstimo pelo módulo loanSimulator: ${desiredAmount}`);
     const amount = desiredAmount || 10000;
     const name = customerName || 'Cliente';
     const num = benefitNumber || '00000000000';
+    await delay(5000);
     const result = simularEmprestimo(num, name, amount, term);
     const presentation = calcularApresentacaoMarlene(name, name, num, amount, term);
     return {
