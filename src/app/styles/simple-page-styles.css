@@ -103,6 +103,8 @@
   z-index: 15;
   pointer-events: none;
   overflow: hidden;
+  color: rgb(var(--color-agent-rgb));
+  transition: color 0.4s ease;
 }
 
 /* Gradiente base */
@@ -113,7 +115,14 @@
   left: 0;
   right: 0;
   height: 100%;
-  background: transparent;
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, currentColor 90%, transparent) 0%,
+    color-mix(in srgb, currentColor 70%, transparent) 30%,
+    color-mix(in srgb, currentColor 40%, transparent) 60%,
+    color-mix(in srgb, currentColor 10%, transparent) 90%,
+    transparent 100%
+  );
   
   /* Transição muito mais suave */
   transition: 
@@ -126,42 +135,32 @@
 }
 
 /* Estilo quando a Marlene está falando */
+.animated-footer.agent-speaking {
+  color: rgb(var(--color-agent-rgb));
+}
+
 .animated-footer.agent-speaking::after {
   opacity: 1;
-  background: linear-gradient(
-    to top,
-    rgba(var(--color-agent-rgb), 0.9) 0%,
-    rgba(var(--color-agent-rgb), 0.7) 30%,
-    rgba(var(--color-agent-rgb), 0.4) 60%,
-    rgba(var(--color-agent-rgb), 0.1) 90%,
-    rgba(var(--color-agent-rgb), 0) 100%
-  );
   animation: pulse-gradient 4s ease-in-out infinite;
 }
 
 /* Estilo quando o usuário está falando */
+.animated-footer.user-speaking {
+  color: rgb(var(--color-user-rgb));
+}
+
 .animated-footer.user-speaking::after {
   opacity: 1;
-  background: linear-gradient(
-    to top,
-    rgba(var(--color-user-rgb), 0.9) 0%,
-    rgba(var(--color-user-rgb), 0.7) 30%,
-    rgba(var(--color-user-rgb), 0.4) 60%,
-    rgba(var(--color-user-rgb), 0.1) 90%,
-    rgba(var(--color-user-rgb), 0) 100%
-  );
   animation: pulse-gradient 4s ease-in-out infinite;
 }
 
 /* Estilo para animação de valor do empréstimo */
+.animated-footer.loan-animation {
+  color: rgb(var(--color-loan-rgb));
+}
+
 .animated-footer.loan-animation::after {
   opacity: 1;
-  background: linear-gradient(
-    to top,
-    rgba(var(--color-loan-rgb), 0.95) 0%,
-    rgba(var(--color-loan-rgb), 0.7) 50%,
-    rgba(var(--color-loan-rgb), 0) 100%
-  );
   animation: pulse-gradient 4s ease-in-out infinite;
 }
 

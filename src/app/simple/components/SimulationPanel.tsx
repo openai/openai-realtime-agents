@@ -1,5 +1,5 @@
 // src/app/simple/components/SimulationPanel.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useSimulation } from '../contexts/SimulationContext';
 // Static presetNames removed; use context.presetNames
 
