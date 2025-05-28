@@ -68,6 +68,10 @@ const bancos = [
 
 const benefitCache = new Map<string, ConsultaBeneficio>();
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -236,6 +240,8 @@ export async function consultarBeneficioAsync(
   numeroBeneficio: string,
   nomeCliente: string
 ): Promise<ConsultaBeneficio> {
+  let result: ConsultaBeneficio;
+
   if (process.env.NEXT_PUBLIC_USE_LLM_BACKEND === "true") {
     try {
       const resp = await fetch("/api/loan/consult", {
@@ -244,14 +250,21 @@ export async function consultarBeneficioAsync(
         body: JSON.stringify({ numeroBeneficio, nomeCliente }),
       });
       if (resp.ok) {
-        return (await resp.json()) as ConsultaBeneficio;
+        result = (await resp.json()) as ConsultaBeneficio;
+      } else {
+        console.error("LLM backend error", await resp.text());
+        result = consultarBeneficio(numeroBeneficio, nomeCliente);
       }
-      console.error("LLM backend error", await resp.text());
     } catch (err) {
       console.error("Failed to fetch LLM backend", err);
+      result = consultarBeneficio(numeroBeneficio, nomeCliente);
     }
+  } else {
+    result = consultarBeneficio(numeroBeneficio, nomeCliente);
   }
-  return consultarBeneficio(numeroBeneficio, nomeCliente);
+
+  await delay(5000);
+  return result;
 }
 
 export function obterOfertasItau({
