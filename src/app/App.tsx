@@ -12,7 +12,8 @@ import Events from "./components/Events";
 import BottomToolbar from "./components/BottomToolbar";
 
 // Types
-import { AgentConfig, SessionStatus, TranscriptItem } from "@/app/types";
+import { SessionStatus, TranscriptItem } from "@/app/types";
+import type { RealtimeAgent } from '@openai/agents-core/realtime';
 
 // Context providers & hooks
 import { useTranscript } from "@/app/contexts/TranscriptContext";
@@ -32,7 +33,7 @@ import { simpleExampleScenario } from "@/app/agentConfigs/simpleExample";
 import { customerServiceRetailScenario } from "@/app/agentConfigs/customerServiceRetail";
 import { chatSupervisorScenario } from "@/app/agentConfigs/chatSupervisor";
 
-const sdkScenarioMap: Record<string, import("@/app/agentConfigs/types").RealtimeAgent[]> = {
+const sdkScenarioMap: Record<string, RealtimeAgent[]> = {
   simpleExample: simpleExampleScenario,
   customerServiceRetail: customerServiceRetailScenario,
   chatSupervisor: chatSupervisorScenario,
@@ -65,7 +66,7 @@ function App() {
 
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
   const [selectedAgentConfigSet, setSelectedAgentConfigSet] = useState<
-    AgentConfig[] | null
+    RealtimeAgent[] | null
   >(null);
 
   const [dataChannel, setDataChannel] = useState<RTCDataChannel | null>(null);
@@ -745,9 +746,6 @@ function App() {
     if (sdkClientRef.current) {
       try {
         sdkClientRef.current.sendUserText(userText.trim());
-        // Optimistically add user message to transcript for immediate feedback.
-        const id = uuidv4().slice(0, 32);
-        addTranscriptMessage(id, 'user', userText.trim());
       } catch (err) {
         console.error("Failed to send via SDK", err);
       }

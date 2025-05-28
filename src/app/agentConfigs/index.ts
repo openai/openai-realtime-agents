@@ -2,16 +2,13 @@ import { simpleExampleScenario } from './simpleExample';
 import { customerServiceRetailScenario } from './customerServiceRetail';
 import { chatSupervisorScenario } from './chatSupervisor';
 
+import type { RealtimeAgent } from '@openai/agents-core/realtime';
 
-import { AllAgentConfigsType } from '@/app/types';
-
-
-import { scenarioToLegacy } from '@/app/agentConfigs/legacyAdapter';
-
-export const allAgentSets: AllAgentConfigsType = {
-  simpleExample: scenarioToLegacy(simpleExampleScenario),
-  customerServiceRetail: scenarioToLegacy(customerServiceRetailScenario),
-  chatSupervisor: scenarioToLegacy(chatSupervisorScenario),
+// Map of scenario key -> array of RealtimeAgent objects
+export const allAgentSets: Record<string, RealtimeAgent[]> = {
+  simpleExample: simpleExampleScenario,
+  customerServiceRetail: customerServiceRetailScenario,
+  chatSupervisor: chatSupervisorScenario,
 };
 
 export const defaultAgentSetKey = 'simpleExample';
