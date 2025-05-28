@@ -1,9 +1,16 @@
 # Documentação dos Agentes
 
+## Introdução
+Este projeto é mantido principalmente por um colaborador sem formação formal em desenvolvimento. Este arquivo serve para acumular o conhecimento adquirido sobre o código e registrar sua evolução. Para isso existe a subseção **O que mudou recentemente**, que lista de forma cronológica as alterações mais relevantes.
+
 ## Visão Geral
 Este repositório contém uma aplicação demo que simula um atendimento de crédito consignado via voz. A pasta `src/app/simple` apresenta a interface web utilizada durante a conversa e toda a lógica voltada para a agente **Marlene**.
 
 Marlene é um agente de voz configurado em `src/app/agentConfigs/marlene.ts`. Ela interage em português, com fala pausada e linguagem extremamente simples para atender principalmente idosos com baixa literacia digital. O comportamento dela envolve uma máquina de estados conversacional, ferramentas próprias e um backend de simulação de empréstimos.
+
+## O que mudou recentemente
+- Maio/2024: projeto iniciado como demonstração do agente Marlene e fluxo de concessão de crédito consignado.
+
 
 ## Principais Arquivos
 - `src/app/agentConfigs/marlene.ts` – define a personalidade de Marlene, suas ferramentas e como cada chamada de ferramenta processa a conversa.
