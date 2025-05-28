@@ -6,7 +6,7 @@ import { chatSupervisorScenario } from './chatSupervisor';
 import { AllAgentConfigsType } from '@/app/types';
 
 
-import { scenarioToLegacy } from '@/agents-sdk/legacyAdapter';
+import { scenarioToLegacy } from '@/app/agentConfigs/legacyAdapter';
 
 export const allAgentSets: AllAgentConfigsType = {
   simpleExample: scenarioToLegacy(simpleExampleScenario),

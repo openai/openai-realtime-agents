@@ -23,16 +23,16 @@ import { useEvent } from "@/app/contexts/EventContext";
 // For scenarios that have been migrated (currently `simpleExample` and `customerServiceRetail`)
 // we use the RealtimeClient thin wrapper around @openai/agents-core.
 // Legacy WebRTC helper removed – the new RealtimeClient covers all scenarios.
-import { RealtimeClient } from "@/agents-sdk/realtimeClient";
+import { RealtimeClient } from "@/app/agentConfigs/realtimeClient";
 
 // Agent configs
-import { allAgentSets, defaultAgentSetKey } from "@/agents-sdk";
+import { allAgentSets, defaultAgentSetKey } from "@/app/agentConfigs";
 // New SDK scenarios
-import { simpleExampleScenario } from "@/agents-sdk/simpleHandoff";
-import { customerServiceRetailScenario } from "@/agents-sdk/customerServiceRetail";
-import { chatSupervisorScenario } from "@/agents-sdk/chatSupervisor";
+import { simpleExampleScenario } from "@/app/agentConfigs/simpleHandoff";
+import { customerServiceRetailScenario } from "@/app/agentConfigs/customerServiceRetail";
+import { chatSupervisorScenario } from "@/app/agentConfigs/chatSupervisor";
 
-const sdkScenarioMap: Record<string, import("@/agents-sdk/types").RealtimeAgent[]> = {
+const sdkScenarioMap: Record<string, import("@/app/agentConfigs/types").RealtimeAgent[]> = {
   simpleExample: simpleExampleScenario,
   customerServiceRetail: customerServiceRetailScenario,
   chatSupervisor: chatSupervisorScenario,
