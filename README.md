@@ -16,7 +16,7 @@ You should be able to use this repo to prototype your own multi-agent realtime v
 - Este projeto é uma aplicação Next.js com TypeScript.
 
 ### Instalação
-- Execute `npm install` para instalar as dependências.
+- Execute `npm install` para instalar as dependências (agora inclui `@mediapipe/tasks-vision` e não requer TensorFlow).
 
 ### Configuração do ambiente
 - Copie `.env.example` para `.env.local` e preencha as variáveis abaixo:
