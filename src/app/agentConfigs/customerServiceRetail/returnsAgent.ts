@@ -167,7 +167,42 @@ Speak at a medium pace—steady and clear. Brief pauses can be used for emphasis
       execute: async (input: any) => {
         // Verbatim mock from legacy toolLogic
         return {
-          policy: `At Snowy Peak Boards, we believe in transparent and customer-friendly policies to ensure you have a hassle-free experience. Below are our detailed guidelines:\n\n1. GENERAL RETURN POLICY\n• Return Window: We offer a 30-day return window starting from the date your order was delivered. \n• Eligibility: Items must be unused, in their original packaging, and have tags attached to qualify for refund or exchange. \n• Non-Refundable Shipping: Unless the error originated from our end, shipping costs are typically non-refundable.\n\n2. CONDITION REQUIREMENTS\n• Product Integrity: Any returned product showing signs of use, wear, or damage may be subject to restocking fees or partial refunds. \n• Promotional Items: If you received free or discounted promotional items, the value of those items might be deducted from your total refund if they are not returned in acceptable condition.\n• Ongoing Evaluation: We reserve the right to deny returns if a pattern of frequent or excessive returns is observed.\n\n3. DEFECTIVE ITEMS\n• Defective items are eligible for a full refund or exchange within 1 year of purchase, provided the defect is outside normal wear and tear and occurred under normal use. \n• The defect must be described in sufficient detail by the customer, including how it was outside of normal use. Verbal description of what happened is sufficient, photos are not necessary.\n• The agent can use their discretion to determine whether it’s a true defect warranting reimbursement or normal use.\n## Examples\n- "It's defective, there's a big crack": MORE INFORMATION NEEDED\n- "The snowboard has delaminated and the edge came off during normal use, after only about three runs. I can no longer use it and it's a safety hazard.": ACCEPT RETURN\n\n4. REFUND PROCESSING\n• Inspection Timeline: Once your items reach our warehouse, our Quality Control team conducts a thorough inspection which can take up to 5 business days. \n• Refund Method: Approved refunds will generally be issued via the original payment method. In some cases, we may offer store credit or gift cards. \n• Partial Refunds: If products are returned in a visibly used or incomplete condition, we may process only a partial refund.\n\n5. EXCHANGE POLICY\n• In-Stock Exchange: If you wish to exchange an item, we suggest confirming availability of the new item before initiating a return. \n• Separate Transactions: In some cases, especially for limited-stock items, exchanges may be processed as a separate transaction followed by a standard return procedure.\n\n6. ADDITIONAL CLAUSES\n• Extended Window: Returns beyond the 30-day window may be eligible for store credit at our discretion, but only if items remain in largely original, resalable condition. \n• Communication: For any clarifications, please reach out to our customer support team to ensure your questions are answered before shipping items back.\n\nWe hope these policies give you confidence in our commitment to quality and customer satisfaction. Thank you for choosing Snowy Peak Boards!`,
+          policy: `
+At Snowy Peak Boards, we believe in transparent and customer-friendly policies to ensure you have a hassle-free experience. Below are our detailed guidelines:
+
+1. GENERAL RETURN POLICY
+• Return Window: We offer a 30-day return window starting from the date your order was delivered. 
+• Eligibility: Items must be unused, in their original packaging, and have tags attached to qualify for refund or exchange. 
+• Non-Refundable Shipping: Unless the error originated from our end, shipping costs are typically non-refundable.
+
+2. CONDITION REQUIREMENTS
+• Product Integrity: Any returned product showing signs of use, wear, or damage may be subject to restocking fees or partial refunds. 
+• Promotional Items: If you received free or discounted promotional items, the value of those items might be deducted from your total refund if they are not returned in acceptable condition.
+• Ongoing Evaluation: We reserve the right to deny returns if a pattern of frequent or excessive returns is observed.
+
+3. DEFECTIVE ITEMS
+• Defective items are eligible for a full refund or exchange within 1 year of purchase, provided the defect is outside normal wear and tear and occurred under normal use. 
+• The defect must be described in sufficient detail by the customer, including how it was outside of normal use. Verbal description of what happened is sufficient, photos are not necessary.
+• The agent can use their discretion to determine whether it’s a true defect warranting reimbursement or normal use.
+## Examples
+- "It's defective, there's a big crack": MORE INFORMATION NEEDED
+- "The snowboard has delaminated and the edge came off during normal use, after only about three runs. I can no longer use it and it's a safety hazard.": ACCEPT RETURN
+
+4. REFUND PROCESSING
+• Inspection Timeline: Once your items reach our warehouse, our Quality Control team conducts a thorough inspection which can take up to 5 business days. 
+• Refund Method: Approved refunds will generally be issued via the original payment method. In some cases, we may offer store credit or gift cards. 
+• Partial Refunds: If products are returned in a visibly used or incomplete condition, we may process only a partial refund.
+
+5. EXCHANGE POLICY
+• In-Stock Exchange: If you wish to exchange an item, we suggest confirming availability of the new item before initiating a return. 
+• Separate Transactions: In some cases, especially for limited-stock items, exchanges may be processed as a separate transaction followed by a standard return procedure.
+
+6. ADDITIONAL CLAUSES
+• Extended Window: Returns beyond the 30-day window may be eligible for store credit at our discretion, but only if items remain in largely original, resalable condition. 
+• Communication: For any clarifications, please reach out to our customer support team to ensure your questions are answered before shipping items back.
+
+We hope these policies give you confidence in our commitment to quality and customer satisfaction. Thank you for choosing Snowy Peak Boards!
+`,
         };
       },
     }),
@@ -198,15 +233,66 @@ Speak at a medium pace—steady and clear. Brief pauses can be used for emphasis
       },
       strict: true,
       execute: async (input: any) => {
-        // Simulate the LLM call and output format from legacy
-        const { userDesiredAction, question } = input as {
-          userDesiredAction: string;
-          question: string;
-        };
-        // Compose a stubbed response in the legacy output format
-        return {
-          result: `# Rationale\n// Short description explaining the decision\n\n# User Request\n${userDesiredAction}\n\n# Is Eligible\nneed_more_information\n\n# Additional Information Needed\n// Other information you'd need to make a clear determination. Can be \"None\"\n\n# Return Next Steps\n// Explain to the user that the user will get a text message with next steps. Only if is_eligible=true, otherwise \"None\". Provide confirmation to the user the item number, the order number, and the phone number they'll receive the text message at.`
-        };
+        const { userDesiredAction, question, transcriptLogs = [] } = input;
+        const nMostRecentLogs = 10;
+        const messages = [
+          {
+            role: "system",
+            content:
+              "You are an an expert at assessing the potential eligibility of cases based on how well the case adheres to the provided guidelines. You always adhere very closely to the guidelines and do things 'by the book'.",
+          },
+          {
+            role: "user",
+            content: `Carefully consider the context provided, which includes the request and relevant policies and facts, and determine whether the user's desired action can be completed according to the policies. Provide a concise explanation or justification. Please also consider edge cases and other information that, if provided, could change the verdict, for example if an item is defective but the user hasn't stated so. Again, if ANY CRITICAL INFORMATION IS UNKNOWN FROM THE USER, ASK FOR IT VIA "Additional Information Needed" RATHER THAN DENYING THE CLAIM.
+
+<modelContext>
+userDesiredAction: ${userDesiredAction}
+question: ${question}
+</modelContext>
+
+<conversationContext>
+${JSON.stringify(transcriptLogs.slice(nMostRecentLogs), null, 2)}
+</conversationContext>
+
+<output_format>
+# Rationale
+// Short description explaining the decision
+
+# User Request
+// The user's desired outcome or action
+
+# Is Eligible
+true/false/need_more_information
+// "true" if you're confident that it's true given the provided context, and no additional info is needex
+// "need_more_information" if you need ANY additional information to make a clear determination.
+
+# Additional Information Needed
+// Other information you'd need to make a clear determination. Can be "None"
+
+# Return Next Steps
+// Explain to the user that the user will get a text message with next steps. Only if is_eligible=true, otherwise "None". Provide confirmation to the user the item number, the order number, and the phone number they'll receive the text message at.
+</output_format>  
+`,},
+        ];
+        const model = "o4-mini";
+        console.log(`checking order eligibility with model=${model}`);
+
+        const response = await fetch("/api/responses", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ model, messages }),
+        });
+
+        if (!response.ok) {
+          console.warn("Server returned an error:", response);
+          return { error: "Something went wrong." };
+        }
+
+        const completion = await response.json();
+        console.log(completion.choices?.[0]?.message?.content || completion.result || completion);
+        return { result: completion.choices?.[0]?.message?.content || completion.result || completion }
       },
     }),
   ],
