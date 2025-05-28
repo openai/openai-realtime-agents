@@ -9,6 +9,7 @@ Este repositório contém uma aplicação demo que simula um atendimento de cré
 Marlene é um agente de voz configurado em `src/app/agentConfigs/marlene.ts`. Ela interage em português, com fala pausada e linguagem extremamente simples para atender principalmente idosos com baixa literacia digital. O comportamento dela envolve uma máquina de estados conversacional, ferramentas próprias e um backend de simulação de empréstimos.
 
 ## O que mudou recentemente
+- Junho/2024: adicionadas orientacoes de contribuicao em CONTRIBUTING.md.
 - Maio/2024: projeto iniciado como demonstração do agente Marlene e fluxo de concessão de crédito consignado.
 
 
