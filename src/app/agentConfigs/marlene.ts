@@ -4,7 +4,7 @@ import {
   injectTransferTools,
   processUserInputAsync,
   exportContext,
-  recordStateChange,
+  notifyBenefitConfirmed,
   setCameraVerified,
   animateValueTool,
   openCameraTool,
@@ -125,18 +125,12 @@ IMPORTANTE: SEMPRE que o usuário mencionar um valor de empréstimo desejado, us
   toolLogic: {
     handleUserMessage: async (args) => {
       const processResult = await processUserInputAsync(args.message);
-      const prevContext = exportContext();
-      if (processResult.recommendedState && processResult.recommendedState !== prevContext.currentState) {
-        console.log(`[handleUserMessage] Previous state: ${prevContext.currentState}`);
-        recordStateChange(processResult.recommendedState);
-      }
-      const updatedContext = exportContext();
+      const ctx = exportContext();
       return {
         processedInfo: {
           detectedEntities: processResult.entities,
-          advancedState: processResult.shouldAdvanceState,
           recommendedState: processResult.recommendedState,
-          currentState: updatedContext.currentState
+          currentState: ctx.currentState
         }
       };
     },
@@ -370,7 +364,7 @@ IMPORTANTE: SEMPRE que o usuário mencionar um valor de empréstimo desejado, us
       );
       const ctx = exportContext();
       if (!ctx.cameraVerified) {
-        recordStateChange("5_camera_verification");
+        notifyBenefitConfirmed();
       }
       const fullName = customerName || info.beneficiario.nome;
       const benefitType = info.beneficiario.tipoBeneficio;
