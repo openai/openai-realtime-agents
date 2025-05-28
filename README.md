@@ -46,6 +46,11 @@ Este repositório possui um workflow de CI em `.github/workflows/ci.yml` que ins
 executa `npm test` e `npm run lint` usando Node.js 18. O fluxo utiliza o cache do `actions/setup-node`
 para agilizar as execuções.
 
+Além disso, o workflow `.github/workflows/check-agents.yml` garante que qualquer mudança em arquivos de
+código seja acompanhada de uma atualização no `AGENTS.md`. Caso o arquivo de documentação não seja
+alterado quando arquivos em `src/` ou `__tests__/` forem modificados, o PR falhará com uma mensagem
+orientando a atualizar o `AGENTS.md`.
+
 ## Configurando agentes
 Escolha um dos arquivos em `src/app/agentConfigs` para definir o comportamento dos agentes ou crie o seu próprio.
 O exemplo abaixo mostra a configuração em `src/app/agentConfigs/simpleExample.ts`:
