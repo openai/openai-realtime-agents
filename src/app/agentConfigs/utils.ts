@@ -1,5 +1,6 @@
 // src/app/agentConfigs/utils.ts
 import { AgentConfig, Tool } from "@/app/types";
+import { conversationMachine, ConversationEvent } from "@/app/simple/machines/conversationMachine";
 
 /**
  * Interface para o contexto de conversa persistente
@@ -62,6 +63,7 @@ let conversationContext: ConversationContext = {
 /**
  * Gera dinamicamente o tool de transferência de agentes downstream
  */
+export let conversationState = conversationMachine.initialState;
 export function injectTransferTools(agentDefs: AgentConfig[]): AgentConfig[] {
   agentDefs.forEach((agentDef) => {
     const downstream = agentDef.downstreamAgents || [];
@@ -107,37 +109,25 @@ export function injectTransferTools(agentDefs: AgentConfig[]): AgentConfig[] {
 export function processUserInput(input: string): ProcessingResult {
   const entities = extractEntities(input);
   const hasMultipleEntities = countSignificantEntities(entities) > 1;
-  
-  // Comparar entidades extraídas com o contexto atual para detectar conflitos
+
   const conflictingEntities = detectConflictingEntities(entities);
-  
-  // Verificar o tempo decorrido desde a última interação
-  const timeSinceLastInput = Date.now() - conversationContext.lastInputTime;
-  
-  // Atualizar o tempo da última entrada
+
   conversationContext.lastInputTime = Date.now();
-  
-  // Determinar se deve avançar estado
-  const shouldAdvance = determineIfShouldAdvance(entities, timeSinceLastInput);
-  
-  // Determinar o estado recomendado
-  const recommendedState = determineRecommendedState(entities, conversationContext);
-  
-  // Calcular confiança na recomendação
-  const confidence = calculateConfidence(entities, recommendedState);
-  
-  // Atualizar o contexto da conversa com as novas informações
   updateContext(entities);
+  const advanced = updateFromEntities(entities);
+  const recommendedState = conversationState.value;
+  const confidence = calculateConfidence(entities, recommendedState);
+
   const result = {
     entities,
     hasMultipleEntities,
-    shouldAdvanceState: shouldAdvance,
+    shouldAdvanceState: advanced,
     recommendedState,
     confidence,
     conflictingEntities,
   };
 
-  console.log('[processUserInput]', result);
+  console.log("[processUserInput]", result);
   return result;
 }
 
@@ -250,6 +240,7 @@ export function updateContext(entities: ExtractedEntities): void {
   });
 }
 
+
 /**
  * Registra uma mudança de estado no contexto da conversa
  */
@@ -270,6 +261,32 @@ export function recordStateChange(newState: string): void {
     at: new Date(conversationContext.lastStateChangeTime).toISOString(),
   });
 }
+
+function sendEvent(event: ConversationEvent): boolean {
+  const prev = conversationState.value;
+  conversationState = conversationMachine.transition(conversationState, event);
+  if (conversationState.value !== prev) {
+    recordStateChange(conversationState.value);
+    return true;
+  }
+  return false;
+}
+
+function updateFromEntities(entities: ExtractedEntities): boolean {
+  let changed = false;
+  if (entities.earlyExit) changed = sendEvent({ type: "EARLY_EXIT" }) || changed;
+  if (entities.name) changed = sendEvent({ type: "NAME_DETECTED" }) || changed;
+  if (entities.preferredTreatment) changed = sendEvent({ type: "NAME_DETECTED" }) || changed;
+  if (entities.purpose) changed = sendEvent({ type: "PURPOSE_DETECTED" }) || changed;
+  if (entities.benefitNumber && entities.requestedAmount) {
+    changed = sendEvent({ type: "BENEFIT_AND_VALUE_PROVIDED" }) || changed;
+  } else {
+    if (entities.benefitNumber) changed = sendEvent({ type: "BENEFIT_PROVIDED" }) || changed;
+    if (entities.requestedAmount) changed = sendEvent({ type: "VALUE_PROVIDED" }) || changed;
+  }
+  return changed;
+}
+
 
 /**
  * Extrair todas as possíveis entidades da entrada do usuário
@@ -348,88 +365,6 @@ function countSignificantEntities(entities: ExtractedEntities): number {
   return Math.floor(count);
 }
 
-/**
- * Determina se deve avançar para um estado mais adiante com base nas entidades e timing
- */
-function determineIfShouldAdvance(entities: ExtractedEntities, timeSinceLastInput: number): boolean {
-  // Se muitas entidades significativas foram fornecidas
-  const entityCount = countSignificantEntities(entities);
-  
-  // Se foi a primeira interação ou passaram-se menos de 10 segundos desde a última entrada
-  const isQuickFollowup = timeSinceLastInput < 10000;
-  
-  // Se estamos em um dos primeiros estados
-  const inEarlyState = ['1_greeting', '2_identify_need'].includes(conversationContext.currentState);
-  
-  // Critérios para avançar:
-  // 1. Muitas entidades significativas (especialmente benefício e valor)
-  // 2. Interação rápida depois da última (sugerindo complemento de informação)
-  // 3. Em estado inicial, mais propício a saltos
-  
-  if (entityCount >= 2) return true;
-  if (entityCount >= 1 && isQuickFollowup && inEarlyState) return true;
-  if (entities.benefitNumber && entities.requestedAmount) return true;
-  
-  return false;
-}
-
-/**
- * Determina o estado mais adequado com base nas entidades extraídas
- */
-function determineRecommendedState(entities: ExtractedEntities, context: ConversationContext): string | null {
-  if (entities.earlyExit) {
-    return "10_early_exit";
-  }
-
-  // Combinação de benefício e valor é o caso mais claro para simulação
-  if (entities.requestedAmount &&
-      (entities.benefitNumber || context.benefitNumber)) {
-    return "6_loan_simulation";
-  }
-
-  // Se já temos benefício e valor no contexto, seguir para simulação
-  if (context.benefitNumber && context.requestedAmount) {
-    return "6_loan_simulation";
-  }
-  
-  // Se temos benefício e câmera verificada, mas não valor
-  if ((entities.benefitNumber || context.benefitNumber) &&
-      !entities.requestedAmount &&
-      !context.requestedAmount) {
-    return "6_loan_simulation"; // Para perguntar valor
-  }
-  
-  // Se temos benefício mas não câmera verificada
-  if ((entities.benefitNumber || context.benefitNumber) && 
-      !context.cameraVerified) {
-    return "5_camera_verification";
-  }
-  
-  // Se temos apenas valor sem benefício
-  if (entities.requestedAmount && 
-      !entities.benefitNumber && 
-      !context.benefitNumber) {
-    return "4_benefit_verification"; // Precisamos do benefício
-  }
-  
-  // Se temos propósito mas não outras informações importantes
-  if (entities.purpose &&
-      !entities.benefitNumber &&
-      !context.benefitNumber) {
-    return "2_identify_need";
-  }
-  
-  // Se temos nome ou tratamento preferido
-  if ((entities.name || entities.preferredTreatment) && 
-      !entities.benefitNumber && 
-      !context.benefitNumber && 
-      !entities.requestedAmount) {
-    return "2_identify_need";
-  }
-  
-  // Se não detectamos informações suficientes
-  return null;
-}
 
 /**
  * Calcula o nível de confiança na recomendação de estado
@@ -804,8 +739,13 @@ function detectEarlyExitIntent(text: string): boolean {
 export function setCameraVerified(verified: boolean): void {
   conversationContext.cameraVerified = verified;
   if (verified) {
-    conversationContext.confirmedEntities.add('cameraVerified');
+    conversationContext.confirmedEntities.add("cameraVerified");
+    sendEvent({ type: "CAMERA_VERIFIED" });
   }
+}
+
+export function notifyBenefitConfirmed(): void {
+  sendEvent({ type: "BENEFIT_CONFIRMED" });
 }
 
 /**
@@ -1044,6 +984,7 @@ export function resetConversationContext(): void {
     cameraVerified: false,
     lastStateChangeTime: Date.now()
   };
+  conversationState = conversationMachine.initialState;
 }
 
 /**
