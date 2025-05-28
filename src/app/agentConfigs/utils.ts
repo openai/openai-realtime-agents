@@ -26,7 +26,6 @@ export interface ConversationContext {
   lastInputTime: number;
   cameraVerified: boolean;
   lastStateChangeTime: number;
-  nameMentionCount?: number;
 }
 
 /**
@@ -64,8 +63,7 @@ let conversationContext: ConversationContext = {
   currentState: "1_greeting",
   lastInputTime: Date.now(),
   cameraVerified: false,
-  lastStateChangeTime: Date.now(),
-  nameMentionCount: 0
+  lastStateChangeTime: Date.now()
 };
 
 /**
@@ -758,15 +756,6 @@ export function notifyBenefitConfirmed(): void {
   sendEvent({ type: "BENEFIT_CONFIRMED" });
 }
 
-export function recordNameMention(): void {
-  conversationContext.nameMentionCount = (conversationContext.nameMentionCount || 0) + 1;
-  saveContext(exportContext());
-}
-
-export function getNameMentionCount(): number {
-  return conversationContext.nameMentionCount || 0;
-}
-
 /**
  * Ferramenta para animação de valor
  */
@@ -1000,9 +989,8 @@ export function resetConversationContext(): void {
     previousStates: [],
     currentState: "1_greeting",
     lastInputTime: Date.now(),
-  cameraVerified: false,
-  lastStateChangeTime: Date.now(),
-  nameMentionCount: 0
+    cameraVerified: false,
+    lastStateChangeTime: Date.now()
   };
   conversationState = conversationMachine.initialState;
 }

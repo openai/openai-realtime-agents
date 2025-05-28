@@ -8,9 +8,7 @@ import { useSimulation } from "../simple/contexts/SimulationContext";
 import {
   processUserInputAsync,
   recordStateChange,
-  exportContext,
-  recordNameMention,
-  getNameMentionCount
+  exportContext
 } from "@/app/agentConfigs/utils";
 
 export interface UseHandleServerEventParams {
@@ -103,20 +101,6 @@ export function useHandleServerEvent({
     }
 
     return null;
-  };
-
-  const sanitizeAssistantMessage = (text: string): string => {
-    const ctx = exportContext();
-    const name = ctx.name?.trim();
-    if (!name) return text;
-    const regex = new RegExp(`\\b${name}\\b`, 'i');
-    if (regex.test(text)) {
-      recordNameMention();
-      if (getNameMentionCount() > 2) {
-        text = text.replace(new RegExp(`^\\s*${name}[,\s]*`, 'i'), '');
-      }
-    }
-    return text;
   };
 
   const handleFunctionCall = async (functionCallParams: {
@@ -337,14 +321,11 @@ export function useHandleServerEvent({
         // Handle message creation
         if (serverEvent.item?.type === "message") {
           const role = serverEvent.item.role;
-          let content = Array.isArray(serverEvent.item.content)
-            ? serverEvent.item.content[0]?.text || ''
-            : typeof serverEvent.item.content === 'string'
-              ? serverEvent.item.content
+          const content = Array.isArray(serverEvent.item.content) 
+            ? serverEvent.item.content[0]?.text || '' 
+            : typeof serverEvent.item.content === 'string' 
+              ? serverEvent.item.content 
               : '';
-          if (role === 'assistant') {
-            content = sanitizeAssistantMessage(content);
-          }
           
           // Adicionar à transcrição se necessário
           if (role && serverEvent.item.id) {
