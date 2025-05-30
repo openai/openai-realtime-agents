@@ -23,9 +23,6 @@
 Marlene consome o backend falso em `src/app/loanSimulator`. Rodar `npm run dev` com o Agent Set padrão (`marlene`) utiliza essas funções para simulações de empréstimo e ofertas Itaú.
 Com `NEXT_PUBLIC_USE_LLM_BACKEND=true`, o simulador passa a chamar `/api/loan/consult`, gerando dados consistentes via modelo OpenAI. O resultado fica em `data/llm-benefit-cache.json` e o diretório `data/` é criado automaticamente se ainda não existir.
 
-### Persistência de conversa
-O endpoint `/api/run-id` retorna um identificador único para cada execução do backend. O frontend salva esse valor junto com o contexto da conversa no `localStorage`. Ao recarregar a página, `rehydrateContext` verifica o run-id atual; se for igual ao salvo, a conversa é retomada de onde parou. Se o backend tiver reiniciado e o run-id mudar, o histórico é apagado automaticamente. Para começar do zero manualmente, utilize `restartConversation()`.
-
 ## Testes e lint
 - `npm test` executa a suíte Jest.
 - `npm run lint` roda o linter do projeto.

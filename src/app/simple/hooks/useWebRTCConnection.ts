@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { createRealtimeConnection } from '@/app/lib/realtimeConnection';
 import marleneConfig from '@/app/agentConfigs/marlene';
-import { resetConversationContext, rehydrateContext } from '@/app/agentConfigs/utils';
+import { resetConversationContext } from '@/app/agentConfigs/utils';
 
 interface ConnectionState {
   status: 'disconnected' | 'connecting' | 'connected';
@@ -39,10 +39,7 @@ export const useWebRTCConnection = (): UseWebRTCConnectionResult => {
   // Função para conectar
   const connect = useCallback(async () => {
     console.log('[useWebRTCConnection] connect called');
-    const restored = await rehydrateContext();
-    if (!restored) {
-      resetConversationContext();
-    }
+    resetConversationContext();
     if (statusRef.current !== 'disconnected') {
       console.log('[useWebRTCConnection] connect aborted - already connecting');
       return;

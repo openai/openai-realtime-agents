@@ -11,7 +11,6 @@ Marlene é um agente de voz configurado em `src/app/agentConfigs/marlene.ts`. El
 ## O que mudou recentemente
 - Julho/2024: adicionada opcao de pre-commit hook com testes e lint.
 - Agosto/2024: gerenciamento da conversa movido para uma XState machine dedicada.
-- Setembro/2024: adicionada persistência de contexto via run-id e localStorage.
 - Junho/2024: adicionadas orientacoes de contribuicao em CONTRIBUTING.md.
 - Maio/2024: projeto iniciado como demonstração do agente Marlene e fluxo de concessão de crédito consignado.
 
@@ -22,7 +21,6 @@ Marlene é um agente de voz configurado em `src/app/agentConfigs/marlene.ts`. El
 - `src/app/loanSimulator/index.ts` – backend falso que gera dados de benefício e simulações de empréstimo.
 - `src/app/simple/machines/verificationMachine.ts` – máquina de estados para a verificação facial via câmera.
 - `src/app/simple/machines/conversationMachine.ts` – controla o fluxo principal da conversa.
-- `src/app/simple/services/ConversationStateService.ts` – salva e carrega o contexto da conversa no `localStorage` com base no run-id.
 
 ## Máquina de Estados da Conversa
 O fluxo da conversa é guiado por nove estados principais. A cada mensagem do usuário, `processUserInputAsync` extrai entidades (nome, número de benefício, valor desejado etc.) e `conversationMachine` decide para qual estado seguir.

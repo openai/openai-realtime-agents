@@ -1,17 +1,11 @@
 // src/app/agentConfigs/utils.ts
 import { AgentConfig, Tool } from "@/app/types";
 import { conversationMachine, ConversationEvent } from "@/app/simple/machines/conversationMachine";
-import {
-  saveContext,
-  loadContext,
-  clearContext,
-  getStoredRunId,
-} from "@/app/simple/services/ConversationStateService";
 
 /**
  * Interface para o contexto de conversa persistente
  */
-export interface ConversationContext {
+interface ConversationContext {
   name?: string;
   preferredTreatment?: string; 
   benefitNumber?: string;
@@ -244,7 +238,6 @@ export function updateContext(entities: ExtractedEntities): void {
     currentState: conversationContext.currentState,
     confirmed: Array.from(conversationContext.confirmedEntities),
   });
-  saveContext(exportContext());
 }
 
 
@@ -267,7 +260,6 @@ export function recordStateChange(newState: string): void {
     to: newState,
     at: new Date(conversationContext.lastStateChangeTime).toISOString(),
   });
-  saveContext(exportContext());
 }
 
 function sendEvent(event: ConversationEvent): boolean {
@@ -1007,38 +999,4 @@ export function exportContext(): ConversationContext {
  */
 export function importContext(context: ConversationContext): void {
   conversationContext = { ...context };
-}
-
-/**
- * Reidrata o contexto salvo se o run-id atual coincidir
- */
-export async function rehydrateContext(): Promise<boolean> {
-  try {
-    const res = await fetch('/api/run-id');
-    const { runId } = await res.json();
-    const storedRunId = getStoredRunId();
-    if (storedRunId && storedRunId === runId) {
-      const ctx = loadContext();
-      if (ctx) {
-        importContext(ctx);
-        return true;
-      }
-    }
-    clearContext();
-    resetConversationContext();
-    saveContext(exportContext(), runId);
-  } catch (err) {
-    console.error('Failed to rehydrate context', err);
-    clearContext();
-    resetConversationContext();
-  }
-  return false;
-}
-
-/**
- * Remove qualquer contexto salvo e reinicia a conversa
- */
-export function restartConversation(): void {
-  clearContext();
-  resetConversationContext();
 }

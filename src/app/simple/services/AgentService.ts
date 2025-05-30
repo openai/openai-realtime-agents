@@ -1,6 +1,6 @@
 // src/app/simple/services/AgentService.ts
 import marleneConfig from '@/app/agentConfigs/marlene';
-import { resetConversationContext, rehydrateContext } from '@/app/agentConfigs/utils';
+import { resetConversationContext } from '@/app/agentConfigs/utils';
 
 /**
  * Classe para gerenciar a comunicação com o agente Marlene
@@ -19,10 +19,7 @@ export class AgentService {
    */
   async connect(apiKey: string, audioElement: HTMLAudioElement | null): Promise<boolean> {
     try {
-      const restored = await rehydrateContext();
-      if (!restored) {
-        resetConversationContext();
-      }
+      resetConversationContext();
       const { createRealtimeConnection } = await import('@/app/lib/realtimeConnection');
       
       // Garantir que temos um elemento de áudio
