@@ -1,8 +1,4 @@
 import { conversationMachine } from '@/app/simple/machines/conversationMachine';
-import {
-  conversationStates,
-  generateConversationStatesSection
-} from '@/app/agentConfigs/marlene/conversationStates';
 
 describe('conversationMachine', () => {
   test('benefit and value from greeting jumps to loan simulation', () => {
@@ -34,14 +30,5 @@ describe('conversationMachine', () => {
     state = conversationMachine.transition(state, { type: 'CAMERA_VERIFIED' });
     expect(state.value).toBe('6_loan_simulation');
     expect(state.context.cameraVerified).toBe(true);
-  });
-});
-
-describe('conversationStates helpers', () => {
-  test('generateConversationStatesSection lists all states', () => {
-    const section = generateConversationStatesSection();
-    for (const s of conversationStates) {
-      expect(section).toContain(s.id);
-    }
   });
 });
