@@ -1,4 +1,4 @@
-import { RealtimeContextData, RealtimeItem, tool } from '@openai/agents/realtime';
+import { RealtimeItem, tool } from '@openai/agents/realtime';
 
 
 import {
