@@ -93,7 +93,6 @@ function App() {
   const [userText, setUserText] = useState<string>("");
   const [isPTTActive, setIsPTTActive] = useState<boolean>(false);
   const [isPTTUserSpeaking, setIsPTTUserSpeaking] = useState<boolean>(false);
-  const currentPTTPlaceholderIdRef = useRef<string | null>(null);
   const [isAudioPlaybackEnabled, setIsAudioPlaybackEnabled] = useState<boolean>(
     () => {
       if (typeof window === 'undefined') return true;
@@ -400,20 +399,7 @@ function App() {
 
             const role = item.role as 'user' | 'assistant';
 
-            // If we previously created a placeholder for this user message,
-            // hide it now that the real item arrived.
-            if (
-              role === 'user' &&
-              currentPTTPlaceholderIdRef.current &&
-              transcriptItemsRef.current.some(
-                (t) => t.itemId === currentPTTPlaceholderIdRef.current,
-              )
-            ) {
-              updateTranscriptItem(currentPTTPlaceholderIdRef.current, {
-                isHidden: true,
-              });
-              currentPTTPlaceholderIdRef.current = null;
-            }
+            // No PTT placeholder logic needed
 
             const exists = transcriptItemsRef.current.some(
               (t) => t.itemId === item.itemId,
@@ -685,11 +671,7 @@ function App() {
     setIsPTTUserSpeaking(true);
     sendClientEvent({ type: "input_audio_buffer.clear" }, "clear PTT buffer");
 
-    // Insert placeholder "Transcribing…" entry so it appears before assistant
-    // response even if server transcript arrives later.
-    const placeholderId = `ptt-${Date.now()}`;
-    currentPTTPlaceholderIdRef.current = placeholderId;
-    addTranscriptMessage(placeholderId, 'user', 'Transcribing…');
+    // No placeholder; we'll rely on server transcript once ready.
   };
 
   const handleTalkButtonUp = () => {
