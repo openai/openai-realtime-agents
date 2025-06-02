@@ -94,81 +94,76 @@ I'm sorry, but I'm not able to process payments over the phone. Would you like m
 export const supervisorAgentTools = [
   {
     type: "function",
-    function: {
-      name: "lookupPolicyDocument",
-      description:
-        "Tool to look up internal documents and policies by topic or keyword.",
-      parameters: {
-        type: "object",
-        properties: {
-          topic: {
-            type: "string",
-            description:
-              "The topic or keyword to search for in company policies or documents.",
-          },
+    name: "lookupPolicyDocument",
+    description:
+      "Tool to look up internal documents and policies by topic or keyword.",
+    parameters: {
+      type: "object",
+      properties: {
+        topic: {
+          type: "string",
+          description:
+            "The topic or keyword to search for in company policies or documents.",
         },
-        required: ["topic"],
-        additionalProperties: false,
       },
+      required: ["topic"],
+      additionalProperties: false,
     },
   },
   {
     type: "function",
-    function: {
-      name: "getUserAccountInfo",
-      description:
-        "Tool to get user account information. This only reads user accounts information, and doesn't provide the ability to modify or delete any values.",
-      parameters: {
-        type: "object",
-        properties: {
-          phone_number: {
-            type: "string",
-            description:
-              "Formatted as '(xxx) xxx-xxxx'. MUST be provided by the user, never a null or empty string.",
-          },
+    name: "getUserAccountInfo",
+    description:
+      "Tool to get user account information. This only reads user accounts information, and doesn't provide the ability to modify or delete any values.",
+    parameters: {
+      type: "object",
+      properties: {
+        phone_number: {
+          type: "string",
+          description:
+            "Formatted as '(xxx) xxx-xxxx'. MUST be provided by the user, never a null or empty string.",
         },
-        required: ["phone_number"],
-        additionalProperties: false,
       },
+      required: ["phone_number"],
+      additionalProperties: false,
     },
   },
   {
     type: "function",
-    function: {
-      name: "findNearestStore",
-      description:
-        "Tool to find the nearest store location to a customer, given their zip code.",
-      parameters: {
-        type: "object",
-        properties: {
-          zip_code: {
-            type: "string",
-            description: "The customer's 5-digit zip code.",
-          },
+    name: "findNearestStore",
+    description:
+      "Tool to find the nearest store location to a customer, given their zip code.",
+    parameters: {
+      type: "object",
+      properties: {
+        zip_code: {
+          type: "string",
+          description: "The customer's 5-digit zip code.",
         },
-        required: ["zip_code"],
-        additionalProperties: false,
       },
+      required: ["zip_code"],
+      additionalProperties: false,
     },
   },
 ];
 
-async function fetchChatCompletionMessage(body: any) {
-  const response = await fetch("/api/chat/completions", {
-    method: "POST",
+async function fetchResponsesMessage(body: any) {
+  const response = await fetch('/api/responses', {
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
+    // Preserve the previous behaviour of forcing sequential tool calls.
     body: JSON.stringify({ ...body, parallel_tool_calls: false }),
   });
 
   if (!response.ok) {
-    console.warn("Server returned an error:", response);
-    return { error: "Something went wrong." };
+    console.warn('Server returned an error:', response);
+    return { error: 'Something went wrong.' };
   }
 
   const completion = await response.json();
-  return completion.choices[0].message;
+  return completion;
 }
 
 function getToolResponse(fName: string) {
@@ -184,30 +179,70 @@ function getToolResponse(fName: string) {
   }
 }
 
-async function handleToolCalls(body: any, message: any, addBreadcrumb?: (title: string, data?: any)=>void) {
-  while (message.tool_calls && message.tool_calls.length > 0) {
-    const toolCall = message.tool_calls[0];
-    const fName = toolCall.function.name;
+/**
+ * Iteratively handles function calls returned by the Responses API until the
+ * assistant produces a final textual answer. Returns that answer as a string.
+ */
+async function handleToolCalls(
+  body: any,
+  response: any,
+  addBreadcrumb?: (title: string, data?: any) => void,
+) {
+  let currentResponse = response;
 
-    if (addBreadcrumb) addBreadcrumb(`[supervisorAgent] function call: ${fName}`, JSON.parse(toolCall.function.arguments));
-
-    const toolRes = getToolResponse(fName);
-
-    if (addBreadcrumb) addBreadcrumb(`[supervisorAgent] function call result: ${fName}`, toolRes);
-
-    body.messages.push(message);
-    body.messages.push({
-      role: 'tool',
-      tool_call_id: toolCall.id,
-      content: JSON.stringify(toolRes),
-    } as any);
-
-    message = await fetchChatCompletionMessage(body);
-    if (message.error) {
-      return { error: 'Something went wrong.' };
+  while (true) {
+    if (currentResponse?.error) {
+      return { error: 'Something went wrong.' } as any;
     }
+
+    const outputItems: any[] = currentResponse.output ?? [];
+
+    // Gather all function calls in the output.
+    const functionCalls = outputItems.filter((item) => item.type === 'function_call');
+
+    if (functionCalls.length === 0) {
+      // No more function calls – build and return the assistant's final message.
+      const assistantMessages = outputItems.filter((item) => item.type === 'message');
+
+      const finalText = assistantMessages
+        .map((msg: any) => {
+          const contentArr = msg.content ?? [];
+          return contentArr
+            .filter((c: any) => c.type === 'output_text')
+            .map((c: any) => c.text)
+            .join('');
+        })
+        .join('\n');
+
+      return finalText;
+    }
+
+    // For each function call returned by the model, execute it locally and append its
+    // output to the request body as a `function_call_output` item.
+    for (const toolCall of functionCalls) {
+      const fName = toolCall.name;
+      const args = JSON.parse(toolCall.arguments || '{}');
+
+      if (addBreadcrumb) {
+        addBreadcrumb(`[supervisorAgent] function call: ${fName}`, args);
+      }
+
+      const toolRes = getToolResponse(fName);
+
+      if (addBreadcrumb) {
+        addBreadcrumb(`[supervisorAgent] function call result: ${fName}`, toolRes);
+      }
+
+      body.input.push({
+        type: 'function_call_output',
+        call_id: toolCall.call_id,
+        output: JSON.stringify(toolRes),
+      });
+    }
+
+    // Make the follow-up request including the tool outputs.
+    currentResponse = await fetchResponsesMessage(body);
   }
-  return message;
 }
 
 export const getNextResponseFromSupervisor = tool({
@@ -232,44 +267,47 @@ export const getNextResponseFromSupervisor = tool({
       relevantContextFromLastUserMessage: string;
     };
 
-    const ctx = (details?.context as any) ?? {};
-    const history: RealtimeItem[] = ctx.history ?? [];
-    const addBreadcrumbFn: undefined | ((title: string, data?: any)=>void) = ctx.addTranscriptBreadcrumb;
-    const filteredLogs = history.filter(log => log.type === 'message');
+    const addBreadcrumb = (details?.context as any)?.addTranscriptBreadcrumb as
+      | ((title: string, data?: any) => void)
+      | undefined;
 
-    const body = {
+    const history: RealtimeItem[] = (details?.context as any)?.history ?? [];
+    const filteredLogs = history.filter((log) => log.type === 'message');
+
+    // Build the new Responses API `input` array.
+    const body: any = {
       model: 'gpt-4.1',
-      messages: [
+      input: [
         {
+          type: 'message',
           role: 'system',
           content: supervisorAgentInstructions,
         },
         {
+          type: 'message',
           role: 'user',
           content: `==== Conversation History ====
-${JSON.stringify(filteredLogs, null, 2)}
-
-==== Relevant Context From Last User Message ===
-${relevantContextFromLastUserMessage}`,
+          ${JSON.stringify(filteredLogs, null, 2)}
+          
+          ==== Relevant Context From Last User Message ===
+          ${relevantContextFromLastUserMessage}
+          `,
         },
       ],
       tools: supervisorAgentTools,
     };
 
-    let message = await fetchChatCompletionMessage(body);
-    if (message.error) {
-      return { error: "Something went wrong." };
+    let response = await fetchResponsesMessage(body);
+    if (response.error) {
+      return { error: 'Something went wrong.' };
     }
-  
-    // Keep handling tool calls until there are none left
-    while (message.tool_calls && message.tool_calls.length > 0) {
-      message = await handleToolCalls(body, message, addBreadcrumbFn);
-      if (message.error) {
-        return { error: "Something went wrong." };
-      }
+
+    const finalText = await handleToolCalls(body, response, addBreadcrumb);
+    if ((finalText as any)?.error) {
+      return { error: 'Something went wrong.' };
     }
-  
-    return { nextResponse: message.content };
+
+    return { nextResponse: finalText as string };
   },
 });
   
