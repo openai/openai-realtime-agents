@@ -44,6 +44,7 @@ export interface RealtimeClientOptions {
   getEphemeralKey: () => Promise<string>; // returns ek_ string
   initialAgents: RealtimeAgent[]; // first item is root agent
   audioElement?: HTMLAudioElement;
+  extraContext?: Record<string, any>;
 }
 
 export class RealtimeClient {
@@ -79,6 +80,7 @@ export class RealtimeClient {
     this.#session = new RealtimeSession(rootAgent, {
       transport: transportValue,
       outputGuardrails: [moderationGuardrail as any],
+      context: this.#options.extraContext ?? {},
     });
 
     // Immediately notify UI that we’ve started connecting.

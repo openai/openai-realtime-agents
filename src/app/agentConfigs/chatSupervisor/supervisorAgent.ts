@@ -184,34 +184,27 @@ function getToolResponse(fName: string) {
   }
 }
 
-async function handleToolCalls(
-  body: any,
-  message: any,
-  addTranscriptBreadcrumb?: (title: string, data?: any) => void
-) {
+async function handleToolCalls(body: any, message: any, addBreadcrumb?: (title: string, data?: any)=>void) {
   while (message.tool_calls && message.tool_calls.length > 0) {
     const toolCall = message.tool_calls[0];
     const fName = toolCall.function.name;
-    if (addTranscriptBreadcrumb)
-      addTranscriptBreadcrumb(
-        `[supervisorAgent] function call: ${fName}`,
-        JSON.parse(toolCall.function.arguments)
-      );
+
+    if (addBreadcrumb) addBreadcrumb(`[supervisorAgent] function call: ${fName}`, JSON.parse(toolCall.function.arguments));
+
     const toolRes = getToolResponse(fName);
-    if (addTranscriptBreadcrumb)
-      addTranscriptBreadcrumb(
-        `[supervisorAgent] function call result: ${fName}`,
-        toolRes
-      );
+
+    if (addBreadcrumb) addBreadcrumb(`[supervisorAgent] function call result: ${fName}`, toolRes);
+
     body.messages.push(message);
     body.messages.push({
-      role: "tool",
+      role: 'tool',
       tool_call_id: toolCall.id,
       content: JSON.stringify(toolRes),
-    } as any); // hack for tool_call_id param
+    } as any);
+
     message = await fetchChatCompletionMessage(body);
     if (message.error) {
-      return { error: "Something went wrong." };
+      return { error: 'Something went wrong.' };
     }
   }
   return message;
@@ -239,7 +232,9 @@ export const getNextResponseFromSupervisor = tool({
       relevantContextFromLastUserMessage: string;
     };
 
-    const history: RealtimeItem[] = (details?.context as any)?.history ?? [];
+    const ctx = (details?.context as any) ?? {};
+    const history: RealtimeItem[] = ctx.history ?? [];
+    const addBreadcrumbFn: undefined | ((title: string, data?: any)=>void) = ctx.addTranscriptBreadcrumb;
     const filteredLogs = history.filter(log => log.type === 'message');
 
     const body = {
@@ -268,7 +263,7 @@ ${relevantContextFromLastUserMessage}`,
   
     // Keep handling tool calls until there are none left
     while (message.tool_calls && message.tool_calls.length > 0) {
-      message = await handleToolCalls(body, message, addTranscriptBreadcrumb);
+      message = await handleToolCalls(body, message, addBreadcrumbFn);
       if (message.error) {
         return { error: "Something went wrong." };
       }

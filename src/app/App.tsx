@@ -216,6 +216,9 @@ function App() {
           getEphemeralKey: async () => EPHEMERAL_KEY,
           initialAgents: sdkScenarioMap[agentSetKey],
           audioElement: sdkAudioElement,
+          extraContext: {
+            addTranscriptBreadcrumb,
+          },
         } as any);
 
         sdkClientRef.current = client;
