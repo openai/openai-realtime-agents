@@ -1,5 +1,5 @@
 import { RealtimeContextData, RealtimeItem, tool } from '@openai/agents/realtime';
-import { z } from 'zod';
+
 
 import {
   exampleAccountInfo,
@@ -153,11 +153,71 @@ export const supervisorAgentTools = [
   },
 ];
 
-const params = z.object({
-  request: z.string(),
-});
+async function fetchChatCompletionMessage(body: any) {
+  const response = await fetch("/api/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ ...body, parallel_tool_calls: false }),
+  });
 
-export const getNextResponseFromSupervisor = tool<typeof params, RealtimeContextData>({
+  if (!response.ok) {
+    console.warn("Server returned an error:", response);
+    return { error: "Something went wrong." };
+  }
+
+  const completion = await response.json();
+  return completion.choices[0].message;
+}
+
+function getToolResponse(fName: string) {
+  switch (fName) {
+    case "getUserAccountInfo":
+      return exampleAccountInfo;
+    case "lookupPolicyDocument":
+      return examplePolicyDocs;
+    case "findNearestStore":
+      return exampleStoreLocations;
+    default:
+      return { result: true };
+  }
+}
+
+async function handleToolCalls(
+  body: any,
+  message: any,
+  addTranscriptBreadcrumb?: (title: string, data?: any) => void
+) {
+  while (message.tool_calls && message.tool_calls.length > 0) {
+    const toolCall = message.tool_calls[0];
+    const fName = toolCall.function.name;
+    if (addTranscriptBreadcrumb)
+      addTranscriptBreadcrumb(
+        `[supervisorAgent] function call: ${fName}`,
+        JSON.parse(toolCall.function.arguments)
+      );
+    const toolRes = getToolResponse(fName);
+    if (addTranscriptBreadcrumb)
+      addTranscriptBreadcrumb(
+        `[supervisorAgent] function call result: ${fName}`,
+        toolRes
+      );
+    body.messages.push(message);
+    body.messages.push({
+      role: "tool",
+      tool_call_id: toolCall.id,
+      content: JSON.stringify(toolRes),
+    } as any); // hack for tool_call_id param
+    message = await fetchChatCompletionMessage(body);
+    if (message.error) {
+      return { error: "Something went wrong." };
+    }
+  }
+  return message;
+}
+
+export const getNextResponseFromSupervisor = tool({
   name: 'getNextResponseFromSupervisor',
   description:
     'Determines the next response whenever the agent faces a non-trivial decision, produced by a highly intelligent supervisor agent. Returns a message describing what to do next.',
@@ -174,40 +234,47 @@ export const getNextResponseFromSupervisor = tool<typeof params, RealtimeContext
     additionalProperties: false,
   },
   strict: true,
-  execute: async ({ request }, details) => {
-    const history: RealtimeItem[] = details?.context?.history ?? [];
+  execute: async (input, details) => {
+    const { relevantContextFromLastUserMessage } = input as {
+      relevantContextFromLastUserMessage: string;
+    };
+
+    const history: RealtimeItem[] = (details?.context as any)?.history ?? [];
     const filteredLogs = history.filter(log => log.type === 'message');
 
     const body = {
-      model: "gpt-4.1",
+      model: 'gpt-4.1',
       messages: [
-          {
-            role: "system",
-            content: supervisorAgentInstructions,
-          },
-          {
-            role: "user",
-            content: `==== Conversation History ====
+        {
+          role: 'system',
+          content: supervisorAgentInstructions,
+        },
+        {
+          role: 'user',
+          content: `==== Conversation History ====
 ${JSON.stringify(filteredLogs, null, 2)}
 
 ==== Relevant Context From Last User Message ===
-${request.parameters.relevantContextFromLastUserMessage}`,
-          },
-        ],
-        tools: supervisorAgentTools,
-      };
-
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+${relevantContextFromLastUserMessage}`,
         },
-        body: JSON.stringify(body),
-      });
+      ],
+      tools: supervisorAgentTools,
+    };
 
-      const data = await response.json();
-      return data.choices[0].message.content;
-    },
-  });
+    let message = await fetchChatCompletionMessage(body);
+    if (message.error) {
+      return { error: "Something went wrong." };
+    }
+  
+    // Keep handling tool calls until there are none left
+    while (message.tool_calls && message.tool_calls.length > 0) {
+      message = await handleToolCalls(body, message, addTranscriptBreadcrumb);
+      if (message.error) {
+        return { error: "Something went wrong." };
+      }
+    }
+  
+    return { nextResponse: message.content };
+  },
+});
   

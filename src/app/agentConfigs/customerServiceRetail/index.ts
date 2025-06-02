@@ -3,10 +3,13 @@ import { returnsAgent } from './returnsAgent';
 import { salesAgent } from './salesAgent';
 import { simulatedHumanAgent } from './simulatedHuman';
 
-authenticationAgent.handoffs.push(returnsAgent, salesAgent, simulatedHumanAgent);
-returnsAgent.handoffs.push(authenticationAgent, salesAgent, simulatedHumanAgent);
-salesAgent.handoffs.push(authenticationAgent, returnsAgent, simulatedHumanAgent);
-simulatedHumanAgent.handoffs.push(authenticationAgent, returnsAgent, salesAgent);
+// Cast to `any` to satisfy TypeScript until the core types make RealtimeAgent
+// assignable to `Agent<unknown>` (current library versions are invariant on
+// the context type).
+(authenticationAgent.handoffs as any).push(returnsAgent, salesAgent, simulatedHumanAgent);
+(returnsAgent.handoffs as any).push(authenticationAgent, salesAgent, simulatedHumanAgent);
+(salesAgent.handoffs as any).push(authenticationAgent, returnsAgent, simulatedHumanAgent);
+(simulatedHumanAgent.handoffs as any).push(authenticationAgent, returnsAgent, salesAgent);
 
 export const customerServiceRetailScenario = [
   authenticationAgent,
