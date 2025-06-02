@@ -1,7 +1,7 @@
 # Realtime API Agents Demo
 
-This is a simple demonstration of more advanced, agentic patterns built on top of the Realtime API. In particular, this demonstrates:
-- Sequential agent handoffs according to a defined agent graph (taking inspiration from [OpenAI Swarm](https://github.com/openai/swarm))
+-This is a simple demonstration of more advanced, agentic patterns built on top of the Realtime API. In particular, this demonstrates:
+- Sequential agent handoffs according to a defined agent graph using the [OpenAI Agents SDK](https://openai.github.io/openai-agents-js/)
 - Background escalation to more intelligent models like o4-mini for high-stakes decisions
 - Prompting models to follow a state machine, for example to accurately collect things like names and phone numbers with confirmation character by character to authenticate a user.
 
@@ -19,35 +19,33 @@ Here's a quick [demo video](https://x.com/OpenAIDevs/status/1880306081517432936)
 
 ## Configuring Agents
 Configuration in `src/app/agentConfigs/simpleExample.ts`
-```javascript
-import { AgentConfig } from "@/app/types";
-import { injectTransferTools } from "./utils";
+```typescript
+import { RealtimeAgent } from '@openai/agents/realtime';
 
-// Define agents
-const haikuWriter: AgentConfig = {
-  name: "haikuWriter",
-  publicDescription: "Agent that writes haikus.", // Context for the agent_transfer tool
+// Define agents using the OpenAI Agents SDK
+export const haikuWriterAgent = new RealtimeAgent({
+  name: 'haikuWriter',
+  handoffDescription: 'Agent that writes haikus.', // Context for the agent_transfer tool
   instructions:
-    "Ask the user for a topic, then reply with a haiku about that topic.",
+    'Ask the user for a topic, then reply with a haiku about that topic.',
   tools: [],
-};
+  handoffs: [],
+});
 
-const greeter: AgentConfig = {
-  name: "greeter",
-  publicDescription: "Agent that greets the user.",
+export const greeterAgent = new RealtimeAgent({
+  name: 'greeter',
+  handoffDescription: 'Agent that greets the user.',
   instructions:
-    "Please greet the user and ask them if they'd like a Haiku. If yes, transfer them to the 'haiku' agent.",
+    "Please greet the user and ask them if they'd like a haiku. If yes, hand off to the 'haikuWriter' agent.",
   tools: [],
-  downstreamAgents: [haikuWriter],
-};
+  handoffs: [haikuWriterAgent], // Define which agents this agent can hand off to
+});
 
-// add the transfer tool to point to downstreamAgents
-const agents = injectTransferTools([greeter, haikuWriter]);
-
-export default agents;
+// An Agent Set is just an array of the agents that participate in the scenario
+export default [greeterAgent, haikuWriterAgent];
 ```
 
-This fully specifies the agent set that was used in the interaction shown in the screenshot above.
+This snippet shows the complete Agent Set that powers the interaction shown in the screenshot above.
 
 ### Sequence Diagram of CustomerServiceRetail Flow
 
@@ -116,8 +114,8 @@ sequenceDiagram
 
 ### Defining your own agents
 - You can copy these to make your own multi-agent voice app! Once you make a new agent set config, add it to `src/app/agentConfigs/index.ts` and you should be able to select it in the UI in the "Scenario" dropdown menu.
-- To see how to define tools and toolLogic, including a background LLM call, see [src/app/agentConfigs/customerServiceRetail/returns.ts](src/app/agentConfigs/customerServiceRetail/returns.ts)
-- To see how to define a detailed personality and tone, and use a prompt state machine to collect user information step by step, see [src/app/agentConfigs/frontDeskAuthentication/authentication.ts](src/app/agentConfigs/frontDeskAuthentication/authentication.ts)
+- To see how to define tools and toolLogic, including a background LLM call, see [src/app/agentConfigs/customerServiceRetail/returns.ts](src/app/agentConfigs/customerServiceRetail/returnsAgent.ts)
+- To see how to define a detailed personality and tone, and use a prompt state machine to collect user information step by step, see [src/app/agentConfigs/frontDeskAuthentication/authentication.ts](src/app/agentConfigs/frontDeskAuthentication/authenticationAgent.ts)
 - To see how to wire up Agents into a single Agent Set, see [src/app/agentConfigs/frontDeskAuthentication/index.ts](src/app/agentConfigs/frontDeskAuthentication/index.ts)
 - If you want help creating your own prompt using these conventions, we've included a metaprompt [here](src/app/agentConfigs/voiceAgentMetaprompt.txt), or you can use our [Voice Agent Metaprompter GPT](https://chatgpt.com/g/g-678865c9fb5c81918fa28699735dd08e-voice-agent-metaprompt-gpt)
 
