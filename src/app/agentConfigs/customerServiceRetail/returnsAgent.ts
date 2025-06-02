@@ -1,8 +1,7 @@
-import { RealtimeAgent, tool } from '@openai/agents/realtime';
+import { RealtimeAgent, tool, RealtimeItem } from '@openai/agents/realtime';
 
 export const returnsAgent = new RealtimeAgent({
   name: 'returns',
-  voice: 'ash',
   handoffDescription:
     'Customer Service Agent specialized in order lookups, policy checks, and return initiations.',
 
@@ -72,7 +71,6 @@ Speak at a medium pace—steady and clear. Brief pauses can be used for emphasis
 # General Info
 - Today's date is 12/26/2024
 `,
-
   tools: [
     tool({
       name: 'lookupOrders',
@@ -230,9 +228,14 @@ We hope these policies give you confidence in our commitment to quality and cust
         additionalProperties: false,
       },
       strict: true,
-      execute: async (input: any) => {
-        const { userDesiredAction, question, transcriptLogs = [] } = input;
+      execute: async (input: any, details) => {
+        const { userDesiredAction, question } = input as {
+          userDesiredAction: string;
+          question: string;
+        };
         const nMostRecentLogs = 10;
+        const history: RealtimeItem[] = (details?.context as any)?.history ?? [];
+        const filteredLogs = history.filter((log) => log.type === 'message');
         const messages = [
           {
             role: "system",
@@ -249,7 +252,7 @@ question: ${question}
 </modelContext>
 
 <conversationContext>
-${JSON.stringify(transcriptLogs.slice(nMostRecentLogs), null, 2)}
+${JSON.stringify(filteredLogs.slice(-nMostRecentLogs), null, 2)}
 </conversationContext>
 
 <output_format>
@@ -270,7 +273,8 @@ true/false/need_more_information
 # Return Next Steps
 // Explain to the user that the user will get a text message with next steps. Only if is_eligible=true, otherwise "None". Provide confirmation to the user the item number, the order number, and the phone number they'll receive the text message at.
 </output_format>  
-`,},
+`,
+          },
         ];
         const model = "o4-mini";
         console.log(`checking order eligibility with model=${model}`);

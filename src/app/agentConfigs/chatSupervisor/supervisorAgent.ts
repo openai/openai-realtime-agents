@@ -233,8 +233,6 @@ async function handleToolCalls(
         addBreadcrumb(`[supervisorAgent] function call result: ${fName}`, toolRes);
       }
 
-      // The follow-up request must include BOTH the original call and its output.
-
       body.input.push(
         {
           type: 'function_call',

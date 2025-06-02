@@ -120,8 +120,6 @@ export class RealtimeClient {
       this.#events.emit('history_updated', history);
     });
 
-    // (handled via history_updated above)
-
     this.#session.on('audio_interrupted', () => {
       this.#events.emit('audio_interrupted');
     });
