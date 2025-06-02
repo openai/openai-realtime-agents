@@ -111,25 +111,16 @@ function App() {
   const { startRecording, stopRecording, downloadRecording } =
     useAudioDownload();
 
-  const sendClientEvent = (eventObj: any, eventNameSuffix = "") => {
-    if (sdkClientRef.current) {
-      try {
-        sdkClientRef.current.sendEvent(eventObj);
-      } catch (err) {
-        console.error("Failed to send via SDK", err);
-      }
-    } else if (dcRef.current && dcRef.current.readyState === "open") {
-      logClientEvent(eventObj, eventNameSuffix);
-      dcRef.current.send(JSON.stringify(eventObj));
-    } else {
-      logClientEvent(
-        { attemptedEvent: eventObj.type },
-        "error.data_channel_not_open"
-      );
-      console.error(
-        "Failed to send message - no data channel available",
-        eventObj
-      );
+  const sendClientEvent = (eventObj: any, eventNameSuffix = '') => {
+    if (!sdkClientRef.current) {
+      console.error('SDK client not available', eventObj);
+      return;
+    }
+
+    try {
+      sdkClientRef.current.sendEvent(eventObj);
+    } catch (err) {
+      console.error('Failed to send via SDK', err);
     }
   };
 
@@ -661,45 +652,6 @@ function App() {
       }
       return;
     }
-    sendClientEvent(
-      { type: "input_audio_buffer.clear" },
-      "clear audio buffer on session update"
-    );
-
-    const currentAgent = selectedAgentConfigSet?.find(
-      (a) => a.name === selectedAgentName
-    );
-
-    const turnDetection = isPTTActive
-      ? null
-      : {
-          type: "server_vad",
-          threshold: 0.9,
-          prefix_padding_ms: 300,
-          silence_duration_ms: 500,
-          create_response: true,
-        };
-
-    const instructions = currentAgent?.instructions || "";
-    const tools = currentAgent?.tools || [];
-
-    const sessionUpdateEvent = {
-      type: "session.update",
-      session: {
-        modalities: ["text", "audio"],
-        instructions,
-        voice: "sage",
-        input_audio_transcription: { model: "whisper-1" },
-        turn_detection: turnDetection,
-        tools,
-      },
-    };
-
-    sendClientEvent(sessionUpdateEvent);
-
-    if (shouldTriggerResponse) {
-      sendSimulatedUserMessage("hi");
-    }
   };
 
   const cancelAssistantSpeech = async () => {
@@ -718,36 +670,22 @@ function App() {
     if (!userText.trim()) return;
     cancelAssistantSpeech();
 
-    if (sdkClientRef.current) {
-      try {
-        sdkClientRef.current.sendUserText(userText.trim());
-      } catch (err) {
-        console.error("Failed to send via SDK", err);
-      }
-    } else {
-      sendClientEvent(
-        {
-          type: "conversation.item.create",
-          item: {
-            type: "message",
-            role: "user",
-            content: [{ type: "input_text", text: userText.trim() }],
-          },
-        },
-        "(send user text message)"
-      );
-      sendClientEvent({ type: "response.create" }, "(trigger response)");
+    if (!sdkClientRef.current) {
+      console.error('SDK client not available');
+      return;
+    }
+
+    try {
+      sdkClientRef.current.sendUserText(userText.trim());
+    } catch (err) {
+      console.error('Failed to send via SDK', err);
     }
 
     setUserText("");
   };
 
   const handleTalkButtonDown = () => {
-    if (
-      sessionStatus !== "CONNECTED" ||
-      (sdkClientRef.current == null && dataChannel?.readyState !== "open")
-    )
-      return;
+    if (sessionStatus !== 'CONNECTED' || sdkClientRef.current == null) return;
     cancelAssistantSpeech();
 
     setIsPTTUserSpeaking(true);
@@ -761,11 +699,7 @@ function App() {
   };
 
   const handleTalkButtonUp = () => {
-    if (
-      sessionStatus !== "CONNECTED" ||
-      (sdkClientRef.current == null && dataChannel?.readyState !== "open") ||
-      !isPTTUserSpeaking
-    )
+    if (sessionStatus !== 'CONNECTED' || sdkClientRef.current == null || !isPTTUserSpeaking)
       return;
 
     setIsPTTUserSpeaking(false);
@@ -978,7 +912,7 @@ function App() {
           downloadRecording={downloadRecording}
           canSend={
             sessionStatus === "CONNECTED" &&
-            sdkClientRef.current != null || dcRef.current?.readyState === "open"
+                  sdkClientRef.current != null
           }
         />
 
