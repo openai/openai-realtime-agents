@@ -92,7 +92,6 @@ Speak at a medium pace—steady and clear. Brief pauses can be used for emphasis
       strict: true,
       execute: async (input: any) => {
         const { phoneNumber } = input as { phoneNumber: string };
-        // Verbatim mock from legacy toolLogic
         return {
           orders: [
             {
@@ -165,7 +164,6 @@ Speak at a medium pace—steady and clear. Brief pauses can be used for emphasis
       },
       strict: true,
       execute: async (input: any) => {
-        // Verbatim mock from legacy toolLogic
         return {
           policy: `
 At Snowy Peak Boards, we believe in transparent and customer-friendly policies to ensure you have a hassle-free experience. Below are our detailed guidelines:

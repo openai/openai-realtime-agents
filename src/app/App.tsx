@@ -20,10 +20,6 @@ import { useTranscript } from "@/app/contexts/TranscriptContext";
 import { useEvent } from "@/app/contexts/EventContext";
 
 // Utilities
-// WARNING: legacy realtimeConnection is being replaced by the new SDK.
-// For scenarios that have been migrated (currently `simpleExample` and `customerServiceRetail`)
-// we use the RealtimeClient thin wrapper around @openai/agents-core.
-// Legacy WebRTC helper removed – the new RealtimeClient covers all scenarios.
 import { RealtimeClient } from "@/app/agentConfigs/realtimeClient";
 
 // Agent configs
@@ -230,7 +226,6 @@ function App() {
         });
 
         client.on("message", (ev) => {
-          // legacy path still logs raw transport messages
           logServerEvent(ev);
 
           // --- Realtime streaming handling ---------------------------------
@@ -474,7 +469,7 @@ function App() {
             }
           }
 
-          // Surface function / hand-off calls as breadcrumbs (legacy style)
+          // Surface function / hand-off calls as breadcrumbs
           if (item.type === 'function_call') {
             const title = `Tool call: ${(item as any).name}`;
 
@@ -587,8 +582,6 @@ function App() {
       }
       return;
     }
-
-    // All scenarios have been migrated to the SDK – legacy WebRTC path removed.
   };
 
   const disconnectFromRealtime = () => {
@@ -638,12 +631,7 @@ function App() {
   const updateSession = (shouldTriggerResponse: boolean = false) => {
     // In SDK scenarios RealtimeClient manages session config automatically.
     if (sdkClientRef.current) {
-      // Avoid overwriting SDK-generated tools / instructions which would break
-      // agent hand-offs. We therefore skip the legacy session.update entirely.
-
       if (shouldTriggerResponse) {
-        // Preserve original UX: add hidden "hi" message and trigger response
-        // without exposing it in the visible transcript.
         sendSimulatedUserMessage('hi');
       }
 

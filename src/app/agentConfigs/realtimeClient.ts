@@ -1,6 +1,6 @@
 /*
  * Thin wrapper that exposes a subset of functionality needed by the React UI,
- * implemented on top of @openai/agents-core RealtimeSession.
+ * implemented on top of @openai/agents/realtime RealtimeSession.
  */
 
 import { RealtimeSession, RealtimeAgent, OpenAIRealtimeWebRTC } from '@openai/agents/realtime';
@@ -86,7 +86,7 @@ export class RealtimeClient {
     // Immediately notify UI that we’ve started connecting.
     this.#events.emit('connection_change', 'connecting');
 
-    // Forward every transport event as message for legacy handler and watch for
+    // Forward every transport event as message for handler and watch for
     // low-level connection state changes so we can propagate *disconnections*
     // after initial setup.
     const transport: any = this.#session.transport;

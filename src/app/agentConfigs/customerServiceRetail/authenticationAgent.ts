@@ -1,10 +1,5 @@
 import { RealtimeAgent, tool } from '@openai/agents/realtime';
 
-// NOTE: this file is an *as-is* conversion of the original
-// old-agentConfigs/customerServiceRetail/authentication.ts.
-// Every instruction line, tool description and parameter schema has been
-// copied verbatim so the behaviour matches the legacy branch.
-
 export const authenticationAgent = new RealtimeAgent({
   name: 'authentication',
   voice: 'ash',
