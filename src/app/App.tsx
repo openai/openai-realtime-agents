@@ -105,8 +105,7 @@ function App() {
     },
   );
 
-  const [isOutputAudioBufferActive, setIsOutputAudioBufferActive] =
-    useState<boolean>(false);
+
 
   // Initialize the recording hook.
   const { startRecording, stopRecording, downloadRecording } =
@@ -704,29 +703,14 @@ function App() {
   };
 
   const cancelAssistantSpeech = async () => {
-    // Send a response.cancel if the most recent assistant conversation item is IN_PROGRESS. This implicitly does a item.truncate as well
-    const mostRecentAssistantMessage = [...transcriptItems]
-      .reverse()
-      .find((item) => item.role === "assistant");
 
-
-    if (!mostRecentAssistantMessage) {
-      console.warn("can't cancel, no recent assistant message found");
-      return;
-    }
-    if (mostRecentAssistantMessage.status === "IN_PROGRESS") {
-      sendClientEvent(
-        { type: "response.cancel" },
-        "(cancel due to user interruption)"
-      );
-    }
-
-    // Send an output_audio_buffer.cancel if the isOutputAudioBufferActive is True
-    if (isOutputAudioBufferActive) {
-      sendClientEvent(
-        { type: "output_audio_buffer.clear" },
-        "(cancel due to user interruption)"
-      );
+    // Interrupts server response and clears local audio.
+    if (sdkClientRef.current) {
+      try {
+        sdkClientRef.current.interrupt();
+      } catch (err) {
+        console.error('Failed to interrupt', err);
+      }
     }
   };
 
