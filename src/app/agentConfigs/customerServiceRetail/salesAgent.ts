@@ -28,7 +28,6 @@ export const salesAgent = new RealtimeAgent({
         required: ['category'],
         additionalProperties: false,
       },
-      strict: true,
       execute: async (input: any) => {
         const { category } = input as { category: string };
         const items = [
@@ -66,7 +65,6 @@ export const salesAgent = new RealtimeAgent({
         required: ['item_id'],
         additionalProperties: false,
       },
-      strict: true,
       execute: async (input: any) => ({ success: true }),
     }),
 
@@ -93,7 +91,6 @@ export const salesAgent = new RealtimeAgent({
         required: ['item_ids', 'phone_number'],
         additionalProperties: false,
       },
-      strict: true,
       execute: async (input: any) => ({ checkoutUrl: 'https://example.com/checkout' }),
     }),
   ],

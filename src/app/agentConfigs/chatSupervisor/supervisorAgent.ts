@@ -269,7 +269,6 @@ export const getNextResponse = tool({
     required: ['relevantContextFromLastUserMessage'],
     additionalProperties: false,
   },
-  strict: true,
   execute: async (input, details) => {
     const { relevantContextFromLastUserMessage } = input as {
       relevantContextFromLastUserMessage: string;

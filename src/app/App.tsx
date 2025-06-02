@@ -630,6 +630,10 @@ function App() {
       // `session.update` event.
       const client = sdkClientRef.current;
       if (client) {
+        const currentAgent = selectedAgentConfigSet?.find(
+          (a) => a.name === selectedAgentName,
+        );
+
         const turnDetection = isPTTActive
           ? null
           : {
@@ -639,15 +643,25 @@ function App() {
               silence_duration_ms: 500,
               create_response: true,
             };
+
+        const instructions = currentAgent?.instructions ?? '';
+        const tools = (currentAgent?.tools ?? []).map((t: any) => {
+          const { strict, ...rest } = t as any;
+          return rest;
+        });
+
         try {
           client.sendEvent({
             type: 'session.update',
             session: {
               turn_detection: turnDetection,
+              instructions,
+              tools,
+              voice: 'sage',
             },
           });
         } catch (err) {
-          console.warn('Failed to update turn_detection', err);
+          console.warn('Failed to update session', err);
         }
       }
       return;

@@ -87,7 +87,6 @@ Speak at a medium pace—steady and clear. Brief pauses can be used for emphasis
         required: ['phoneNumber'],
         additionalProperties: false,
       },
-      strict: true,
       execute: async (input: any) => {
         const { phoneNumber } = input as { phoneNumber: string };
         return {
@@ -160,7 +159,6 @@ Speak at a medium pace—steady and clear. Brief pauses can be used for emphasis
         required: ['region', 'itemCategory'],
         additionalProperties: false,
       },
-      strict: true,
       execute: async (input: any) => {
         return {
           policy: `
@@ -227,7 +225,6 @@ We hope these policies give you confidence in our commitment to quality and cust
         required: ['userDesiredAction', 'question'],
         additionalProperties: false,
       },
-      strict: true,
       execute: async (input: any, details) => {
         const { userDesiredAction, question } = input as {
           userDesiredAction: string;
