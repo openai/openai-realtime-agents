@@ -1,6 +1,6 @@
-import { authenticationAgent } from './authenticationAgent';
-import { returnsAgent } from './returnsAgent';
-import { salesAgent } from './salesAgent';
+import { authenticationAgent } from './authentication';
+import { returnsAgent } from './returns';
+import { salesAgent } from './sales';
 import { simulatedHumanAgent } from './simulatedHuman';
 
 // Cast to `any` to satisfy TypeScript until the core types make RealtimeAgent

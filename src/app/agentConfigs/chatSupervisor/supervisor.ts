@@ -280,7 +280,6 @@ export const getNextResponse = tool({
     const history: RealtimeItem[] = (details?.context as any)?.history ?? [];
     const filteredLogs = history.filter((log) => log.type === 'message');
 
-    // Build the new Responses API `input` array.
     const body: any = {
       model: 'gpt-4.1',
       input: [

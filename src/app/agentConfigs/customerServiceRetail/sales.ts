@@ -1,7 +1,5 @@
 import { RealtimeAgent, tool } from '@openai/agents/realtime';
 
-// Verbatim migration of old-agentConfigs/customerServiceRetail/sales.ts
-
 export const salesAgent = new RealtimeAgent({
   name: 'salesAgent',
   voice: 'sage',
