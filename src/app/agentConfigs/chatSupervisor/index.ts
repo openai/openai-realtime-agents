@@ -1,5 +1,5 @@
 import { RealtimeAgent, RealtimeItem, tool } from '@openai/agents/realtime'
-import { getNextResponse, supervisorAgentInstructions, supervisorAgentTools } from './supervisor';
+import { getNextResponse, supervisorAgentInstructions, supervisorAgentTools } from './supervisorAgent';
 
 export const chatAgent = new RealtimeAgent({
   name: 'chatAgent',
