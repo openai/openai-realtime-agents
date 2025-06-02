@@ -25,12 +25,12 @@ import { RealtimeClient } from "@/app/agentConfigs/realtimeClient";
 // Agent configs
 import { allAgentSets, defaultAgentSetKey } from "@/app/agentConfigs";
 // New SDK scenarios
-import { simpleExampleScenario } from "@/app/agentConfigs/simpleExample";
+import { simpleHandoffScenario } from "@/app/agentConfigs/simpleHandoff";
 import { customerServiceRetailScenario } from "@/app/agentConfigs/customerServiceRetail";
 import { chatSupervisorScenario } from "@/app/agentConfigs/chatSupervisor";
 
 const sdkScenarioMap: Record<string, RealtimeAgent[]> = {
-  simpleExample: simpleExampleScenario,
+  simpleHandoff: simpleHandoffScenario,
   customerServiceRetail: customerServiceRetailScenario,
   chatSupervisor: chatSupervisorScenario,
 };

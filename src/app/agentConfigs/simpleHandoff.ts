@@ -22,4 +22,4 @@ export const greeterAgent = new RealtimeAgent({
   handoffDescription: 'Agent that greets the user',
 });
 
-export const simpleExampleScenario = [greeterAgent, haikuWriterAgent];
+export const simpleHandoffScenario = [greeterAgent, haikuWriterAgent];

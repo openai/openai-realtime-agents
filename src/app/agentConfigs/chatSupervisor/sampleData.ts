@@ -51,7 +51,7 @@ export const examplePolicyDocs = [
     name: "Handset Offers Policy",
     topic: "new handsets",
     content:
-      "Handsets from brands such as iPhone, Samsung, and Google are available. Special pricing may be available for new activations or upgrades. For current offers, refer to the website or a retail location.",
+      "Handsets from brands such as iPhone and Google are available. The iPhone 16 is $200 and the Google Pixel 8 is available for $0, both with an additional 18-month commitment. These offers are valid while supplies last and may require eligible plans or trade-ins. For more details, visit one of our stores.",
   },
 ];
 
