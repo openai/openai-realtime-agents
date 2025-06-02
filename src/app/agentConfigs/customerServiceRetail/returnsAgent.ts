@@ -290,9 +290,13 @@ true/false/need_more_information
           return { error: "Something went wrong." };
         }
 
-        const completion = await response.json();
-        console.log(completion.choices?.[0]?.message?.content || completion.result || completion);
-        return { result: completion.choices?.[0]?.message?.content || completion.result || completion }
+        const { output = [] } = await response.json();
+        const text = output
+          .find((i: any) => i.type === 'message' && i.role === 'assistant')
+          ?.content?.find((c: any) => c.type === 'output_text')?.text ?? '';
+
+        console.log(text || output);
+        return { result: text || output };
       },
     }),
   ],
