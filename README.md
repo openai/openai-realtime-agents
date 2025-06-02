@@ -133,3 +133,4 @@ Assistant messages are checked for safety and compliance using a guardrail funct
 ## Core Contributors
 - Noah MacCallum - [noahmacca](https://x.com/noahmacca)
 - Ilan Bigio - [ibigio](https://github.com/ibigio)
+- Brian Fioca - [bfioca](https://github.com/bfioca)
