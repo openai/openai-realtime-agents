@@ -1,4 +1,4 @@
-import { RealtimeAgent, tool } from '@openai/agents-core/realtime';
+import { RealtimeAgent, tool } from '@openai/agents/realtime';
 
 // NOTE: this file is an *as-is* conversion of the original
 // old-agentConfigs/customerServiceRetail/authentication.ts.

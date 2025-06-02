@@ -1,4 +1,4 @@
-import { RealtimeAgent, tool } from '@openai/agents-core/realtime';
+import { RealtimeAgent, tool } from '@openai/agents/realtime';
 
 export const returnsAgent = new RealtimeAgent({
   name: 'returns',

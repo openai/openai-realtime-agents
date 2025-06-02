@@ -3,7 +3,7 @@
  * implemented on top of @openai/agents-core RealtimeSession.
  */
 
-import { RealtimeSession, RealtimeAgent, OpenAIRealtimeWebRTC } from '@openai/agents-core/realtime';
+import { RealtimeSession, RealtimeAgent, OpenAIRealtimeWebRTC } from '@openai/agents/realtime';
 import { moderationGuardrail } from './guardrails';
 
 // Minimal event emitter (browser-safe, no Node polyfill)
@@ -36,8 +36,8 @@ export type ClientEvents = {
   connection_change: ['connected' | 'connecting' | 'disconnected'];
   message: [any]; // raw transport events (will be refined later)
   audio_interrupted: [];
-  history_added: [import('@openai/agents-core/realtime').RealtimeItem];
-  history_updated: [import('@openai/agents-core/realtime').RealtimeItem[]];
+  history_added: [import('@openai/agents/realtime').RealtimeItem];
+  history_updated: [import('@openai/agents/realtime').RealtimeItem[]];
 };
 
 export interface RealtimeClientOptions {

@@ -1,4 +1,4 @@
-import { RealtimeAgent } from '@openai/agents-core/realtime';
+import { RealtimeAgent } from '@openai/agents/realtime';
 
 export const simulatedHumanAgent = new RealtimeAgent({
   name: 'simulatedHuman',

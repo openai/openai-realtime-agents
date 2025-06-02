@@ -1,4 +1,5 @@
-import { RealtimeAgent, tool } from '@openai/agents-core/realtime';
+import { RealtimeContextData, RealtimeItem, tool } from '@openai/agents/realtime';
+import { z } from 'zod';
 
 import {
   exampleAccountInfo,
@@ -6,12 +7,7 @@ import {
   exampleStoreLocations,
 } from './sampleData';
 
-export const supervisorAgent = new RealtimeAgent({
-  name: 'chatSupervisor',
-  voice: 'sage',
-  handoffDescription: 'Expert customer-service supervisor that guides junior agents.',
-
-  instructions: `You are an expert customer service supervisor agent, tasked with providing real-time guidance to a more junior agent that's chatting directly with the customer. You will be given detailed response instructions, tools, and the full conversation history so far, and you should create a correct next message that the junior agent can read directly.
+export const supervisorAgentInstructions = `You are an expert customer service supervisor agent, tasked with providing real-time guidance to a more junior agent that's chatting directly with the customer. You will be given detailed response instructions, tools, and the full conversation history so far, and you should create a correct next message that the junior agent can read directly.
 
 # Instructions
 - You can provide an answer directly, or call a tool first and then answer the question
@@ -93,78 +89,125 @@ Yes we do—up to five lines can share data, and you get a 10% discount for each
 - Supervisor Assistant:
 # Message
 I'm sorry, but I'm not able to process payments over the phone. Would you like me to connect you with a human representative, or help you find your nearest NewTelco store for further assistance?
-`,
+`;
 
-  tools: [
-    tool({
-      name: 'lookupPolicyDocument',
+export const supervisorAgentTools = [
+  {
+    type: "function",
+    function: {
+      name: "lookupPolicyDocument",
       description:
-        'Tool to look up internal documents and policies by topic or keyword.',
+        "Tool to look up internal documents and policies by topic or keyword.",
       parameters: {
-        type: 'object',
+        type: "object",
         properties: {
           topic: {
-            type: 'string',
-            description: 'The topic or keyword to look up.',
+            type: "string",
+            description:
+              "The topic or keyword to search for in company policies or documents.",
           },
         },
-        required: ['topic'],
+        required: ["topic"],
         additionalProperties: false,
       },
-      strict: true,
-      execute: async (input: any) => {
-        const { topic } = input as { topic: string };
-        return examplePolicyDocs.filter((d) =>
-          d.topic.toLowerCase().includes(topic.toLowerCase()),
-        );
-      },
-    }),
-
-    tool({
-      name: 'getUserAccountInfo',
-      description: 'Tool to retrieve read-only user account information.',
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "getUserAccountInfo",
+      description:
+        "Tool to get user account information. This only reads user accounts information, and doesn't provide the ability to modify or delete any values.",
       parameters: {
-        type: 'object',
+        type: "object",
         properties: {
           phone_number: {
-            type: 'string',
-            description: "Formatted as '(xxx) xxx-xxxx'. MUST be provided by the user, never a null or empty string.",
+            type: "string",
+            description:
+              "Formatted as '(xxx) xxx-xxxx'. MUST be provided by the user, never a null or empty string.",
           },
         },
-        required: ['phone_number'],
+        required: ["phone_number"],
         additionalProperties: false,
       },
-      strict: true,
-      execute: async (input: any) => {
-        const { phone_number } = input as { phone_number: string };
-        // naive match
-        if (exampleAccountInfo.phone.includes(phone_number.replace(/[^\d]/g, ''))) {
-          return exampleAccountInfo;
-        }
-        return { error: 'Account not found' };
-      },
-    }),
-
-    tool({
-      name: 'findNearestStore',
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "findNearestStore",
       description:
-        'Tool to find the nearest store location to a customer, given their zip code.',
+        "Tool to find the nearest store location to a customer, given their zip code.",
       parameters: {
-        type: 'object',
+        type: "object",
         properties: {
           zip_code: {
-            type: 'string',
+            type: "string",
             description: "The customer's 5-digit zip code.",
           },
         },
-        required: ['zip_code'],
+        required: ["zip_code"],
         additionalProperties: false,
       },
-      strict: true,
-      execute: async (input: any) => {
-        const { zip_code } = input as { zip_code: string };
-        return exampleStoreLocations.filter((s) => s.zip_code === zip_code);
-      },
-    }),
-  ],
+    },
+  },
+];
+
+const params = z.object({
+  request: z.string(),
 });
+
+export const getNextResponseFromSupervisor = tool<typeof params, RealtimeContextData>({
+  name: 'getNextResponseFromSupervisor',
+  description:
+    'Determines the next response whenever the agent faces a non-trivial decision, produced by a highly intelligent supervisor agent. Returns a message describing what to do next.',
+  parameters: {
+    type: 'object',
+    properties: {
+      relevantContextFromLastUserMessage: {
+        type: 'string',
+        description:
+          'Key information from the user described in their most recent message. This is critical to provide as the supervisor agent with full context as the last message might not be available. Okay to omit if the user message didn\'t add any new information.',
+      },
+    },
+    required: ['relevantContextFromLastUserMessage'],
+    additionalProperties: false,
+  },
+  strict: true,
+  execute: async ({ request }, details) => {
+    const history: RealtimeItem[] = details?.context?.history ?? [];
+    const filteredLogs = history.filter(log => log.type === 'message');
+
+    const body = {
+      model: "gpt-4.1",
+      messages: [
+          {
+            role: "system",
+            content: supervisorAgentInstructions,
+          },
+          {
+            role: "user",
+            content: `==== Conversation History ====
+${JSON.stringify(filteredLogs, null, 2)}
+
+==== Relevant Context From Last User Message ===
+${request.parameters.relevantContextFromLastUserMessage}`,
+          },
+        ],
+        tools: supervisorAgentTools,
+      };
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+      return data.choices[0].message.content;
+    },
+  });
+  

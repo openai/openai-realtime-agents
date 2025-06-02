@@ -13,7 +13,7 @@ import BottomToolbar from "./components/BottomToolbar";
 
 // Types
 import { SessionStatus, TranscriptItem } from "@/app/types";
-import type { RealtimeAgent } from '@openai/agents-core/realtime';
+import type { RealtimeAgent } from '@openai/agents/realtime';
 
 // Context providers & hooks
 import { useTranscript } from "@/app/contexts/TranscriptContext";

@@ -1,6 +1,6 @@
 import {
   RealtimeAgent,
-} from '@openai/agents-core/realtime';
+} from '@openai/agents/realtime';
 
 export const haikuWriterAgent = new RealtimeAgent({
   name: 'haikuWriter',
