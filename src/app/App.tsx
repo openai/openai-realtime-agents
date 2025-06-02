@@ -198,9 +198,17 @@ function App() {
         const EPHEMERAL_KEY = await fetchEphemeralKey();
         if (!EPHEMERAL_KEY) return;
 
+        // Ensure the selectedAgentName is first so that it becomes the root
+        const reorderedAgents = [...sdkScenarioMap[agentSetKey]];
+        const idx = reorderedAgents.findIndex((a) => a.name === selectedAgentName);
+        if (idx > 0) {
+          const [agent] = reorderedAgents.splice(idx, 1);
+          reorderedAgents.unshift(agent);
+        }
+
         const client = new RealtimeClient({
           getEphemeralKey: async () => EPHEMERAL_KEY,
-          initialAgents: sdkScenarioMap[agentSetKey],
+          initialAgents: reorderedAgents,
           audioElement: sdkAudioElement,
           extraContext: {
             addTranscriptBreadcrumb,
@@ -741,7 +749,11 @@ function App() {
     e: React.ChangeEvent<HTMLSelectElement>
   ) => {
     const newAgentName = e.target.value;
+    // Reconnect session with the newly selected agent as root so that tool
+    // execution works correctly.
+    disconnectFromRealtime();
     setSelectedAgentName(newAgentName);
+    // connectToRealtime will be triggered by effect watching selectedAgentName
   };
 
   // Instead of using setCodec, we update the URL and refresh the page when codec changes

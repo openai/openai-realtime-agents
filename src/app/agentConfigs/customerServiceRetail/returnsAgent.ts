@@ -281,7 +281,7 @@ true/false/need_more_information
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ model, messages }),
+          body: JSON.stringify({ model, input: messages }),
         });
 
         if (!response.ok) {
