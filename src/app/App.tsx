@@ -65,9 +65,6 @@ function App() {
     RealtimeAgent[] | null
   >(null);
 
-  const [dataChannel, setDataChannel] = useState<RTCDataChannel | null>(null);
-  const pcRef = useRef<RTCPeerConnection | null>(null);
-  const dcRef = useRef<RTCDataChannel | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
 
   const sdkAudioElement = React.useMemo(() => {
@@ -587,17 +584,6 @@ function App() {
       sdkClientRef.current.disconnect();
       sdkClientRef.current = null;
     }
-    if (pcRef.current) {
-      pcRef.current.getSenders().forEach((sender) => {
-        if (sender.track) {
-          sender.track.stop();
-        }
-      });
-
-      pcRef.current.close();
-      pcRef.current = null;
-    }
-    setDataChannel(null);
     setSessionStatus("DISCONNECTED");
     setIsPTTUserSpeaking(false);
 
