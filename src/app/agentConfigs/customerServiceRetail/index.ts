@@ -7,9 +7,9 @@ import { simulatedHumanAgent } from './simulatedHuman';
 // assignable to `Agent<unknown>` (current library versions are invariant on
 // the context type).
 (authenticationAgent.handoffs as any).push(returnsAgent, salesAgent, simulatedHumanAgent);
-(returnsAgent.handoffs as any).push(salesAgent, simulatedHumanAgent);
-(salesAgent.handoffs as any).push(returnsAgent, simulatedHumanAgent);
-(simulatedHumanAgent.handoffs as any).push(returnsAgent, salesAgent);
+(returnsAgent.handoffs as any).push(authenticationAgent, salesAgent, simulatedHumanAgent);
+(salesAgent.handoffs as any).push(authenticationAgent, returnsAgent, simulatedHumanAgent);
+(simulatedHumanAgent.handoffs as any).push(authenticationAgent, returnsAgent, salesAgent);
 
 export const customerServiceRetailScenario = [
   authenticationAgent,

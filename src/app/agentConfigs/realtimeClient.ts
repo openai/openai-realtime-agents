@@ -143,9 +143,6 @@ export class RealtimeClient {
         if (moderation) break;
       }
 
-      // Fallback to info.outputInfo if still not found
-      if (!moderation) moderation = info?.outputInfo;
-
       this.#events.emit('message', {
         type: 'guardrail_tripped',
         info: moderation ?? info,

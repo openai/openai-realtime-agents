@@ -525,6 +525,8 @@ function App() {
           }
         });
 
+        // Handle continuous updates for existing items so streaming assistant
+        // speech shows up while in_progress.
         client.on('history_updated', (history) => {
           history.forEach((item: any) => {
             if (['function_call', 'function_call_output'].includes(item.type as string)) {
