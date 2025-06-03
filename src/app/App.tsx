@@ -486,11 +486,11 @@ function App() {
             }
 
             if ('status' in item) {
+              const shouldMarkDone =
+                (item as any).status === 'completed' && textContent.length > 0;
+
               updateTranscriptItem(item.itemId, {
-                status:
-                  (item as any).status === 'completed'
-                    ? 'DONE'
-                    : 'IN_PROGRESS',
+                status: shouldMarkDone ? 'DONE' : 'IN_PROGRESS',
               });
             }
 
