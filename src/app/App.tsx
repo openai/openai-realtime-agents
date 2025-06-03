@@ -91,9 +91,18 @@ function App() {
     data: Record<string, any>,
     toolItemId: string,
   ) => {
-    const title = `Tool call: ${name}`;
-    // Use deterministic id based on tool item id to guarantee uniqueness
-    const breadcrumbId = `tool-${toolItemId}`;
+    // Decide if this breadcrumb is for the initial call or for the result
+    const isResult = data.output !== undefined;
+
+    const titlePrefix = isResult ? 'Tool call result' : 'Tool call';
+    const title = `${titlePrefix}: ${name}`;
+
+    // Use deterministic IDs so that we still upsert in scenarios where the
+    // same event is replayed (e.g., history_updated). We intentionally create
+    // separate breadcrumbs for the initial call and its result by using a
+    // different ID namespace for each.
+    const idSuffix = isResult ? `result-${toolItemId}` : toolItemId;
+    const breadcrumbId = `tool-${idSuffix}`;
 
     addTranscriptBreadcrumb(title, data, breadcrumbId);
 
