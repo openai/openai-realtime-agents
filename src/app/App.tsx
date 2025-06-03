@@ -85,6 +85,22 @@ function App() {
 
   const sdkClientRef = useRef<RealtimeClient | null>(null);
   const loggedFunctionCallsRef = useRef<Set<string>>(new Set());
+
+  // Helper to add or update a breadcrumb for a specific tool call so that the
+  // UI shows a single line that is updated once the tool finishes.
+  const upsertToolCallBreadcrumb = (
+    name: string,
+    data: Record<string, any>,
+    toolItemId: string,
+  ) => {
+    const title = `Tool call: ${name}`;
+    // Use deterministic id based on tool item id to guarantee uniqueness
+    const breadcrumbId = `tool-${toolItemId}`;
+
+    addTranscriptBreadcrumb(title, data, breadcrumbId);
+
+    loggedFunctionCallsRef.current.add(toolItemId);
+  };
   const [sessionStatus, setSessionStatus] =
     useState<SessionStatus>("DISCONNECTED");
 
@@ -107,7 +123,7 @@ function App() {
   const { startRecording, stopRecording, downloadRecording } =
     useAudioDownload();
 
-  const sendClientEvent = (eventObj: any, eventNameSuffix = '') => {
+  const sendClientEvent = (eventObj: any) => {
     if (!sdkClientRef.current) {
       console.error('SDK client not available', eventObj);
       return;
@@ -452,35 +468,41 @@ function App() {
             }
           }
 
-          // Surface tool calls & outputs as breadcrumbs
+          // Surface tool calls & their eventual outputs as breadcrumbs
           if (['function_call', 'function_call_output'].includes(item.type as string)) {
-            const title = `Tool call: ${(item as any).name}`;
-
-            if (!loggedFunctionCallsRef.current.has(item.itemId)) {
-              addTranscriptBreadcrumb(title, {
-                arguments: (item as any).arguments,
-                output: (item as any).output,
-              });
-              loggedFunctionCallsRef.current.add(item.itemId);
-
-              // If this looks like a handoff (transfer_to_*), switch active
-              // agent so subsequent session updates & breadcrumbs reflect the
-              // new agent. The Realtime SDK already updated the session on
-              // the backend; this only affects the UI state.
-              const toolName: string = (item as any).name ?? '';
-              const handoffMatch = toolName.match(/^transfer_to_(.+)$/);
-              if (handoffMatch) {
-                const newAgentKey = handoffMatch[1];
-
-                // Find agent whose name matches (case-insensitive)
-                const candidate = selectedAgentConfigSet?.find(
-                  (a) => a.name.toLowerCase() === newAgentKey.toLowerCase(),
-                );
-                if (candidate && candidate.name !== selectedAgentName) {
-                  setSelectedAgentName(candidate.name);
-                }
+            // Normalize arguments/output for readability
+            const rawArgs = (item as any).arguments;
+            let parsedArgs: any = rawArgs;
+            if (typeof rawArgs === 'string') {
+              try {
+                parsedArgs = JSON.parse(rawArgs);
+              } catch {
+                /* ignore JSON parse errors */
               }
             }
+
+            const breadcrumbData: Record<string, any> = {
+              arguments: parsedArgs,
+            };
+            if ((item as any).output != null) {
+              breadcrumbData.output = (item as any).output;
+            }
+
+            upsertToolCallBreadcrumb((item as any).name, breadcrumbData, item.itemId);
+
+            // Handle dynamic agent switches for transfer_to_* tool calls.
+            const toolName: string = (item as any).name ?? '';
+            const handoffMatch = toolName.match(/^transfer_to_(.+)$/);
+            if (handoffMatch) {
+              const newAgentKey = handoffMatch[1];
+              const candidate = selectedAgentConfigSet?.find(
+                (a) => a.name.toLowerCase() === newAgentKey.toLowerCase(),
+              );
+              if (candidate && candidate.name !== selectedAgentName) {
+                setSelectedAgentName(candidate.name);
+              }
+            }
+
             return;
           }
         });
@@ -490,25 +512,34 @@ function App() {
         client.on('history_updated', (history) => {
           history.forEach((item: any) => {
             if (['function_call', 'function_call_output'].includes(item.type as string)) {
-              // Update breadcrumb data (e.g., add output) once we have more info.
+              const rawArgs = (item as any).arguments;
+              let parsedArgs: any = rawArgs;
+              if (typeof rawArgs === 'string') {
+                try {
+                  parsedArgs = JSON.parse(rawArgs);
+                } catch {
+                  /* ignore */
+                }
+              }
 
-              if (!loggedFunctionCallsRef.current.has(item.itemId)) {
-                addTranscriptBreadcrumb(`Tool call: ${(item as any).name}`, {
-                  arguments: (item as any).arguments,
-                  output: (item as any).output,
-                });
-                loggedFunctionCallsRef.current.add(item.itemId);
+              const breadcrumbData: Record<string, any> = {
+                arguments: parsedArgs,
+              };
+              if ((item as any).output != null) {
+                breadcrumbData.output = (item as any).output;
+              }
 
-                const toolName: string = (item as any).name ?? '';
-                const handoffMatch = toolName.match(/^transfer_to_(.+)$/);
-                if (handoffMatch) {
-                  const newAgentKey = handoffMatch[1];
-                  const candidate = selectedAgentConfigSet?.find(
-                    (a) => a.name.toLowerCase() === newAgentKey.toLowerCase(),
-                  );
-                  if (candidate && candidate.name !== selectedAgentName) {
-                    setSelectedAgentName(candidate.name);
-                  }
+              upsertToolCallBreadcrumb((item as any).name, breadcrumbData, item.itemId);
+
+              const toolName: string = (item as any).name ?? '';
+              const handoffMatch = toolName.match(/^transfer_to_(.+)$/);
+              if (handoffMatch) {
+                const newAgentKey = handoffMatch[1];
+                const candidate = selectedAgentConfigSet?.find(
+                  (a) => a.name.toLowerCase() === newAgentKey.toLowerCase(),
+                );
+                if (candidate && candidate.name !== selectedAgentName) {
+                  setSelectedAgentName(candidate.name);
                 }
               }
 
@@ -583,22 +614,16 @@ function App() {
     const id = uuidv4().slice(0, 32);
     addTranscriptMessage(id, "user", text, true);
 
-    sendClientEvent(
-      {
-        type: "conversation.item.create",
-        item: {
-          id,
-          type: "message",
-          role: "user",
-          content: [{ type: "input_text", text }],
-        },
+    sendClientEvent({
+      type: 'conversation.item.create',
+      item: {
+        id,
+        type: 'message',
+        role: 'user',
+        content: [{ type: 'input_text', text }],
       },
-      "(simulated user text message)"
-    );
-    sendClientEvent(
-      { type: "response.create" },
-      "(trigger response after simulated user text message)"
-    );
+    });
+    sendClientEvent({ type: 'response.create' });
   };
 
   const updateSession = (shouldTriggerResponse: boolean = false) => {
@@ -672,7 +697,7 @@ function App() {
     cancelAssistantSpeech();
 
     setIsPTTUserSpeaking(true);
-    sendClientEvent({ type: "input_audio_buffer.clear" }, "clear PTT buffer");
+    sendClientEvent({ type: 'input_audio_buffer.clear' });
 
     // No placeholder; we'll rely on server transcript once ready.
   };
@@ -682,8 +707,8 @@ function App() {
       return;
 
     setIsPTTUserSpeaking(false);
-    sendClientEvent({ type: "input_audio_buffer.commit" }, "commit PTT");
-    sendClientEvent({ type: "response.create" }, "trigger response PTT");
+    sendClientEvent({ type: 'input_audio_buffer.commit' });
+    sendClientEvent({ type: 'response.create' });
   };
 
   const onToggleConnection = () => {

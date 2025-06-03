@@ -8,7 +8,17 @@ type TranscriptContextValue = {
   transcriptItems: TranscriptItem[];
   addTranscriptMessage: (itemId: string, role: "user" | "assistant", text: string, hidden?: boolean) => void;
   updateTranscriptMessage: (itemId: string, text: string, isDelta: boolean) => void;
-  addTranscriptBreadcrumb: (title: string, data?: Record<string, any>) => void;
+  /**
+   * Adds a new breadcrumb entry to the transcript or updates an existing one
+   * if the provided `itemId` already exists. This makes it possible to first
+   * log a tool call with `{ output: null }` and later update the same
+   * breadcrumb once the tool produces its output.
+   */
+  addTranscriptBreadcrumb: (
+    title: string,
+    data?: Record<string, any>,
+    itemId?: string,
+  ) => void;
   toggleTranscriptItemExpand: (itemId: string) => void;
   updateTranscriptItem: (itemId: string, updatedProperties: Partial<TranscriptItem>) => void;
 };
@@ -67,11 +77,32 @@ export const TranscriptProvider: FC<PropsWithChildren> = ({ children }) => {
     );
   };
 
-  const addTranscriptBreadcrumb: TranscriptContextValue["addTranscriptBreadcrumb"] = (title, data) => {
-    setTranscriptItems((prev) => [
-      ...prev,
-      {
-        itemId: `breadcrumb-${uuidv4()}`,
+  const addTranscriptBreadcrumb: TranscriptContextValue["addTranscriptBreadcrumb"] = (
+    title,
+    data,
+    itemId,
+  ) => {
+    setTranscriptItems((prev) => {
+      const idToUse = itemId ?? `breadcrumb-${uuidv4()}`;
+
+      const existingIdx = prev.findIndex((i) => i.itemId === idToUse);
+
+      // If an entry with the same id already exists, merge/update it instead
+      // of pushing a brand-new breadcrumb. This lets us first show a tool call
+      // without an output and later update the same line once the output
+      // becomes available.
+      if (existingIdx !== -1) {
+        const updated = {
+          ...prev[existingIdx],
+          title,
+          data,
+          timestamp: newTimestampPretty(),
+        } as TranscriptItem;
+        return prev.map((item, idx) => (idx === existingIdx ? updated : item));
+      }
+
+      const newItem: TranscriptItem = {
+        itemId: idToUse,
         type: "BREADCRUMB",
         title,
         data,
@@ -80,8 +111,10 @@ export const TranscriptProvider: FC<PropsWithChildren> = ({ children }) => {
         createdAtMs: Date.now(),
         status: "DONE",
         isHidden: false,
-      },
-    ]);
+      };
+
+      return [...prev, newItem];
+    });
   };
 
   const toggleTranscriptItemExpand: TranscriptContextValue["toggleTranscriptItemExpand"] = (itemId) => {
