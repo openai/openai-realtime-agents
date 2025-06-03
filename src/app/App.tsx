@@ -100,7 +100,6 @@ function App() {
     loggedFunctionCallsRef.current.add(toolItemId);
   };
 
-  // Utility: attempt to JSON.parse a string, otherwise return original value
   const maybeParseJson = (val: any) => {
     if (typeof val === 'string') {
       try {
@@ -427,6 +426,7 @@ function App() {
               .trim();
 
             // Skip moderation guardrail notice messages altogether
+            // This gets added by the SDK but we don't want to present it in the UI
             if (textContent.includes('Failed Guardrail Reason: moderation_guardrail')) return;
 
             const role = item.role as 'user' | 'assistant';
@@ -485,7 +485,7 @@ function App() {
               });
             }
 
-            // Surface tool calls & their eventual outputs as breadcrumbs
+            // Surface function / hand-off calls as breadcrumbs
             if (['function_call', 'function_call_output'].includes(item.type as string)) {
               // Normalize arguments/output for readability
               const rawArgs = (item as any).arguments;
@@ -559,6 +559,7 @@ function App() {
               .trim();
 
             // Skip moderation guardrail notice messages altogether
+            // This gets added by the SDK but we don't want to present it in the UI
             if (textContent.includes('Failed Guardrail Reason: moderation_guardrail')) return;
 
             const role = item.role as 'user' | 'assistant';

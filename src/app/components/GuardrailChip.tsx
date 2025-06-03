@@ -23,6 +23,8 @@ export function GuardrailChip({
 }: {
   guardrailResult: GuardrailResultType;
 }) {
+  const [expanded, setExpanded] = useState(false);
+
   // Consolidate state into a single variable: "PENDING", "PASS", or "FAIL"
   const state =
     guardrailResult.status === "IN_PROGRESS"
@@ -30,8 +32,6 @@ export function GuardrailChip({
       : guardrailResult.category === "NONE"
       ? "PASS"
       : "FAIL";
-
-  const [expanded, setExpanded] = useState(false);
 
   // Variables for icon, label, and styling classes based on state
   let IconComponent;

@@ -124,43 +124,31 @@ export class RealtimeClient {
       this.#events.emit('audio_interrupted');
     });
 
+    const extractModeration = (obj: any): any | undefined => {
+      if (!obj || typeof obj !== 'object') return undefined;
+      if ('moderationCategory' in obj) return obj;
+      if (obj.outputInfo) return extractModeration(obj.outputInfo);
+      if (obj.output) return extractModeration(obj.output);
+      if (obj.result) return extractModeration(obj.result);
+      return undefined;
+    };
+
     this.#session.on('guardrail_tripped', (...args: any[]) => {
-      console.log('[realtimeClient] guardrail_tripped args', args);
-      const info = args[0]; // RunContext or similar
+      const info = args[0]; // primary payload (RunContext)
 
-      // Scan args for a direct outputInfo payload
-      let moderation: any = undefined;
+      // Find the first arg (or nested property) containing moderation details
+      let moderation: any | undefined;
       for (const a of args) {
-        if (a && a.outputInfo) {
-          moderation = a.outputInfo;
-          break;
-        }
-        if (a && a.output && a.output.outputInfo) {
-          moderation = a.output.outputInfo;
-          break;
-        }
-        if (!moderation && a && a.result) {
-          if (a.result.outputInfo) {
-            moderation = a.result.outputInfo;
-            break;
-          }
-          if (a.result.output && a.result.output.outputInfo) {
-            moderation = a.result.output.outputInfo;
-            break;
-          }
-        }
+        moderation = extractModeration(a);
+        if (moderation) break;
       }
 
-      // Fallback to previous heuristics
+      // Fallback to info.outputInfo if still not found
       if (!moderation) moderation = info?.outputInfo;
-
-      if (!moderation) {
-        console.warn('[realtimeClient] moderation outputInfo not found; emitting raw info');
-      }
 
       this.#events.emit('message', {
         type: 'guardrail_tripped',
-        info: moderation ?? info, // fall back if extraction failed
+        info: moderation ?? info,
       });
     });
 
