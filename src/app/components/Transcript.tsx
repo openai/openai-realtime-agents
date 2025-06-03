@@ -129,10 +129,6 @@ function Transcript({
               const isBracketedMessage =
                 title.startsWith("[") && title.endsWith("]");
 
-              // Placeholder messages (e.g., "Transcribing…") are in-progress
-              // user messages. Render them similarly to bracketed system
-              // messages so they appear in gray italic text instead of the
-              // regular dark user bubble style.
               const isUserPlaceholder = isUser && status !== 'DONE';
 
               const messageStyle =

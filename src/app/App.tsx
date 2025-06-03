@@ -382,7 +382,7 @@ function App() {
         client.on('history_added', (item) => {
           logHistoryItem(item);
 
-          // Update the transcript view for message items (user / assistant)
+          // Update the transcript view
           if (item.type === 'message') {
             const textContent = (item.content || [])
               .map((c: any) => {
