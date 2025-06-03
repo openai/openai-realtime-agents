@@ -97,10 +97,8 @@ function App() {
     const titlePrefix = isResult ? 'Tool call result' : 'Tool call';
     const title = `${titlePrefix}: ${name}`;
 
-    // Use deterministic IDs so that we still upsert in scenarios where the
-    // same event is replayed (e.g., history_updated). We intentionally create
-    // separate breadcrumbs for the initial call and its result by using a
-    // different ID namespace for each.
+    // We intentionally create separate breadcrumbs for the initial call 
+    // and its result by using a different ID namespace for each.
     const idSuffix = isResult ? `result-${toolItemId}` : toolItemId;
     const breadcrumbId = `tool-${idSuffix}`;
 
