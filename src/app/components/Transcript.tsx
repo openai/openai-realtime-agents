@@ -101,17 +101,18 @@ function Transcript({
           {[...transcriptItems]
             .sort((a, b) => a.createdAtMs - b.createdAtMs)
             .map((item) => {
-            const {
-              itemId,
-              type,
-              role,
-              data,
-              expanded,
-              timestamp,
-              title = "",
-              isHidden,
-              guardrailResult,
-            } = item;
+              const {
+                itemId,
+                type,
+                role,
+                data,
+                expanded,
+                timestamp,
+                title = "",
+                isHidden,
+                guardrailResult,
+                status,
+              } = item;
 
             if (isHidden) {
               return null;
@@ -127,9 +128,17 @@ function Transcript({
               }`;
               const isBracketedMessage =
                 title.startsWith("[") && title.endsWith("]");
-              const messageStyle = isBracketedMessage
-                ? "italic text-gray-400"
-                : "";
+
+              // Placeholder messages (e.g., "Transcribing…") are in-progress
+              // user messages. Render them similarly to bracketed system
+              // messages so they appear in gray italic text instead of the
+              // regular dark user bubble style.
+              const isUserPlaceholder = isUser && status !== 'DONE';
+
+              const messageStyle =
+                isBracketedMessage || isUserPlaceholder
+                  ? 'italic text-gray-400'
+                  : '';
               const displayTitle = isBracketedMessage
                 ? title.slice(1, -1)
                 : title;

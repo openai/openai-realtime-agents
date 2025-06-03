@@ -382,7 +382,7 @@ function App() {
         client.on('history_added', (item) => {
           logHistoryItem(item);
 
-          // Update the transcript view
+          // Update the transcript view for message items (user / assistant)
           if (item.type === 'message') {
             const textContent = (item.content || [])
               .map((c: any) => {
@@ -395,18 +395,17 @@ function App() {
               .join(' ')
               .trim();
 
-            if (!textContent) return;
-
             const role = item.role as 'user' | 'assistant';
-
-            // No PTT placeholder logic needed
 
             const exists = transcriptItemsRef.current.some(
               (t) => t.itemId === item.itemId,
             );
 
             if (!exists) {
-              addTranscriptMessage(item.itemId, role, textContent, false);
+              const initialText =
+                textContent || (role === 'user' ? 'Transcribing…' : '');
+              addTranscriptMessage(item.itemId, role, initialText, false);
+
               if (role === 'assistant') {
                 updateTranscriptItem(item.itemId, {
                   guardrailResult: {
@@ -414,7 +413,10 @@ function App() {
                   },
                 } as any);
               }
-            } else {
+            }
+
+            // If we now have actual text, update the placeholder.
+            if (textContent) {
               updateTranscriptMessage(item.itemId, textContent, false);
             }
 
@@ -450,13 +452,14 @@ function App() {
             }
           }
 
-          // Surface function / hand-off calls as breadcrumbs
-          if (item.type === 'function_call') {
+          // Surface tool calls & outputs as breadcrumbs
+          if (['function_call', 'function_call_output'].includes(item.type as string)) {
             const title = `Tool call: ${(item as any).name}`;
 
             if (!loggedFunctionCallsRef.current.has(item.itemId)) {
               addTranscriptBreadcrumb(title, {
                 arguments: (item as any).arguments,
+                output: (item as any).output,
               });
               loggedFunctionCallsRef.current.add(item.itemId);
 
@@ -486,7 +489,7 @@ function App() {
         // speech shows up while in_progress.
         client.on('history_updated', (history) => {
           history.forEach((item: any) => {
-            if (item.type === 'function_call') {
+            if (['function_call', 'function_call_output'].includes(item.type as string)) {
               // Update breadcrumb data (e.g., add output) once we have more info.
 
               if (!loggedFunctionCallsRef.current.has(item.itemId)) {
