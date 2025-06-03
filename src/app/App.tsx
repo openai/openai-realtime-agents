@@ -86,11 +86,6 @@ function App() {
   const sdkClientRef = useRef<RealtimeClient | null>(null);
   const loggedFunctionCallsRef = useRef<Set<string>>(new Set());
 
-  // When guardrail_tripped fires the backend then emits a user-facing notice
-  // message we don’t want to show in the transcript.  We set this flag true
-  // and the next time a matching notice appears we skip it.
-  const skipNextGuardrailNoticeRef = useRef(false);
-
   const upsertToolCallBreadcrumb = (
     name: string,
     data: Record<string, any>,
@@ -289,9 +284,6 @@ function App() {
                     testText: moderation.testText ?? '',
                   },
                 } as any);
-
-                // Signal that the next guardrail notice message should be skipped
-                skipNextGuardrailNoticeRef.current = true;
               }
               return;
             }
@@ -434,6 +426,9 @@ function App() {
               .join(' ')
               .trim();
 
+            // Skip moderation guardrail notice messages altogether
+            if (textContent.includes('Failed Guardrail Reason: moderation_guardrail')) return;
+
             const role = item.role as 'user' | 'assistant';
 
             const exists = transcriptItemsRef.current.some(
@@ -562,6 +557,9 @@ function App() {
               })
               .join(' ')
               .trim();
+
+            // Skip moderation guardrail notice messages altogether
+            if (textContent.includes('Failed Guardrail Reason: moderation_guardrail')) return;
 
             const role = item.role as 'user' | 'assistant';
 
