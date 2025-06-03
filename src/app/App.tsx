@@ -86,8 +86,6 @@ function App() {
   const sdkClientRef = useRef<RealtimeClient | null>(null);
   const loggedFunctionCallsRef = useRef<Set<string>>(new Set());
 
-  // Helper to add or update a breadcrumb for a specific tool call so that the
-  // UI shows a single line that is updated once the tool finishes.
   const upsertToolCallBreadcrumb = (
     name: string,
     data: Record<string, any>,

@@ -8,12 +8,6 @@ type TranscriptContextValue = {
   transcriptItems: TranscriptItem[];
   addTranscriptMessage: (itemId: string, role: "user" | "assistant", text: string, hidden?: boolean) => void;
   updateTranscriptMessage: (itemId: string, text: string, isDelta: boolean) => void;
-  /**
-   * Adds a new breadcrumb entry to the transcript or updates an existing one
-   * if the provided `itemId` already exists. This makes it possible to first
-   * log a tool call with `{ output: null }` and later update the same
-   * breadcrumb once the tool produces its output.
-   */
   addTranscriptBreadcrumb: (
     title: string,
     data?: Record<string, any>,
