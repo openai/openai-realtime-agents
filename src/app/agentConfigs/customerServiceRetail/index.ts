@@ -1,3 +1,4 @@
+import { authenticationAgent } from './authentication';
 import { returnsAgent } from './returns';
 import { salesAgent } from './sales';
 import { simulatedHumanAgent } from './simulatedHuman';
@@ -11,6 +12,7 @@ import { simulatedHumanAgent } from './simulatedHuman';
 (simulatedHumanAgent.handoffs as any).push(returnsAgent, salesAgent);
 
 export const customerServiceRetailScenario = [
+  authenticationAgent,  
   returnsAgent,
   salesAgent,
   simulatedHumanAgent,
