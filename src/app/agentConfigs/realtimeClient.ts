@@ -124,8 +124,44 @@ export class RealtimeClient {
       this.#events.emit('audio_interrupted');
     });
 
-    this.#session.on('guardrail_tripped', (info: any) => {
-      this.#events.emit('message', { type: 'guardrail_tripped', info });
+    this.#session.on('guardrail_tripped', (...args: any[]) => {
+      console.log('[realtimeClient] guardrail_tripped args', args);
+      const info = args[0]; // RunContext or similar
+
+      // Scan args for a direct outputInfo payload
+      let moderation: any = undefined;
+      for (const a of args) {
+        if (a && a.outputInfo) {
+          moderation = a.outputInfo;
+          break;
+        }
+        if (a && a.output && a.output.outputInfo) {
+          moderation = a.output.outputInfo;
+          break;
+        }
+        if (!moderation && a && a.result) {
+          if (a.result.outputInfo) {
+            moderation = a.result.outputInfo;
+            break;
+          }
+          if (a.result.output && a.result.output.outputInfo) {
+            moderation = a.result.output.outputInfo;
+            break;
+          }
+        }
+      }
+
+      // Fallback to previous heuristics
+      if (!moderation) moderation = info?.outputInfo;
+
+      if (!moderation) {
+        console.warn('[realtimeClient] moderation outputInfo not found; emitting raw info');
+      }
+
+      this.#events.emit('message', {
+        type: 'guardrail_tripped',
+        info: moderation ?? info, // fall back if extraction failed
+      });
     });
 
     // Wait for full connection establishment (data channel open).
