@@ -6,13 +6,13 @@ import { simulatedHumanAgent } from './simulatedHuman';
 // Cast to `any` to satisfy TypeScript until the core types make RealtimeAgent
 // assignable to `Agent<unknown>` (current library versions are invariant on
 // the context type).
-
+(authenticationAgent.handoffs as any).push(returnsAgent, salesAgent, simulatedHumanAgent);
 (returnsAgent.handoffs as any).push(salesAgent, simulatedHumanAgent);
 (salesAgent.handoffs as any).push(returnsAgent, simulatedHumanAgent);
 (simulatedHumanAgent.handoffs as any).push(returnsAgent, salesAgent);
 
 export const customerServiceRetailScenario = [
-  authenticationAgent,  
+  authenticationAgent,
   returnsAgent,
   salesAgent,
   simulatedHumanAgent,

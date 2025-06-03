@@ -99,6 +99,18 @@ function App() {
 
     loggedFunctionCallsRef.current.add(toolItemId);
   };
+
+  // Utility: attempt to JSON.parse a string, otherwise return original value
+  const maybeParseJson = (val: any) => {
+    if (typeof val === 'string') {
+      try {
+        return JSON.parse(val);
+      } catch {
+        /* ignore parse errors */
+      }
+    }
+    return val;
+  };
   const [sessionStatus, setSessionStatus] =
     useState<SessionStatus>("DISCONNECTED");
 
@@ -254,22 +266,38 @@ function App() {
           try {
             // Guardrail trip event – mark last assistant message as FAIL
             if (ev.type === 'guardrail_tripped') {
-              const lastAssistant = [...transcriptItemsRef.current]
-                .reverse()
-                .find((i) => i.role === 'assistant');
+  const lastAssistant = [...transcriptItemsRef.current]
+    .reverse()
+    .find((i) => i.role === 'assistant');
 
-              if (lastAssistant) {
-                updateTranscriptItem(lastAssistant.itemId, {
-                  guardrailResult: {
-                    status: 'DONE',
-                    category: 'OFF_BRAND',
-                    rationale: 'Guardrail triggered',
-                    testText: '',
-                  },
-                } as any);
-              }
-              return;
-            }
+  if (lastAssistant && ev.info) {
+  // DEBUG LOGGING
+  console.log('[guardrail_tripped] ev.info:', ev.info);
+  // Try to extract moderation result from ev.info, even if nested or stringified
+  let moderationResult = ev.info;
+  // If ev.info has outputInfo, use that
+  if (ev.info.outputInfo) {
+    moderationResult = ev.info.outputInfo;
+  }
+  // If still a string, try to parse
+  if (typeof moderationResult === 'string') {
+    try {
+      moderationResult = JSON.parse(moderationResult);
+    } catch {}
+  }
+  const guardrailResult = {
+    status: 'DONE',
+    category: moderationResult.moderationCategory || 'OFF_BRAND',
+    rationale: moderationResult.moderationRationale || 'Guardrail triggered',
+    testText: moderationResult.testText || '',
+  };
+  console.log('[guardrail_tripped] guardrailResult:', guardrailResult);
+  updateTranscriptItem(lastAssistant.itemId, {
+    guardrailResult,
+  } as any);
+}
+  return;
+}
 
             // Response finished – if we still have Pending guardrail mark as
             // Pass. This event fires once per assistant turn.
@@ -470,20 +498,11 @@ function App() {
           if (['function_call', 'function_call_output'].includes(item.type as string)) {
             // Normalize arguments/output for readability
             const rawArgs = (item as any).arguments;
-            let parsedArgs: any = rawArgs;
-            if (typeof rawArgs === 'string') {
-              try {
-                parsedArgs = JSON.parse(rawArgs);
-              } catch {
-                /* ignore JSON parse errors */
-              }
-            }
-
             const breadcrumbData: Record<string, any> = {
-              arguments: parsedArgs,
+              arguments: maybeParseJson(rawArgs),
             };
             if ((item as any).output != null) {
-              breadcrumbData.output = (item as any).output;
+              breadcrumbData.output = maybeParseJson((item as any).output);
             }
 
             upsertToolCallBreadcrumb((item as any).name, breadcrumbData, item.itemId);
@@ -511,20 +530,12 @@ function App() {
           history.forEach((item: any) => {
             if (['function_call', 'function_call_output'].includes(item.type as string)) {
               const rawArgs = (item as any).arguments;
-              let parsedArgs: any = rawArgs;
-              if (typeof rawArgs === 'string') {
-                try {
-                  parsedArgs = JSON.parse(rawArgs);
-                } catch {
-                  /* ignore */
-                }
-              }
 
               const breadcrumbData: Record<string, any> = {
-                arguments: parsedArgs,
+                arguments: maybeParseJson(rawArgs),
               };
               if ((item as any).output != null) {
-                breadcrumbData.output = (item as any).output;
+                breadcrumbData.output = maybeParseJson((item as any).output);
               }
 
               upsertToolCallBreadcrumb((item as any).name, breadcrumbData, item.itemId);
