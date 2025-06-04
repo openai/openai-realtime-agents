@@ -1,5 +1,5 @@
 "use client";
-
+import "./lib/codecPatch";
 import React, { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
@@ -36,7 +36,6 @@ const sdkScenarioMap: Record<string, RealtimeAgent[]> = {
 };
 
 import useAudioDownload from "./hooks/useAudioDownload";
-import { overrideAudioCodecOnce } from "./lib/overrideCodecPreferences";
 
 function App() {
   const searchParams = useSearchParams()!;
@@ -47,19 +46,14 @@ function App() {
   // a traditional phone line and to validate ASR / VAD behaviour under that
   // constraint.
   //
-  // We read the `?codec=` query-param and later pass it to
-  // `overrideAudioCodecOnce`, which patches WebRTC so the preferred codec is
-  // picked before offer/answer. 
+  // We read the `?codec=` query-param and rely on ./lib/codecPatch to patch
+  // WebRTC at module-load so that the preferred codec is selected before
+  // offer/answer negotiation.
   // ---------------------------------------------------------------------
   const urlCodec = searchParams.get("codec") || "opus";
 
-  // If the user explicitly asked for a non-Opus codec we now simulate the
-  // narrow-band “phone” sound *locally* instead of changing the SDP.
-  // The Realtime backend always sends Opus, so we only patch the WebRTC
-  // codec preferences when the user keeps the default (Opus).
-  React.useEffect(() => {
-    overrideAudioCodecOnce(urlCodec);
-  }, [urlCodec]);
+  // Agents SDK doesn't currently support codec selection so it is now forced 
+  // via global codecPatch at module load 
 
   const {
     transcriptItems,
