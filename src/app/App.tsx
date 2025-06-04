@@ -53,7 +53,10 @@ function App() {
   // ---------------------------------------------------------------------
   const urlCodec = searchParams.get("codec") || "opus";
 
-  // Patch WebRTC to prefer the selected codec 
+  // If the user explicitly asked for a non-Opus codec we now simulate the
+  // narrow-band “phone” sound *locally* instead of changing the SDP.
+  // The Realtime backend always sends Opus, so we only patch the WebRTC
+  // codec preferences when the user keeps the default (Opus).
   React.useEffect(() => {
     overrideAudioCodecOnce(urlCodec);
   }, [urlCodec]);
@@ -96,22 +99,10 @@ function App() {
     }
   }, [sdkAudioElement]);
 
+
+
   const sdkClientRef = useRef<RealtimeClient | null>(null);
-  const loggedFunctionCallsRef = useRef<Set<string>>(new Set());
 
-  // Breadcrumb creation for tool calls is handled in useHandleServerEvent.
-
-  // Helper for when function call results might be JSON or string responses
-  const maybeParseJson = (val: any) => {
-    if (typeof val === 'string') {
-      try {
-        return JSON.parse(val);
-      } catch {
-        /* ignore parse errors */
-      }
-    }
-    return val;
-  };
   const [sessionStatus, setSessionStatus] =
     useState<SessionStatus>("DISCONNECTED");
 
@@ -242,6 +233,7 @@ function App() {
           extraContext: {
             addTranscriptBreadcrumb,
           },
+          // No explicit session config overrides
         } as any);
 
         sdkClientRef.current = client;

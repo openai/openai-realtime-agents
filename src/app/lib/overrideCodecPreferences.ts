@@ -49,6 +49,7 @@ export function overrideAudioCodecOnce(codec: string) {
         (c) => c.mimeType.toLowerCase() === `audio/${preferredCodec}`,
       );
       if (chosen) {
+        console.log('Setting codec preference to', preferredCodec);
         transceiver.setCodecPreferences([chosen]);
       }
     } catch (err) {

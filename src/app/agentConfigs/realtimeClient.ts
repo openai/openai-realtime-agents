@@ -74,7 +74,7 @@ export class RealtimeClient {
       ? new OpenAIRealtimeWebRTC({
           useInsecureApiKey: true,
           audioElement: this.#options.audioElement,
-        })
+        } as any)
       : 'webrtc';
 
     this.#session = new RealtimeSession(rootAgent, {
