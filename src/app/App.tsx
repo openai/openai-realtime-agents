@@ -18,13 +18,13 @@ import type { RealtimeAgent } from '@openai/agents/realtime';
 // Context providers & hooks
 import { useTranscript } from "@/app/contexts/TranscriptContext";
 import { useEvent } from "@/app/contexts/EventContext";
+import { useHandleServerEvent } from "./hooks/useHandleServerEvent";
 
 // Utilities
 import { RealtimeClient } from "@/app/agentConfigs/realtimeClient";
 
 // Agent configs
 import { allAgentSets, defaultAgentSetKey } from "@/app/agentConfigs";
-// New SDK scenarios
 import { simpleHandoffScenario } from "@/app/agentConfigs/simpleHandoff";
 import { customerServiceRetailScenario } from "@/app/agentConfigs/customerServiceRetail";
 import { chatSupervisorScenario } from "@/app/agentConfigs/chatSupervisor";
@@ -36,19 +36,32 @@ const sdkScenarioMap: Record<string, RealtimeAgent[]> = {
 };
 
 import useAudioDownload from "./hooks/useAudioDownload";
+import { overrideAudioCodecOnce } from "./lib/overrideCodecPreferences";
 
 function App() {
   const searchParams = useSearchParams()!;
 
-  // Use urlCodec directly from URL search params (default: "opus")
+  // ---------------------------------------------------------------------
+  // Codec selector – lets you toggle between wide-band Opus (48 kHz)
+  // and narrow-band PCMU/PCMA (8 kHz) to hear what the agent sounds like on
+  // a traditional phone line and to validate ASR / VAD behaviour under that
+  // constraint.
+  //
+  // We read the `?codec=` query-param and later pass it to
+  // `overrideAudioCodecOnce`, which patches WebRTC so the preferred codec is
+  // picked before offer/answer. 
+  // ---------------------------------------------------------------------
   const urlCodec = searchParams.get("codec") || "opus";
+
+  // Patch WebRTC to prefer the selected codec 
+  React.useEffect(() => {
+    overrideAudioCodecOnce(urlCodec);
+  }, [urlCodec]);
 
   const {
     transcriptItems,
     addTranscriptMessage,
     addTranscriptBreadcrumb,
-    updateTranscriptMessage,
-    updateTranscriptItem,
   } = useTranscript();
 
   // Keep a mutable reference to the latest transcriptItems so that streaming
@@ -86,27 +99,9 @@ function App() {
   const sdkClientRef = useRef<RealtimeClient | null>(null);
   const loggedFunctionCallsRef = useRef<Set<string>>(new Set());
 
-  const upsertToolCallBreadcrumb = (
-    name: string,
-    data: Record<string, any>,
-    toolItemId: string,
-  ) => {
-    // Decide if this breadcrumb is for the initial call or for the result
-    const isResult = data.output !== undefined;
+  // Breadcrumb creation for tool calls is handled in useHandleServerEvent.
 
-    const titlePrefix = isResult ? 'Tool call result' : 'Tool call';
-    const title = `${titlePrefix}: ${name}`;
-
-    // We intentionally create separate breadcrumbs for the initial call 
-    // and its result by using a different ID namespace for each.
-    const idSuffix = isResult ? `result-${toolItemId}` : toolItemId;
-    const breadcrumbId = `tool-${idSuffix}`;
-
-    addTranscriptBreadcrumb(title, data, breadcrumbId);
-
-    loggedFunctionCallsRef.current.add(toolItemId);
-  };
-
+  // Helper for when function call results might be JSON or string responses
   const maybeParseJson = (val: any) => {
     if (typeof val === 'string') {
       try {
@@ -133,8 +128,6 @@ function App() {
     },
   );
 
-
-
   // Initialize the recording hook.
   const { startRecording, stopRecording, downloadRecording } =
     useAudioDownload();
@@ -151,6 +144,15 @@ function App() {
       console.error('Failed to send via SDK', err);
     }
   };
+
+  const handleServerEventRef = useHandleServerEvent({
+    setSessionStatus,
+    selectedAgentName,
+    selectedAgentConfigSet: selectedAgentConfigSet as any,
+    sendClientEvent,
+    setSelectedAgentName,
+    setIsOutputAudioBufferActive: () => {},
+  });
 
 
   useEffect(() => {
@@ -218,7 +220,6 @@ function App() {
   const connectToRealtime = async () => {
     const agentSetKey = searchParams.get("agentConfig") || "default";
     if (sdkScenarioMap[agentSetKey]) {
-      // Use new SDK path
       if (sessionStatus !== "DISCONNECTED") return;
       setSessionStatus("CONNECTING");
 
@@ -252,293 +253,41 @@ function App() {
         });
 
         client.on("message", (ev) => {
-          logServerEvent(ev);
-
-          // --- Realtime streaming handling ---------------------------------
-          // The Realtime transport emits granular *delta* events while the
-          // assistant is speaking or while the user's audio is still being
-          // transcribed. Those events were previously only logged which made
-          // the UI update only once when the final conversation.item.* event
-          // arrived – effectively disabling streaming. We now listen for the
-          // delta events and update the transcript as they arrive so that
-          // 1) assistant messages stream token-by-token, and
-          // 2) the user sees a live "Transcribing…" placeholder while we are
-          //    still converting their speech to text.
-
-          // NOTE: The exact payloads are still evolving.  We intentionally
-          // access properties defensively to avoid runtime crashes if fields
-          // are renamed or missing.
-
-          try {
-            // Guardrail trip event – mark last assistant message as FAIL
-            if (ev.type === 'guardrail_tripped') {
-              const lastAssistant = [...transcriptItemsRef.current]
-                .reverse()
-                .find((i) => i.role === 'assistant');
-
-              if (lastAssistant && ev.info) {
-                const moderation: any =
-                  'moderationCategory' in ev.info
-                    ? ev.info
-                    : ev.info.outputInfo ?? ev.info;
-
-                updateTranscriptItem(lastAssistant.itemId, {
-                  guardrailResult: {
-                    status: 'DONE',
-                    category: moderation.moderationCategory ?? 'OFF_BRAND',
-                    rationale: moderation.moderationRationale ?? '',
-                    testText: moderation.testText ?? '',
-                  },
-                } as any);
-              }
-              return;
-            }
-
-            // Response finished – if we still have Pending guardrail mark as
-            // Pass. This event fires once per assistant turn.
-            if (ev.type === 'response.done') {
-              const lastAssistant = [...transcriptItemsRef.current]
-                .reverse()
-                .find((i) => i.role === 'assistant');
-
-              if (lastAssistant) {
-                const existing: any = (lastAssistant as any).guardrailResult;
-                if (!existing || existing.status === 'IN_PROGRESS') {
-                  updateTranscriptItem(lastAssistant.itemId, {
-                    guardrailResult: {
-                      status: 'DONE',
-                      category: 'NONE',
-                      rationale: '',
-                    },
-                  } as any);
-                }
-              }
-              // continue processing other logic if needed
-            }
-            // Assistant text (or audio-to-text) streaming
-            if (
-              ev.type === 'response.text.delta' ||
-              ev.type === 'response.audio_transcript.delta'
-            ) {
-              const itemId: string | undefined = (ev as any).item_id ?? (ev as any).itemId;
-              const delta: string | undefined = (ev as any).delta ?? (ev as any).text;
-              if (!itemId || !delta) return;
-
-              // Ensure a transcript message exists for this assistant item.
-              if (!transcriptItemsRef.current.some((t) => t.itemId === itemId)) {
-                addTranscriptMessage(itemId, 'assistant', '');
-                updateTranscriptItem(itemId, {
-                  guardrailResult: {
-                    status: 'IN_PROGRESS',
-                  },
-                } as any);
-              }
-
-              // Append the latest delta so the UI streams.
-              updateTranscriptMessage(itemId, delta, true);
-              updateTranscriptItem(itemId, { status: 'IN_PROGRESS' });
-              return;
-            }
-
-            // Live user transcription streaming
-            if (ev.type === 'conversation.input_audio_transcription.delta') {
-              const itemId: string | undefined = (ev as any).item_id ?? (ev as any).itemId;
-              const delta: string | undefined = (ev as any).delta ?? (ev as any).text;
-              if (!itemId || typeof delta !== 'string') return;
-
-              // If this is the very first chunk, create a hidden user message
-              // so that we can surface "Transcribing…" immediately.
-              if (!transcriptItemsRef.current.some((t) => t.itemId === itemId)) {
-                addTranscriptMessage(itemId, 'user', 'Transcribing…');
-              }
-
-              updateTranscriptMessage(itemId, delta, true);
-              updateTranscriptItem(itemId, { status: 'IN_PROGRESS' });
-            }
-
-            // Detect start of a new user speech segment when VAD kicks in.
-            if (ev.type === 'input_audio_buffer.speech_started') {
-              const itemId: string | undefined = (ev as any).item_id;
-              if (!itemId) return;
-
-              const exists = transcriptItemsRef.current.some(
-                (t) => t.itemId === itemId,
-              );
-              if (!exists) {
-                addTranscriptMessage(itemId, 'user', 'Transcribing…');
-                updateTranscriptItem(itemId, { status: 'IN_PROGRESS' });
-              }
-            }
-
-            // Final transcript once Whisper finishes
-            if (
-              ev.type === 'conversation.item.input_audio_transcription.completed'
-            ) {
-              const itemId: string | undefined = (ev as any).item_id;
-              const transcriptText: string | undefined = (ev as any).transcript;
-              if (!itemId || typeof transcriptText !== 'string') return;
-
-              const exists = transcriptItemsRef.current.some(
-                (t) => t.itemId === itemId,
-              );
-              if (!exists) {
-                addTranscriptMessage(itemId, 'user', transcriptText.trim());
-              } else {
-                // Replace placeholder / delta text with final transcript
-                updateTranscriptMessage(itemId, transcriptText.trim(), false);
-              }
-              updateTranscriptItem(itemId, { status: 'DONE' });
-            }
-
-            // Assistant streaming tokens or transcript
-            if (
-              ev.type === 'response.text.delta' ||
-              ev.type === 'response.audio_transcript.delta'
-            ) {
-              const responseId: string | undefined =
-                (ev as any).response_id ?? (ev as any).responseId;
-              const delta: string | undefined = (ev as any).delta ?? (ev as any).text;
-              if (!responseId || typeof delta !== 'string') return;
-
-              // We'll use responseId as part of itemId to make it deterministic.
-              const itemId = `assistant-${responseId}`;
-
-              if (!transcriptItemsRef.current.some((t) => t.itemId === itemId)) {
-                addTranscriptMessage(itemId, 'assistant', '');
-              }
-
-              updateTranscriptMessage(itemId, delta, true);
-              updateTranscriptItem(itemId, { status: 'IN_PROGRESS' });
-            }
-          } catch (err) {
-            // Streaming is best-effort – never break the session because of it.
-            console.warn('streaming-ui error', err);
-          }
+          // All message parsing (streaming deltas, guardrails, etc.) is
+          // centralised in the `useHandleServerEvent` hook.
+          handleServerEventRef.current?.(ev);
         });
 
         client.on('history_added', (item) => {
+          handleServerEventRef.current?.({ type: 'history_added', item });
           logHistoryItem(item);
 
-          // Update the transcript view
-          if (item.type === 'message') {
-            const textContent = (item.content || [])
-              .map((c: any) => {
-                if (c.type === 'text') return c.text;
-                if (c.type === 'input_text') return c.text;
-                if (c.type === 'input_audio') return c.transcript ?? '';
-                if (c.type === 'audio') return c.transcript ?? '';
-                return '';
-              })
-              .join(' ')
-              .trim();
-
-            // Skip moderation guardrail notice messages altogether
-            // This gets added by the SDK but we don't want to present it in the UI
-            if (textContent.includes('Failed Guardrail Reason: moderation_guardrail')) return;
-
-            const role = item.role as 'user' | 'assistant';
-
-            const exists = transcriptItemsRef.current.some(
-              (t) => t.itemId === item.itemId,
-            );
-
-            if (!exists) {
-              const initialText =
-                textContent || (role === 'user' ? 'Transcribing…' : '');
-              addTranscriptMessage(item.itemId, role, initialText, false);
-
-              if (role === 'assistant') {
-                updateTranscriptItem(item.itemId, {
-                  guardrailResult: {
-                    status: 'IN_PROGRESS',
-                  },
-                } as any);
-              }
-            }
-
-            // If we now have actual text, update the placeholder.
-            if (textContent) {
-              updateTranscriptMessage(item.itemId, textContent, false);
-            }
-
-            // After assistant message completes, add default guardrail PASS if none present.
-            if (
-              role === 'assistant' &&
-              (item as any).status === 'completed'
-            ) {
-              const current = transcriptItemsRef.current.find(
-                (t) => t.itemId === item.itemId,
+          // Surface function / hand-off calls as breadcrumbs.
+          if (['function_call', 'function_call_output'].includes(item.type as string)) {
+            // Handle dynamic agent switches for transfer_to_* tool calls.
+            const toolName: string = (item as any).name ?? '';
+            const handoffMatch = toolName.match(/^transfer_to_(.+)$/);
+            if (handoffMatch) {
+              const newAgentKey = handoffMatch[1];
+              const candidate = selectedAgentConfigSet?.find(
+                (a) => a.name.toLowerCase() === newAgentKey.toLowerCase(),
               );
-              const existing = (current as any)?.guardrailResult;
-              if (existing && existing.status !== 'IN_PROGRESS') {
-                // already final (e.g., FAIL) – leave as is.
-              } else {
-                updateTranscriptItem(item.itemId, {
-                  guardrailResult: {
-                    status: 'DONE',
-                    category: 'NONE',
-                    rationale: '',
-                  },
-                } as any);
+              if (candidate && candidate.name !== selectedAgentName) {
+                setSelectedAgentName(candidate.name);
               }
             }
 
-            if ('status' in item) {
-              const shouldMarkDone =
-                (item as any).status === 'completed' && textContent.length > 0;
-
-              updateTranscriptItem(item.itemId, {
-                status: shouldMarkDone ? 'DONE' : 'IN_PROGRESS',
-              });
-            }
-
-            // Surface function / hand-off calls as breadcrumbs
-            if (['function_call', 'function_call_output'].includes(item.type as string)) {
-              // Normalize arguments/output for readability
-              const rawArgs = (item as any).arguments;
-              const breadcrumbData: Record<string, any> = {
-                arguments: maybeParseJson(rawArgs),
-              };
-              if ((item as any).output != null) {
-                breadcrumbData.output = maybeParseJson((item as any).output);
-              }
-
-              upsertToolCallBreadcrumb((item as any).name, breadcrumbData, item.itemId);
-
-              // Handle dynamic agent switches for transfer_to_* tool calls.
-              const toolName: string = (item as any).name ?? '';
-              const handoffMatch = toolName.match(/^transfer_to_(.+)$/);
-              if (handoffMatch) {
-                const newAgentKey = handoffMatch[1];
-                const candidate = selectedAgentConfigSet?.find(
-                  (a) => a.name.toLowerCase() === newAgentKey.toLowerCase(),
-                );
-                if (candidate && candidate.name !== selectedAgentName) {
-                  setSelectedAgentName(candidate.name);
-                }
-              }
-
-              return;
-            }
+            return;
           }
         });
 
         // Handle continuous updates for existing items so streaming assistant
         // speech shows up while in_progress.
         client.on('history_updated', (history) => {
+          handleServerEventRef.current?.({ type: 'history_updated', history });
           history.forEach((item: any) => {
             if (['function_call', 'function_call_output'].includes(item.type as string)) {
-              const rawArgs = (item as any).arguments;
-
-              const breadcrumbData: Record<string, any> = {
-                arguments: maybeParseJson(rawArgs),
-              };
-              if ((item as any).output != null) {
-                breadcrumbData.output = maybeParseJson((item as any).output);
-              }
-
-              upsertToolCallBreadcrumb((item as any).name, breadcrumbData, item.itemId);
-
+              // Breadcrumb now handled in useHandleServerEvent
               const toolName: string = (item as any).name ?? '';
               const handoffMatch = toolName.match(/^transfer_to_(.+)$/);
               if (handoffMatch) {
@@ -555,50 +304,7 @@ function App() {
             }
 
             if (item.type !== 'message') return;
-
-            const textContent = (item.content || [])
-              .map((c: any) => {
-                if (c.type === 'text') return c.text;
-                if (c.type === 'input_text') return c.text;
-                if (c.type === 'input_audio') return c.transcript ?? '';
-                if (c.type === 'audio') return c.transcript ?? '';
-                return '';
-              })
-              .join(' ')
-              .trim();
-
-            // Skip moderation guardrail notice messages altogether
-            // This gets added by the SDK but we don't want to present it in the UI
-            if (textContent.includes('Failed Guardrail Reason: moderation_guardrail')) return;
-
-            const role = item.role as 'user' | 'assistant';
-
-            if (!textContent) return;
-
-            const exists = transcriptItemsRef.current.some(
-              (t) => t.itemId === item.itemId,
-            );
-            if (!exists) {
-              addTranscriptMessage(item.itemId, role, textContent, false);
-              if (role === 'assistant') {
-                updateTranscriptItem(item.itemId, {
-                  guardrailResult: {
-                    status: 'IN_PROGRESS',
-                  },
-                } as any);
-              }
-            } else {
-              updateTranscriptMessage(item.itemId, textContent, false);
-            }
-
-            if ('status' in item) {
-              updateTranscriptItem(item.itemId, {
-                status:
-                  (item as any).status === 'completed'
-                    ? 'DONE'
-                    : 'IN_PROGRESS',
-              });
-            }
+            // All message updates are already handled by useHandleServerEvent.
           });
         });
 
@@ -612,10 +318,8 @@ function App() {
   };
 
   const disconnectFromRealtime = () => {
-    if (sdkClientRef.current) {
-      sdkClientRef.current.disconnect();
-      sdkClientRef.current = null;
-    }
+    sdkClientRef.current?.disconnect();
+    sdkClientRef.current = null;
     setSessionStatus("DISCONNECTED");
     setIsPTTUserSpeaking(false);
 
@@ -639,50 +343,42 @@ function App() {
   };
 
   const updateSession = (shouldTriggerResponse: boolean = false) => {
-    // In SDK scenarios RealtimeClient manages session config automatically.
-    if (sdkClientRef.current) {
-      if (shouldTriggerResponse) {
-        sendSimulatedUserMessage('hi');
-      }
-
-      // Reflect Push-to-Talk UI state by (de)activating server VAD on the
-      // backend. The Realtime SDK supports live session updates via the
-      // `session.update` event.
-      const client = sdkClientRef.current;
-      if (client) {
-        const turnDetection = isPTTActive
-          ? null
-          : {
-              type: 'server_vad',
-              threshold: 0.9,
-              prefix_padding_ms: 300,
-              silence_duration_ms: 500,
-              create_response: true,
-            };
-        try {
-          client.sendEvent({
-            type: 'session.update',
-            session: {
-              turn_detection: turnDetection,
-            },
-          });
-        } catch (err) {
-          console.warn('Failed to update session', err);
-        }
-      }
-      return;
+    // Send an initial 'hi' message to trigger the agent to greet the user
+    if (shouldTriggerResponse) {
+      sendSimulatedUserMessage('hi');
     }
-  };
+
+    // Reflect Push-to-Talk UI state by (de)activating server VAD on the
+    // backend. The Realtime SDK supports live session updates via the
+    // `session.update` event.
+    const turnDetection = isPTTActive
+      ? null
+      : {
+          type: 'server_vad',
+          threshold: 0.9,
+          prefix_padding_ms: 300,
+          silence_duration_ms: 500,
+          create_response: true,
+        };
+    try {
+      sdkClientRef.current?.sendEvent({
+        type: 'session.update',
+        session: {
+          turn_detection: turnDetection,
+        },
+      });
+    } catch (err) {
+      console.warn('Failed to update session', err);
+    }
+    return;
+  }
 
   const cancelAssistantSpeech = async () => {
-
     // Interrupts server response and clears local audio.
-    if (sdkClientRef.current) {
-      try {
-        sdkClientRef.current.interrupt();
-      } catch (err) {
-        console.error('Failed to interrupt', err);
-      }
+    try {
+      sdkClientRef.current?.interrupt();
+    } catch (err) {
+      console.error('Failed to interrupt', err);
     }
   };
 
@@ -750,7 +446,7 @@ function App() {
     // connectToRealtime will be triggered by effect watching selectedAgentName
   };
 
-  // Instead of using setCodec, we update the URL and refresh the page when codec changes
+  // Because we need a new connection, refresh the page when codec changes
   const handleCodecChange = (newCodec: string) => {
     const url = new URL(window.location.toString());
     url.searchParams.set("codec", newCodec);
@@ -804,13 +500,11 @@ function App() {
     }
 
     // Toggle server-side audio stream mute so bandwidth is saved when the
-    // user disables playback. Only supported when using the SDK path.
-    if (sdkClientRef.current) {
-      try {
-        sdkClientRef.current.mute(!isAudioPlaybackEnabled);
-      } catch (err) {
-        console.warn('Failed to toggle SDK mute', err);
-      }
+    // user disables playback. 
+    try {
+      sdkClientRef.current?.mute(!isAudioPlaybackEnabled);
+    } catch (err) {
+      console.warn('Failed to toggle SDK mute', err);
     }
   }, [isAudioPlaybackEnabled]);
 
