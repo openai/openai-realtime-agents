@@ -40,6 +40,17 @@ export function useHandleServerEvent({
 
   const assistantDeltasRef = useRef<{ [itemId: string]: string }>({});
 
+  const maybeParseJson = (val: any) => {
+    if (typeof val === 'string') {
+      try {
+        return JSON.parse(val);
+      } catch {
+        /* ignore */
+      }
+    }
+    return val;
+  };
+
   const ensureAssistantMessage = (itemId: string) => {
     if (!transcriptItems.some((t) => t.itemId === itemId)) {
       addTranscriptMessage(itemId, 'assistant', '');
@@ -85,15 +96,9 @@ export function useHandleServerEvent({
       (a) => a.name === selectedAgentName
     );
 
-    addTranscriptBreadcrumb(`function call: ${functionCallParams.name}`, args);
-
     if (currentAgent?.toolLogic?.[functionCallParams.name]) {
       const fn = currentAgent.toolLogic[functionCallParams.name];
       const fnResult = await fn(args, transcriptItems, addTranscriptBreadcrumb);
-      addTranscriptBreadcrumb(
-        `function call result: ${functionCallParams.name}`,
-        fnResult
-      );
 
       sendClientEvent({
         type: "conversation.item.create",
@@ -124,10 +129,7 @@ export function useHandleServerEvent({
           output: JSON.stringify(functionCallOutput),
         },
       });
-      addTranscriptBreadcrumb(
-        `function call: ${functionCallParams.name} response`,
-        functionCallOutput
-      );
+      // Breadcrumbs for call and result will arrive via history events.
     } // else: no local handling; let server/SDK manage output
   };
 
@@ -135,16 +137,47 @@ export function useHandleServerEvent({
   // Realtime SDK transport (`client.on('message')`) *or* synthesized wrappers
   // for `history_added` / `history_updated`.
   const handleServerEvent = (serverEvent: any) => {
-    const maybeParseJson = (val: any) => {
-      if (typeof val === 'string') {
-        try {
-          return JSON.parse(val);
-        } catch {
-          /* ignore */
+    // ------------------------------------------------------------------
+    // Direct function_call / function_call_output items (arrive via
+    // history_added, history_updated or potentially other sources)
+    // ------------------------------------------------------------------
+    if (
+      serverEvent &&
+      (serverEvent.type === 'function_call' || serverEvent.type === 'function_call_output')
+    ) {
+      // The Realtime SDK may emit either a dedicated `function_call_output` item
+      // or a `function_call` item with an `output` field once the call is
+      // completed. Treat the latter the same as a `function_call_output` so we
+      // always surface the result to the UI.
+
+      const isResult =
+        serverEvent.type === 'function_call_output' ||
+        (serverEvent.type === 'function_call' &&
+          serverEvent.output !== undefined &&
+          serverEvent.output !== null);
+      const titlePrefix = isResult ? 'function call result' : 'function call';
+      const breadcrumbTitle = `${titlePrefix}: ${serverEvent.name}`;
+
+      const data = isResult
+        ? maybeParseJson(serverEvent.output)
+        : maybeParseJson(serverEvent.arguments);
+
+      const idSuffix = isResult ? `result-${serverEvent.itemId}` : serverEvent.itemId;
+      addTranscriptBreadcrumb(breadcrumbTitle, data, `func-${idSuffix}`);
+
+      // Agent hand-off
+      const handoffMatch = (serverEvent.name ?? '').match(/^transfer_to_(.+)$/);
+      if (handoffMatch) {
+        const newAgentKey = handoffMatch[1];
+        const candidate = selectedAgentConfigSet?.find(
+          (a) => a.name.toLowerCase() === newAgentKey.toLowerCase(),
+        );
+        if (candidate && candidate.name !== selectedAgentName) {
+          setSelectedAgentName(candidate.name);
         }
       }
-      return val;
-    };
+      // Continue so wrapper-specific blocks don't re-emit duplicate crumb
+    }
     logServerEvent(serverEvent);
 
     switch (serverEvent.type) {
@@ -378,16 +411,23 @@ export function useHandleServerEvent({
       if (!item) return;
 
       if (['function_call', 'function_call_output'].includes(item.type as string)) {
-        const isResult = item.type === 'function_call_output';
-        const titlePrefix = isResult ? 'Tool call result' : 'Tool call';
+        // Similar to the top-level handler, a completed `function_call` item
+        // may already contain an `output` field instead of a separate
+        // `function_call_output` companion item. Detect that scenario so the
+        // breadcrumb for the call *result* is still rendered.
+
+        const isResult =
+          item.type === 'function_call_output' ||
+          (item.type === 'function_call' && item.output !== undefined && item.output !== null);
+        const titlePrefix = isResult ? 'function call result' : 'function call';
         const breadcrumbTitle = `${titlePrefix}: ${item.name}`;
 
-        const data: Record<string, any> = {};
-        if (item.arguments != null) data.arguments = maybeParseJson(item.arguments);
-        if (item.output != null) data.output = maybeParseJson(item.output);
+        const data: any = isResult
+          ? maybeParseJson(item.output)
+          : maybeParseJson(item.arguments);
 
         const idSuffix = isResult ? `result-${item.itemId}` : item.itemId;
-        addTranscriptBreadcrumb(breadcrumbTitle, data, `tool-${idSuffix}`);
+        addTranscriptBreadcrumb(breadcrumbTitle, data, `func-${idSuffix}`);
 
         // Handle transfer_to_* agent switch
         const handoffMatch = (item.name ?? '').match(/^transfer_to_(.+)$/);
