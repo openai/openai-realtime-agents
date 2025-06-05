@@ -82,9 +82,7 @@ export const TranscriptProvider: FC<PropsWithChildren> = ({ children }) => {
       const existingIdx = prev.findIndex((i) => i.itemId === idToUse);
 
       // If an entry with the same id already exists, merge/update it instead
-      // of pushing a brand-new breadcrumb. This lets us first show a tool call
-      // without an output and later update the same line once the output
-      // becomes available.
+      // of pushing a brand-new breadcrumb.
       if (existingIdx !== -1) {
         const updated = {
           ...prev[existingIdx],
