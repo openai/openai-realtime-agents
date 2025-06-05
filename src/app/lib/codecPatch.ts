@@ -1,13 +1,23 @@
-/*
- * Global monkey-patch that forces the preferred audio codec (opus / pcmu / pcma)
- * onto every RTCPeerConnection created **after** it is loaded.  It must therefore
- * be imported exactly once, before the Realtime SDK establishes its WebRTC
- * connection.
+/**
+ * Monkey-patches the global RTCPeerConnection so that when the SDK
+ * internally calls addTrack() we can inject our preferred codec
+ * before the WebRTC offer is generated.  This lets you use the codec
+ * selector in the UI to force narrow-band (8 kHz) codecs to
+ * simulate how the voice agent sounds over a PSTN/SIP phone call.
+ *
+ * In a normal WebRTC app you would call transceiver.setCodecPreferences()
+ * followed by a renegotiation when you want to change codecs.  The Realtime
+ * SDK owns the negotiation flow and does not currently expose any
+ * API to trigger a renegotiation or to set preferred codecs ahead of time.
+ *
+ * This patch is idempotent – calling multiple times with the same
+ * codec has no effect. 
  */
 
+let alreadyPatched = false;
 (() => {
-    // TEMP LOGGING: Trace when the codecPatch is loaded
-    console.log('[codecPatch] Loaded at', new Date().toISOString());
+    if (alreadyPatched) return;
+    alreadyPatched = true;
   
     if (typeof window === 'undefined') return;
     if ((window as any).__oaiCodecPatchApplied) return;
@@ -29,7 +39,6 @@
           (c) => c.mimeType.toLowerCase() === `audio/${wanted}`,
         );
         if (!pref) {
-          console.warn('[codecPatch] Preferred codec not found:', wanted);
           return;
         }
   
@@ -37,10 +46,7 @@
           .getTransceivers()
           .find((t) => t.sender === sender);
         if (transceiver) {
-          console.log('[codecPatch] Setting codec preferences to', pref.mimeType, 'on transceiver', transceiver);
           transceiver.setCodecPreferences([pref]);
-        } else {
-          console.warn('[codecPatch] No matching transceiver for sender', sender);
         }
       } catch (err) {
         console.error('[codecPatch] Error in applyPreference', err);
@@ -53,7 +59,6 @@
       track: MediaStreamTrack,
       ...streams: MediaStream[]
     ) {
-      console.log('[codecPatch] addTrack called', { track, streams, pc: this });
       const sender = OriginalAddTrack.apply(this, [track, ...streams]);
       applyPreference(this, sender);
       return sender;
@@ -64,7 +69,6 @@
     RTCPeerConnection.prototype.addTransceiver = function patchedAddTransceiver(
       ...args: any[]
     ) {
-      console.log('[codecPatch] addTransceiver called', args, { pc: this });
       const transceiver = OriginalAddTransceiver.apply(this, args as any);
       if (transceiver?.sender) {
         applyPreference(this, transceiver.sender);

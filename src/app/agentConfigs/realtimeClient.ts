@@ -76,12 +76,24 @@ export class RealtimeClient {
         } as any)
       : 'webrtc';
 
+    // Select correct audio encoding based on `?codec=` query param so that the
+    // server receives audio in the format negotiated via WebRTC.  
+    let audioFormat: 'pcm16' | 'g711_ulaw' | 'g711_alaw' = 'pcm16';
+    if (typeof window !== 'undefined') {
+      const codecParam = (new URLSearchParams(window.location.search).get('codec') ?? 'opus').toLowerCase();
+      if (codecParam === 'pcmu') {
+        audioFormat = 'g711_ulaw';
+      } else if (codecParam === 'pcma') {
+        audioFormat = 'g711_alaw';
+      }
+    }
+
     this.#session = new RealtimeSession(rootAgent, {
       transport: transportValue,
       model: `gpt-4o-mini-realtime-preview-2024-06-03`,
       config: {
-        inputAudioFormat:  "g711_ulaw",   // or "g711_alaw"
-        outputAudioFormat: "g711_ulaw",   // or "g711_alaw"
+        inputAudioFormat:  audioFormat,
+        outputAudioFormat: audioFormat,
         inputAudioTranscription: {
           model: 'gpt-4o-mini-transcribe',
         },
