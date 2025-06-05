@@ -132,12 +132,19 @@ function App() {
     useAudioDownload();
 
   const sendClientEvent = (eventObj: any) => {
+    const suffixMap: Record<string, string> = {
+      'input_audio_buffer.clear': 'clear PTT buffer',
+      'output_audio_buffer.clear': 'cancel due to user interruption',
+    };
+
     try {
       sendEventRealtime(eventObj);
-      logClientEvent(eventObj);
     } catch (err) {
       console.error('Failed to send via SDK', err);
     }
+
+    // Log the client-side event so it shows up in the Events pane
+    logClientEvent(eventObj, suffixMap[eventObj.type] ?? '');
   };
 
   const handleServerEventRef = useHandleServerEvent({
