@@ -75,16 +75,14 @@ export function useHandleSessionHistory() {
 
     addTranscriptBreadcrumb(
       `function call: ${function_name}`,
-      function_args,
-      lastFunctionCall?.itemId
+      function_args
     );    
   }
   function handleAgentToolEnd(details: any, _agent: any, _functionCall: any, result: any) {
     const lastFunctionCall = extractFunctionCallByName(_functionCall.name, details?.context?.history);
     addTranscriptBreadcrumb(
       `function call result: ${lastFunctionCall?.name}`,
-      maybeParseJson(result),
-      `${lastFunctionCall?.itemId}-result`
+      maybeParseJson(result)
     );
   }
 

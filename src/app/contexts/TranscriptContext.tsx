@@ -8,11 +8,7 @@ type TranscriptContextValue = {
   transcriptItems: TranscriptItem[];
   addTranscriptMessage: (itemId: string, role: "user" | "assistant", text: string, hidden?: boolean) => void;
   updateTranscriptMessage: (itemId: string, text: string, isDelta: boolean) => void;
-  addTranscriptBreadcrumb: (
-    title: string,
-    data?: Record<string, any>,
-    itemId?: string,
-  ) => void;
+  addTranscriptBreadcrumb: (title: string, data?: Record<string, any>) => void;
   toggleTranscriptItemExpand: (itemId: string) => void;
   updateTranscriptItem: (itemId: string, updatedProperties: Partial<TranscriptItem>) => void;
 };
@@ -71,30 +67,11 @@ export const TranscriptProvider: FC<PropsWithChildren> = ({ children }) => {
     );
   };
 
-  const addTranscriptBreadcrumb: TranscriptContextValue["addTranscriptBreadcrumb"] = (
-    title,
-    data,
-    itemId,
-  ) => {
-    setTranscriptItems((prev) => {
-      const idToUse = itemId ?? `breadcrumb-${uuidv4()}`;
-
-      const existingIdx = prev.findIndex((i) => i.itemId === idToUse);
-
-      // If an entry with the same id already exists, merge/update it instead
-      // of pushing a brand-new breadcrumb.
-      if (existingIdx !== -1) {
-        const updated = {
-          ...prev[existingIdx],
-          title,
-          data,
-          timestamp: newTimestampPretty(),
-        } as TranscriptItem;
-        return prev.map((item, idx) => (idx === existingIdx ? updated : item));
-      }
-
-      const newItem: TranscriptItem = {
-        itemId: idToUse,
+  const addTranscriptBreadcrumb: TranscriptContextValue["addTranscriptBreadcrumb"] = (title, data) => {
+    setTranscriptItems((prev) => [
+      ...prev,
+      {
+        itemId: `breadcrumb-${uuidv4()}`,
         type: "BREADCRUMB",
         title,
         data,
@@ -103,10 +80,8 @@ export const TranscriptProvider: FC<PropsWithChildren> = ({ children }) => {
         createdAtMs: Date.now(),
         status: "DONE",
         isHidden: false,
-      };
-
-      return [...prev, newItem];
-    });
+      },
+    ]);
   };
 
   const toggleTranscriptItemExpand: TranscriptContextValue["toggleTranscriptItemExpand"] = (itemId) => {
