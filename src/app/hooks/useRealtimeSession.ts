@@ -46,10 +46,12 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
     sendClientEvent: logClientEvent,
   }).current;
 
+  const { logServerEvent } = useEvent();
+
   const historyHandlers = useHandleSessionHistory().current;
 
   function handleTransportEvent(event: any) {
-    // console.log("transport_event", JSON.stringify(event));
+    // Handle additional server events that aren't managed by the session
     switch (event.type) {
       case "conversation.item.input_audio_transcription.completed": {
         historyHandlers.handleTranscriptionCompleted(event);
@@ -59,6 +61,14 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
         historyHandlers.handleTranscriptionCompleted(event);
         break;
       }
+      case "response.audio_transcript.delta": {
+        historyHandlers.handleTranscriptionDelta(event);
+        break;
+      }
+      default: {
+        logServerEvent(event);
+        break;
+      } 
     }
   }
 

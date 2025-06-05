@@ -6,7 +6,6 @@ import { useEvent } from "@/app/contexts/EventContext";
 
 export function useHandleSessionHistory() {
   const {
-    transcriptItems,
     addTranscriptBreadcrumb,
     addTranscriptMessage,
     updateTranscriptMessage,
@@ -34,6 +33,18 @@ export function useHandleSessionHistory() {
   const extractFunctionCallByName = (name: string, content: any[] = []): any => {
     if (!Array.isArray(content)) return undefined;
     return content.find((c: any) => c.type === 'function_call' && c.name === name);
+  };
+
+  const extractLastAssistantMessage = (history: any[] = []): any => {
+    if (!Array.isArray(history)) return undefined;
+    return history.reverse().find((c: any) => c.type === 'message' && c.role === 'assistant');
+  };
+
+  const extractModeration = (obj: any) => {
+    if ('moderationCategory' in obj) return obj;
+    if ('outputInfo' in obj) return extractModeration(obj.outputInfo);
+    if ('output' in obj) return extractModeration(obj.output);
+    if ('result' in obj) return extractModeration(obj.result);
   };
 
   const maybeParseJson = (val: any) => {
@@ -70,42 +81,25 @@ export function useHandleSessionHistory() {
     );
   }
 
-  function handleGuardrailTripped(...args: any[]) {
-    console.log("guardrail_tripped event", ...args);
-    // Explicitly surface guardrail trips with deep moderation extraction.
-    const extractModeration = (obj: any): any | undefined => {
-      if (!obj || typeof obj !== 'object') return undefined;
-      if ('moderationCategory' in obj) return obj;
-      if ('outputInfo' in obj) return extractModeration(obj.outputInfo);
-      if ('output' in obj) return extractModeration(obj.output);
-      if ('result' in obj) return extractModeration(obj.result);
-      return undefined;
-    };
+  function handleGuardrailTripped(details: any, _agent: any, guardrail: any) {
+    const moderation = extractModeration(guardrail.result.output.outputInfo);
+    logServerEvent({ type: 'guardrail_tripped', payload: moderation });
 
-    let moderation: any | undefined;
-    for (const a of args) {
-      moderation = extractModeration(a);
-      if (moderation) break;
-    }
-    const payload = moderation ?? args[0];
-    logServerEvent({ type: 'guardrail_tripped', payload });
-
-    // Update the last assistant message in the transcript with FAIL state.
-    const lastAssistant = [...transcriptItems]
-      .reverse()
-      .find((i) => i.role === 'assistant');
+    // find the last assistant message in details.context.history
+    const lastAssistant = extractLastAssistantMessage(details?.context?.history);
+    console.log("lastAssistant", lastAssistant);
+    console.log("moderation", moderation);
 
     if (lastAssistant && moderation) {
       const category = moderation.moderationCategory ?? 'NONE';
       const rationale = moderation.moderationRationale ?? '';
-      const testText = moderation.testText ?? '';
 
+      // Update the last assistant message in the transcript with FAIL state.
       updateTranscriptItem(lastAssistant.itemId, {
         guardrailResult: {
           status: 'DONE',
           category,
           rationale,
-          testText,
         },
       });
     }
@@ -153,6 +147,14 @@ export function useHandleSessionHistory() {
     }
   }
 
+  function handleTranscriptionDelta(item: any) {
+    const itemId = item.item_id;
+    const deltaText = item.delta || "";
+    if (itemId) {
+      updateTranscriptMessage(itemId, deltaText, true);
+    }
+  }
+
   function handleTranscriptionCompleted(item: any) {
     const itemId = item.item_id;
     const finalTranscript =
@@ -177,18 +179,9 @@ export function useHandleSessionHistory() {
     handleGuardrailTripped,
     handleHistoryUpdated,
     handleHistoryAdded,
+    handleTranscriptionDelta,
     handleTranscriptionCompleted,
   });
-
-  // Ensure .current is kept up-to-date on every render.
-  handlersRef.current = {
-    handleAgentToolStart,
-    handleAgentToolEnd,
-    handleGuardrailTripped,
-    handleHistoryUpdated,
-    handleHistoryAdded,
-    handleTranscriptionCompleted,
-  };
 
   return handlersRef;
 }

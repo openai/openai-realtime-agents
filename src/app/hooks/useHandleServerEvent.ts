@@ -14,7 +14,8 @@ export interface UseHandleSessionEventParams {
 export function useHandleServerEvent({}: UseHandleSessionEventParams) {
   const { logServerEvent } = useEvent();
 
-  // Handler functions for each event
+  /* ----------------------- event handlers ------------------------- */
+
   function handleError(...args: any[]) {
     console.log("[session error]", ...args);
     logServerEvent({
