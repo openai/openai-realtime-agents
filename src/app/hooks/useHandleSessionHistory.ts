@@ -113,7 +113,7 @@ export function useHandleSessionHistory() {
       addTranscriptMessage(itemId, role, text);
     }
 
-    // If this is an assistant message, reset user guardrail block and initialize guardrailResult as IN_PROGRESS.
+    // If this is an assistant message, initialize guardrailResult as IN_PROGRESS.
     if (role === 'assistant') {
       userBlockedAfterGuardrailRef.current = false;
       updateTranscriptItem(itemId, {
@@ -132,10 +132,7 @@ export function useHandleSessionHistory() {
 
       const text = extractMessageText(content);
 
-      // Always update with latest text
-      if (text) {
-        updateTranscriptMessage(itemId, text, false);
-      }
+      updateTranscriptMessage(itemId, text, false);
     });
   }
 
