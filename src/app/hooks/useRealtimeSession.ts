@@ -13,6 +13,9 @@ export interface RealtimeSessionCallbacks {
   onConnectionChange?: (
     status: SessionStatus,
   ) => void;
+  onAgentHandoff?: (
+    agentName: string,
+  ) => void;
 }
 
 export interface ConnectOptions {
@@ -45,23 +48,47 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
 
   const historyHandlers = useHandleSessionHistory().current;
 
+  function handleTransportEvent(event: any) {
+    // console.log("transport_event", JSON.stringify(event));
+    switch (event.type) {
+      case "conversation.item.input_audio_transcription.completed": {
+        historyHandlers.handleTranscriptionCompleted(event);
+        break;
+      }
+      case "response.audio_transcript.done": {
+        historyHandlers.handleTranscriptionCompleted(event);
+        break;
+      }
+    }
+  }
+
+  const handleAgentHandoff = (item: any) => {
+    const history = item.context.history;
+    const lastMessage = history[history.length - 1];
+    const agentName = lastMessage.name.split("transfer_to_")[1];
+    callbacks.onAgentHandoff?.(agentName);
+  };
+
   useEffect(() => {
     if (sessionRef.current) {
       // server events
       sessionRef.current.on("error", serverEventHandlers.handleError);
-      sessionRef.current.on("audio_interrupted", serverEventHandlers.handleAudioInterrupted);
-      sessionRef.current.on("transport_event", serverEventHandlers.handleTransportEvent);
+      sessionRef.current.on("audio_interrupted", serverEventHandlers.handleAudioInterrupted);      
       sessionRef.current.on("audio_start", serverEventHandlers.handleAudioStart);
       sessionRef.current.on("audio_stopped", serverEventHandlers.handleAudioStopped);
 
-      sessionRef.current.on("agent_handoff", historyHandlers.handleAgentHandoff);
+      // history events
+      sessionRef.current.on("agent_handoff", handleAgentHandoff);
       sessionRef.current.on("agent_tool_start", historyHandlers.handleAgentToolStart);
       sessionRef.current.on("agent_tool_end", historyHandlers.handleAgentToolEnd);
       sessionRef.current.on("guardrail_tripped", historyHandlers.handleGuardrailTripped);
       sessionRef.current.on("history_updated", historyHandlers.handleHistoryUpdated);
       sessionRef.current.on("history_added", historyHandlers.handleHistoryAdded);
+
+      // additional transport events
+      sessionRef.current.on("transport_event", handleTransportEvent);
     }
-  }, [serverEventHandlers]);
+  }, [sessionRef.current, serverEventHandlers]);
 
   const connect = useCallback(
     async ({

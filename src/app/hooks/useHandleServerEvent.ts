@@ -16,7 +16,7 @@ export function useHandleServerEvent({}: UseHandleSessionEventParams) {
 
   // Handler functions for each event
   function handleError(...args: any[]) {
-    console.error("[session error]", ...args);
+    console.log("[session error]", ...args);
     logServerEvent({
       type: "error",
       message: args[0],
@@ -28,9 +28,6 @@ export function useHandleServerEvent({}: UseHandleSessionEventParams) {
       message: args[0],
     });
   } 
-  function handleTransportEvent(...args: any[]) {
-    console.log("transport_event event", ...args);
-  }
   function handleAudioStart(...args: any[]) {
     logServerEvent({
       type: "audio_start",
@@ -48,7 +45,6 @@ export function useHandleServerEvent({}: UseHandleSessionEventParams) {
   const handlersRef = useRef({
     handleError,
     handleAudioInterrupted,
-    handleTransportEvent,
     handleAudioStart,
     handleAudioStopped,
   });

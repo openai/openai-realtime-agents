@@ -35,6 +35,7 @@ const sdkScenarioMap: Record<string, RealtimeAgent[]> = {
 
 import useAudioDownload from "./hooks/useAudioDownload";
 import { useHandleSessionHistory } from "./hooks/useHandleSessionHistory";
+import { set } from "zod";
 
 function App() {
   const searchParams = useSearchParams()!;
@@ -101,6 +102,7 @@ function App() {
     mute,
   } = useRealtimeSession({
     onConnectionChange: (s) => setSessionStatus(s as SessionStatus),
+    onAgentHandoff: (agentName: string) => setSelectedAgentName(agentName),
   });
 
   const [sessionStatus, setSessionStatus] =
