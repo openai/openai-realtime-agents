@@ -4,6 +4,8 @@ import { useRef, useEffect } from "react";
 import { useTranscript } from "@/app/contexts/TranscriptContext";
 
 export function useHandleSessionHistory() {
+  // Ref to track if user messages should be blocked after a guardrail trip
+  const userBlockedAfterGuardrailRef = useRef(false);
   const {
     transcriptItems,
     addTranscriptBreadcrumb,
@@ -78,8 +80,32 @@ export function useHandleSessionHistory() {
     if (itemId && role) {
       const isUser = role === "user";
       let text = extractMessageText(content);
-      // Skip guardrail messages - these are added by the SDK and sent to the realtime model
-      if (text.includes('Failed Guardrail Reason: moderation_guardrail')) return;
+
+      // Check to see if the previous message failed guardrail - 
+      // If it failed (category !== 'NONE'), don't append the message back to the
+      // realtime model explaining that it was
+      const previousItem = transcriptItemsRef.current.find((i) => i.itemId === item.previousItemId);
+      if (
+        previousItem?.guardrailResult?.category &&
+        previousItem.guardrailResult.category !== 'NONE'
+      ) {
+        addTranscriptBreadcrumb(
+          'Message blocked by guardrail',
+          {
+            blockedItemId: item.itemId,
+            previousItemId: previousItem.itemId,
+            category: previousItem.guardrailResult.category,
+            rationale: previousItem.guardrailResult.rationale,
+          }
+        );
+        // Block further messages until an assistant message comes in -
+        // multiple messages come back from the guardrails processor since it processes
+        // the transcript as it is streaming.
+        userBlockedAfterGuardrailRef.current = true;
+      }
+      if (role === 'user' && userBlockedAfterGuardrailRef.current) {
+        return;
+      }
 
       if (isUser && !text) {
         text = "[Transcribing...]";
@@ -87,8 +113,9 @@ export function useHandleSessionHistory() {
       addTranscriptMessage(itemId, role, text);
     }
 
-    // If this is an assistant message, initialize guardrailResult as IN_PROGRESS.
+    // If this is an assistant message, reset user guardrail block and initialize guardrailResult as IN_PROGRESS.
     if (role === 'assistant') {
+      userBlockedAfterGuardrailRef.current = false;
       updateTranscriptItem(itemId, {
         guardrailResult: {
           status: 'IN_PROGRESS',

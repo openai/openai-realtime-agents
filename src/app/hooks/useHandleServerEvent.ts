@@ -59,6 +59,7 @@ export function useHandleServerEvent({}: UseHandleSessionEventParams) {
   }
 
   function handleGuardrailTripped(details: any, _agent: any, guardrail: any) {
+    console.log("[guardrail tripped]", details, _agent, guardrail);
     const moderation = extractModeration(guardrail.result.output.outputInfo);
     logServerEvent({ type: 'guardrail_tripped', payload: moderation });
 
