@@ -124,13 +124,13 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
     updateStatus('disconnected');
   }, [updateStatus]);
 
-  const assertConnected = () => {
+  const assertconnected = () => {
     if (!sessionRef.current) throw new Error('RealtimeSession not connected');
   };
 
   /* ----------------------- message helpers ------------------------- */
   const sendUserText = useCallback((text: string) => {
-    assertConnected();
+    assertconnected();
     sessionRef.current!.sendMessage(text);
   }, []);
 

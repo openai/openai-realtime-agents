@@ -100,7 +100,7 @@ function App() {
     interrupt,
     mute,
   } = useRealtimeSession({
-    onConnectionChange: (s) => setSessionStatus(s.toUpperCase() as SessionStatus),
+    onConnectionChange: (s) => setSessionStatus(s as SessionStatus),
   });
 
   const [sessionStatus, setSessionStatus] =
