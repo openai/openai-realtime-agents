@@ -258,8 +258,6 @@ function App() {
     realtimeDisconnect();
     setSessionStatus("DISCONNECTED");
     setIsPTTUserSpeaking(false);
-
-    logClientEvent({}, "disconnected");
   };
 
   const sendSimulatedUserMessage = (text: string) => {

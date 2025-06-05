@@ -5,6 +5,7 @@ import {
   OpenAIRealtimeWebRTC,
 } from '@openai/agents/realtime';
 import { moderationGuardrail } from '@/app/agentConfigs/guardrails';
+import { useEvent } from '../contexts/EventContext';
 
 export interface RealtimeSessionCallbacks {
   onConnectionChange?: (
@@ -28,11 +29,13 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
   const [status, setStatus] = useState<
     'disconnected' | 'connecting' | 'connected'
   >('disconnected');
+  const { logClientEvent } = useEvent();
 
   const updateStatus = useCallback(
     (s: 'connected' | 'connecting' | 'disconnected') => {
       setStatus(s);
       callbacks.onConnectionChange?.(s);
+      logClientEvent({}, s);
     },
     [callbacks],
   );
@@ -91,10 +94,6 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
 
       transport.on('*', (ev: any) => {
         callbacks.onMessage?.(ev);
-      });
-
-      transport.on('connection_change', (s: any) => {
-        if (s === 'disconnected') updateStatus('disconnected');
       });
 
       session.on('history_updated', (history: any[]) => {
