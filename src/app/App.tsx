@@ -106,12 +106,9 @@ function App() {
     onConnectionChange: (s) => setSessionStatus(s.toUpperCase() as SessionStatus),
     onMessage: (ev) => handleServerEventRef.current?.(ev),
     onGuardrailTripped: (info) =>
-      handleServerEventRef.current?.(ev),
-    onHistoryAdded: (item) => {
-      handleServerEventRef.current?.(ev);
-    },
+      handleServerEventRef.current?.({ type: 'guardrail_tripped', info }),
     onHistoryUpdated: (history) => {
-      handleServerEventRef.current?.(ev);
+      handleServerEventRef.current?.({ type: 'history_updated', history });
     },
   });
 
