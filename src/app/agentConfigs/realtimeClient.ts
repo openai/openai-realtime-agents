@@ -73,7 +73,7 @@ export class RealtimeClient {
     const transportValue: any = this.#options.audioElement
       ? new OpenAIRealtimeWebRTC({
           audioElement: this.#options.audioElement,
-        } as any)
+        })
       : 'webrtc';
 
     // Select correct audio encoding based on `?codec=` query param so that the

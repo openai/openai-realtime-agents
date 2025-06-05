@@ -56,7 +56,7 @@ export function useHandleServerEvent({
       addTranscriptMessage(itemId, 'assistant', '');
       updateTranscriptItem(itemId, {
         guardrailResult: { status: 'IN_PROGRESS' },
-      } as any);
+      });
     }
   };
 
@@ -323,7 +323,7 @@ export function useHandleServerEvent({
               rationale: moderation.moderationRationale ?? "",
               testText: moderation.testText ?? "",
             },
-          } as any);
+          });
         }
         break;
       }
@@ -369,7 +369,7 @@ export function useHandleServerEvent({
                 category: "NONE",
                 rationale: "",
               },
-            } as any);
+            });
           }
         }
         break;
@@ -470,7 +470,7 @@ export function useHandleServerEvent({
               guardrailResult: {
                 status: 'IN_PROGRESS',
               },
-            } as any);
+            });
           }
         }
 
@@ -487,7 +487,7 @@ export function useHandleServerEvent({
                 category: 'NONE',
                 rationale: '',
               },
-            } as any);
+            });
           }
         }
 

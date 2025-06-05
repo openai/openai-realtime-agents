@@ -19,7 +19,7 @@ async function structuredResponse(openai: OpenAI, body: any) {
     const response = await openai.responses.parse({
       ...(body as any),
       stream: false,
-    } as any);
+    });
 
     return NextResponse.json(response);
   } catch (err: any) {
@@ -33,7 +33,7 @@ async function textResponse(openai: OpenAI, body: any) {
     const response = await openai.responses.create({
       ...(body as any),
       stream: false,
-    } as any);
+    });
 
     return NextResponse.json(response);
   } catch (err: any) {
