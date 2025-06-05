@@ -44,6 +44,9 @@ export const EventProvider: FC<PropsWithChildren> = ({ children }) => {
 
   const logHistoryItem: EventContextValue['logHistoryItem'] = (item) => {
     let eventName = item.type;
+    if (item.type === 'message') {
+      eventName = `${item.role}.${item.status}`;
+    }
     if (item.type === 'function_call') {
       eventName = `function.${item.name}.${item.status}`;
     }
