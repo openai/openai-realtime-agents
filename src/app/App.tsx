@@ -19,9 +19,10 @@ import type { RealtimeAgent } from '@openai/agents/realtime';
 import { useTranscript } from "@/app/contexts/TranscriptContext";
 import { useEvent } from "@/app/contexts/EventContext";
 import { useHandleServerEvent } from "./hooks/useHandleServerEvent";
+import { useRealtimeSession } from "./hooks/useRealtimeSession";
 
 // Utilities
-import { RealtimeClient } from "@/app/agentConfigs/realtimeClient";
+// import { RealtimeClient } from "@/app/agentConfigs/realtimeClient";
 
 // Agent configs
 import { allAgentSets, defaultAgentSetKey } from "@/app/agentConfigs";
@@ -93,9 +94,25 @@ function App() {
     }
   }, [sdkAudioElement]);
 
-
-
-  const sdkClientRef = useRef<RealtimeClient | null>(null);
+  const {
+    connect: realtimeConnect,
+    disconnect: realtimeDisconnect,
+    sendUserText: sendUserTextRealtime,
+    sendEvent: sendEventRealtime,
+    interrupt: interruptRealtime,
+    mute: muteRealtime,
+    // PT-T helpers are unused in current flow; may wire later.
+  } = useRealtimeSession({
+    onConnectionChange: (s) => setSessionStatus(s.toUpperCase() as SessionStatus),
+    onMessage: (ev) => handleServerEventRef.current?.(ev),
+    onHistoryAdded: (item) => {
+      handleServerEventRef.current?.({ type: 'history_added', item });
+      logHistoryItem(item);
+    },
+    onHistoryUpdated: (history) => {
+      handleServerEventRef.current?.({ type: 'history_updated', history });
+    },
+  });
 
   const [sessionStatus, setSessionStatus] =
     useState<SessionStatus>("DISCONNECTED");
@@ -118,13 +135,8 @@ function App() {
     useAudioDownload();
 
   const sendClientEvent = (eventObj: any) => {
-    if (!sdkClientRef.current) {
-      console.error('SDK client not available', eventObj);
-      return;
-    }
-
     try {
-      sdkClientRef.current.sendEvent(eventObj);
+      sendEventRealtime(eventObj);
     } catch (err) {
       console.error('Failed to send via SDK', err);
     }
@@ -220,81 +232,12 @@ function App() {
           reorderedAgents.unshift(agent);
         }
 
-        const client = new RealtimeClient({
+        await realtimeConnect({
           getEphemeralKey: async () => EPHEMERAL_KEY,
           initialAgents: reorderedAgents,
           audioElement: sdkAudioElement,
-          extraContext: {
-            addTranscriptBreadcrumb,
-          },
-          // No explicit session config overrides
-        } as any);
-
-        sdkClientRef.current = client;
-
-        client.on("connection_change", (status) => {
-          if (status === "connected") setSessionStatus("CONNECTED");
-          else if (status === "connecting") setSessionStatus("CONNECTING");
-          else setSessionStatus("DISCONNECTED");
+          extraContext: { addTranscriptBreadcrumb },
         });
-
-        client.on("message", (ev) => {
-          // All message parsing (streaming deltas, guardrails, etc.) is
-          // centralised in the `useHandleServerEvent` hook.
-          handleServerEventRef.current?.(ev);
-        });
-
-        client.on('history_added', (item) => {
-          handleServerEventRef.current?.({ type: 'history_added', item });
-          logHistoryItem(item);
-
-          // Surface function / hand-off calls as breadcrumbs.
-          if (['function_call', 'function_call_output'].includes(item.type as string)) {
-            // Handle dynamic agent switches for transfer_to_* tool calls.
-            const toolName: string = (item as any).name ?? '';
-            const handoffMatch = toolName.match(/^transfer_to_(.+)$/);
-            if (handoffMatch) {
-              const newAgentKey = handoffMatch[1];
-              const candidate = selectedAgentConfigSet?.find(
-                (a) => a.name.toLowerCase() === newAgentKey.toLowerCase(),
-              );
-              if (candidate && candidate.name !== selectedAgentName) {
-                setSelectedAgentName(candidate.name);
-              }
-            }
-
-            return;
-          }
-        });
-
-        // Handle continuous updates for existing items so streaming assistant
-        // speech shows up while in_progress.
-        client.on('history_updated', (history) => {
-          handleServerEventRef.current?.({ type: 'history_updated', history });
-          history.forEach((item: any) => {
-            if (['function_call', 'function_call_output'].includes(item.type as string)) {
-              // Breadcrumb now handled in useHandleServerEvent
-              const toolName: string = (item as any).name ?? '';
-              const handoffMatch = toolName.match(/^transfer_to_(.+)$/);
-              if (handoffMatch) {
-                const newAgentKey = handoffMatch[1];
-                const candidate = selectedAgentConfigSet?.find(
-                  (a) => a.name.toLowerCase() === newAgentKey.toLowerCase(),
-                );
-                if (candidate && candidate.name !== selectedAgentName) {
-                  setSelectedAgentName(candidate.name);
-                }
-              }
-
-              return;
-            }
-
-            if (item.type !== 'message') return;
-            // All message updates are already handled by useHandleServerEvent.
-          });
-        });
-
-        await client.connect();
       } catch (err) {
         console.error("Error connecting via SDK:", err);
         setSessionStatus("DISCONNECTED");
@@ -304,8 +247,7 @@ function App() {
   };
 
   const disconnectFromRealtime = () => {
-    sdkClientRef.current?.disconnect();
-    sdkClientRef.current = null;
+    realtimeDisconnect();
     setSessionStatus("DISCONNECTED");
     setIsPTTUserSpeaking(false);
 
@@ -347,7 +289,7 @@ function App() {
           create_response: true,
         };
     try {
-      sdkClientRef.current?.sendEvent({
+      sendEventRealtime({
         type: 'session.update',
         session: {
           turn_detection: turnDetection,
@@ -362,7 +304,7 @@ function App() {
   const cancelAssistantSpeech = async () => {
     // Interrupts server response and clears local audio.
     try {
-      sdkClientRef.current?.interrupt();
+      interruptRealtime();
     } catch (err) {
       console.error('Failed to interrupt', err);
     }
@@ -372,13 +314,8 @@ function App() {
     if (!userText.trim()) return;
     cancelAssistantSpeech();
 
-    if (!sdkClientRef.current) {
-      console.error('SDK client not available');
-      return;
-    }
-
     try {
-      sdkClientRef.current.sendUserText(userText.trim());
+      sendUserTextRealtime(userText.trim());
     } catch (err) {
       console.error('Failed to send via SDK', err);
     }
@@ -387,7 +324,7 @@ function App() {
   };
 
   const handleTalkButtonDown = () => {
-    if (sessionStatus !== 'CONNECTED' || sdkClientRef.current == null) return;
+    if (sessionStatus !== 'CONNECTED') return;
     cancelAssistantSpeech();
 
     setIsPTTUserSpeaking(true);
@@ -397,7 +334,7 @@ function App() {
   };
 
   const handleTalkButtonUp = () => {
-    if (sessionStatus !== 'CONNECTED' || sdkClientRef.current == null || !isPTTUserSpeaking)
+    if (sessionStatus !== 'CONNECTED' || !isPTTUserSpeaking)
       return;
 
     setIsPTTUserSpeaking(false);
@@ -488,7 +425,7 @@ function App() {
     // Toggle server-side audio stream mute so bandwidth is saved when the
     // user disables playback. 
     try {
-      sdkClientRef.current?.mute(!isAudioPlaybackEnabled);
+      muteRealtime(!isAudioPlaybackEnabled);
     } catch (err) {
       console.warn('Failed to toggle SDK mute', err);
     }
@@ -497,9 +434,9 @@ function App() {
   // Ensure mute state is propagated to transport right after we connect or
   // whenever the SDK client reference becomes available.
   useEffect(() => {
-    if (sessionStatus === 'CONNECTED' && sdkClientRef.current) {
+    if (sessionStatus === 'CONNECTED') {
       try {
-        sdkClientRef.current.mute(!isAudioPlaybackEnabled);
+        muteRealtime(!isAudioPlaybackEnabled);
       } catch (err) {
         console.warn('mute sync after connect failed', err);
       }
@@ -611,8 +548,7 @@ function App() {
           onSendMessage={handleSendTextMessage}
           downloadRecording={downloadRecording}
           canSend={
-            sessionStatus === "CONNECTED" &&
-                  sdkClientRef.current != null
+            sessionStatus === "CONNECTED"
           }
         />
 

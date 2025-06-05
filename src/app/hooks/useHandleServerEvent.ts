@@ -132,8 +132,6 @@ export function useHandleServerEvent({
           break;
         }
 
-        if (text.includes('Failed Guardrail Reason: moderation_guardrail')) return;
-
         if (itemId && role) {
           const isUser = role === "user";
 
@@ -216,6 +214,7 @@ export function useHandleServerEvent({
 
       // Guardrail trip event – marks last assistant message as FAIL.
       case "guardrail_tripped": {
+        console.log("guardrail_tripped", serverEvent);
         const lastAssistant = [...transcriptItems]
           .reverse()
           .find((i) => i.role === "assistant");
