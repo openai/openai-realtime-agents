@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, useEffect } from 'react';
 import {
   RealtimeSession,
   RealtimeAgent,
@@ -6,15 +6,13 @@ import {
 } from '@openai/agents/realtime';
 import { moderationGuardrail } from '@/app/agentConfigs/guardrails';
 import { useEvent } from '../contexts/EventContext';
-
+import { useHandleServerEvent } from './useHandleServerEvent';
+import { useHandleSessionHistory } from './useHandleSessionHistory';
+import { SessionStatus } from '../types';
 export interface RealtimeSessionCallbacks {
   onConnectionChange?: (
-    status: 'connected' | 'connecting' | 'disconnected',
+    status: SessionStatus,
   ) => void;
-  onMessage?: (ev: any) => void;
-  onHistoryUpdated?: (history: any[]) => void;
-  onAudioInterrupted?: () => void;
-  onGuardrailTripped?: (info: any) => void;
 }
 
 export interface ConnectOptions {
@@ -27,18 +25,43 @@ export interface ConnectOptions {
 export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
   const sessionRef = useRef<RealtimeSession | null>(null);
   const [status, setStatus] = useState<
-    'disconnected' | 'connecting' | 'connected'
+    SessionStatus
   >('disconnected');
   const { logClientEvent } = useEvent();
 
   const updateStatus = useCallback(
-    (s: 'connected' | 'connecting' | 'disconnected') => {
+    (s: SessionStatus) => {
       setStatus(s);
       callbacks.onConnectionChange?.(s);
       logClientEvent({}, s);
     },
     [callbacks],
   );
+
+  const serverEventHandlers = useHandleServerEvent({
+    setSessionStatus: updateStatus,
+    sendClientEvent: logClientEvent,
+  }).current;
+
+  const historyHandlers = useHandleSessionHistory().current;
+
+  useEffect(() => {
+    if (sessionRef.current) {
+      // server events
+      sessionRef.current.on("error", serverEventHandlers.handleError);
+      sessionRef.current.on("audio_interrupted", serverEventHandlers.handleAudioInterrupted);
+      sessionRef.current.on("transport_event", serverEventHandlers.handleTransportEvent);
+      sessionRef.current.on("audio_start", serverEventHandlers.handleAudioStart);
+      sessionRef.current.on("audio_stopped", serverEventHandlers.handleAudioStopped);
+
+      sessionRef.current.on("agent_handoff", historyHandlers.handleAgentHandoff);
+      sessionRef.current.on("agent_tool_start", historyHandlers.handleAgentToolStart);
+      sessionRef.current.on("agent_tool_end", historyHandlers.handleAgentToolEnd);
+      sessionRef.current.on("guardrail_tripped", historyHandlers.handleGuardrailTripped);
+      sessionRef.current.on("history_updated", historyHandlers.handleHistoryUpdated);
+      sessionRef.current.on("history_added", historyHandlers.handleHistoryAdded);
+    }
+  }, [serverEventHandlers]);
 
   const connect = useCallback(
     async ({
@@ -89,43 +112,7 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
         context: extraContext ?? {},
       });
 
-      const session = sessionRef.current;
-      const transport: any = session.transport;
-
-      transport.on('*', (ev: any) => {
-        callbacks.onMessage?.(ev);
-      });
-
-      session.on('history_updated', (history: any[]) => {
-        callbacks.onHistoryUpdated?.(history);
-      });
-
-      // Explicitly surface guardrail trips with deep moderation extraction.
-      const extractModeration = (obj: any): any | undefined => {
-        if (!obj || typeof obj !== 'object') return undefined;
-        if ('moderationCategory' in obj) return obj;
-        if ('outputInfo' in obj) return extractModeration(obj.outputInfo);
-        if ('output' in obj) return extractModeration(obj.output);
-        if ('result' in obj) return extractModeration(obj.result);
-        return undefined;
-      };
-
-      session.on('guardrail_tripped', (...args: any[]) => {
-        let moderation: any | undefined;
-        for (const a of args) {
-          moderation = extractModeration(a);
-          if (moderation) break;
-        }
-        const payload = moderation ?? args[0];
-
-        callbacks.onGuardrailTripped?.(payload);
-      });
-
-      session.on('audio_interrupted', () => {
-        callbacks.onAudioInterrupted?.();
-      });
-
-      await session.connect({ apiKey: ek });
+      await sessionRef.current.connect({ apiKey: ek });
       updateStatus('connected');
     },
     [callbacks, updateStatus],

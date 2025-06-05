@@ -18,11 +18,8 @@ import type { RealtimeAgent } from '@openai/agents/realtime';
 // Context providers & hooks
 import { useTranscript } from "@/app/contexts/TranscriptContext";
 import { useEvent } from "@/app/contexts/EventContext";
-import { useHandleServerEvent } from "./hooks/useHandleServerEvent";
 import { useRealtimeSession } from "./hooks/useRealtimeSession";
-
-// Utilities
-// import { RealtimeClient } from "@/app/agentConfigs/realtimeClient";
+import { useHandleServerEvent } from "./hooks/useHandleServerEvent";
 
 // Agent configs
 import { allAgentSets, defaultAgentSetKey } from "@/app/agentConfigs";
@@ -37,6 +34,7 @@ const sdkScenarioMap: Record<string, RealtimeAgent[]> = {
 };
 
 import useAudioDownload from "./hooks/useAudioDownload";
+import { useHandleSessionHistory } from "./hooks/useHandleSessionHistory";
 
 function App() {
   const searchParams = useSearchParams()!;
@@ -95,24 +93,18 @@ function App() {
   }, [sdkAudioElement]);
 
   const {
-    connect: realtimeConnect,
-    disconnect: realtimeDisconnect,
-    sendUserText: sendUserTextRealtime,
-    sendEvent: sendEventRealtime,
-    interrupt: interruptRealtime,
-    mute: muteRealtime,
+    connect,
+    disconnect,
+    sendUserText,
+    sendEvent,
+    interrupt,
+    mute,
   } = useRealtimeSession({
     onConnectionChange: (s) => setSessionStatus(s.toUpperCase() as SessionStatus),
-    onMessage: (ev) => handleServerEventRef.current?.(ev),
-    onGuardrailTripped: (info) =>
-      handleServerEventRef.current?.({ type: 'guardrail_tripped', info }),
-    onHistoryUpdated: (history) => {
-      handleServerEventRef.current?.({ type: 'history_updated', history });
-    },
   });
 
   const [sessionStatus, setSessionStatus] =
-    useState<SessionStatus>("DISCONNECTED");
+    useState<SessionStatus>("disconnected");
 
   const [isEventsPaneExpanded, setIsEventsPaneExpanded] =
     useState<boolean>(true);
@@ -133,21 +125,15 @@ function App() {
 
   const sendClientEvent = (eventObj: any, eventNameSuffix = "") => {
     try {
-      sendEventRealtime(eventObj);
+      sendEvent(eventObj);
       logClientEvent(eventObj, eventNameSuffix);
     } catch (err) {
       console.error('Failed to send via SDK', err);
     }
   };
 
-  const handleServerEventRef = useHandleServerEvent({
-    setSessionStatus,
-    selectedAgentName,
-    selectedAgentConfigSet: selectedAgentConfigSet as any,
-    sendClientEvent,
-    setSelectedAgentName,
-    setIsOutputAudioBufferActive: () => {},
-  });
+  useHandleServerEvent({ setSessionStatus, sendClientEvent });
+  useHandleSessionHistory();
 
 
   useEffect(() => {
@@ -168,14 +154,14 @@ function App() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (selectedAgentName && sessionStatus === "DISCONNECTED") {
+    if (selectedAgentName && sessionStatus === "disconnected") {
       connectToRealtime();
     }
   }, [selectedAgentName]);
 
   useEffect(() => {
     if (
-      sessionStatus === "CONNECTED" &&
+      sessionStatus === "connected" &&
       selectedAgentConfigSet &&
       selectedAgentName
     ) {
@@ -188,7 +174,7 @@ function App() {
   }, [selectedAgentConfigSet, selectedAgentName, sessionStatus]);
 
   useEffect(() => {
-    if (sessionStatus === "CONNECTED") {
+    if (sessionStatus === "connected") {
       updateSession();
     }
   }, [isPTTActive]);
@@ -202,7 +188,7 @@ function App() {
     if (!data.client_secret?.value) {
       logClientEvent(data, "error.no_ephemeral_key");
       console.error("No ephemeral key provided by the server");
-      setSessionStatus("DISCONNECTED");
+      setSessionStatus("disconnected");
       return null;
     }
 
@@ -212,8 +198,8 @@ function App() {
   const connectToRealtime = async () => {
     const agentSetKey = searchParams.get("agentConfig") || "default";
     if (sdkScenarioMap[agentSetKey]) {
-      if (sessionStatus !== "DISCONNECTED") return;
-      setSessionStatus("CONNECTING");
+      if (sessionStatus !== "disconnected") return;
+      setSessionStatus("connecting");
 
       try {
         const EPHEMERAL_KEY = await fetchEphemeralKey();
@@ -227,7 +213,7 @@ function App() {
           reorderedAgents.unshift(agent);
         }
 
-        await realtimeConnect({
+        await connect({
           getEphemeralKey: async () => EPHEMERAL_KEY,
           initialAgents: reorderedAgents,
           audioElement: sdkAudioElement,
@@ -238,15 +224,15 @@ function App() {
         });
       } catch (err) {
         console.error("Error connecting via SDK:", err);
-        setSessionStatus("DISCONNECTED");
+        setSessionStatus("disconnected");
       }
       return;
     }
   };
 
   const disconnectFromRealtime = () => {
-    realtimeDisconnect();
-    setSessionStatus("DISCONNECTED");
+    disconnect();
+    setSessionStatus("disconnected");
     setIsPTTUserSpeaking(false);
   };
 
@@ -280,7 +266,7 @@ function App() {
           create_response: true,
         };
 
-    sendEventRealtime({
+    sendEvent({
       type: 'session.update',
       session: {
         turn_detection: turnDetection,
@@ -297,7 +283,7 @@ function App() {
   const cancelAssistantSpeech = async () => {
     // Interrupts server response and clears local audio.
     try {
-      interruptRealtime();
+      interrupt();
     } catch (err) {
       console.error('Failed to interrupt', err);
     }
@@ -308,7 +294,7 @@ function App() {
     cancelAssistantSpeech();
 
     try {
-      sendUserTextRealtime(userText.trim());
+      sendUserText(userText.trim());
     } catch (err) {
       console.error('Failed to send via SDK', err);
     }
@@ -317,7 +303,7 @@ function App() {
   };
 
   const handleTalkButtonDown = () => {
-    if (sessionStatus !== 'CONNECTED') return;
+    if (sessionStatus !== 'connected') return;
     cancelAssistantSpeech();
 
     setIsPTTUserSpeaking(true);
@@ -327,7 +313,7 @@ function App() {
   };
 
   const handleTalkButtonUp = () => {
-    if (sessionStatus !== 'CONNECTED' || !isPTTUserSpeaking)
+    if (sessionStatus !== 'connected' || !isPTTUserSpeaking)
       return;
 
     setIsPTTUserSpeaking(false);
@@ -336,9 +322,9 @@ function App() {
   };
 
   const onToggleConnection = () => {
-    if (sessionStatus === "CONNECTED" || sessionStatus === "CONNECTING") {
+    if (sessionStatus === "connected" || sessionStatus === "connecting") {
       disconnectFromRealtime();
-      setSessionStatus("DISCONNECTED");
+      setSessionStatus("disconnected");
     } else {
       connectToRealtime();
     }
@@ -418,7 +404,7 @@ function App() {
     // Toggle server-side audio stream mute so bandwidth is saved when the
     // user disables playback. 
     try {
-      muteRealtime(!isAudioPlaybackEnabled);
+      mute(!isAudioPlaybackEnabled);
     } catch (err) {
       console.warn('Failed to toggle SDK mute', err);
     }
@@ -427,9 +413,9 @@ function App() {
   // Ensure mute state is propagated to transport right after we connect or
   // whenever the SDK client reference becomes available.
   useEffect(() => {
-    if (sessionStatus === 'CONNECTED') {
+    if (sessionStatus === 'connected') {
       try {
-        muteRealtime(!isAudioPlaybackEnabled);
+        mute(!isAudioPlaybackEnabled);
       } catch (err) {
         console.warn('mute sync after connect failed', err);
       }
@@ -437,7 +423,7 @@ function App() {
   }, [sessionStatus, isAudioPlaybackEnabled]);
 
   useEffect(() => {
-    if (sessionStatus === "CONNECTED" && audioElementRef.current?.srcObject) {
+    if (sessionStatus === "connected" && audioElementRef.current?.srcObject) {
       // The remote audio stream from the audio element.
       const remoteStream = audioElementRef.current.srcObject as MediaStream;
       startRecording(remoteStream);
@@ -541,7 +527,7 @@ function App() {
           onSendMessage={handleSendTextMessage}
           downloadRecording={downloadRecording}
           canSend={
-            sessionStatus === "CONNECTED"
+            sessionStatus === "connected"
           }
         />
 
