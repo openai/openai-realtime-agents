@@ -38,16 +38,11 @@ export const EventProvider: FC<PropsWithChildren> = ({ children }) => {
   };
 
   const logServerEvent: EventContextValue["logServerEvent"] = (eventObj, eventNameSuffix = "") => {
-    // Skip noisy wrapper events and plain message history items
-    if (eventObj.type === 'history_updated' || eventObj.type === 'message') return;
     const name = `${eventObj.type || ""} ${eventNameSuffix || ""}`.trim();
     addLoggedEvent("server", name, eventObj);
   };
 
   const logHistoryItem: EventContextValue['logHistoryItem'] = (item) => {
-    // Suppress chat message items; only log other kinds (e.g. function_call)
-    if (item.type === 'message') return;
-
     let eventName = item.type;
     if (item.type === 'function_call') {
       eventName = `function.${item.name}.${item.status}`;

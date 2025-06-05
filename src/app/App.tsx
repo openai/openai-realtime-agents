@@ -308,7 +308,7 @@ function App() {
     cancelAssistantSpeech();
 
     setIsPTTUserSpeaking(true);
-    sendClientEvent({ type: 'input_audio_buffer.clear' });
+    sendClientEvent({ type: 'input_audio_buffer.clear' }, 'clear PTT buffer');
 
     // No placeholder; we'll rely on server transcript once ready.
   };
@@ -318,8 +318,8 @@ function App() {
       return;
 
     setIsPTTUserSpeaking(false);
-    sendClientEvent({ type: 'input_audio_buffer.commit' });
-    sendClientEvent({ type: 'response.create' });
+    sendClientEvent({ type: 'input_audio_buffer.commit' }, 'commit PTT');
+    sendClientEvent({ type: 'response.create' }, 'trigger response PTT');
   };
 
   const onToggleConnection = () => {
