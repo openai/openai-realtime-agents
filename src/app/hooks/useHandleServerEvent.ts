@@ -132,6 +132,8 @@ export function useHandleServerEvent({
           break;
         }
 
+        if (text.includes('Failed Guardrail Reason: moderation_guardrail')) return;
+
         if (itemId && role) {
           const isUser = role === "user";
 
