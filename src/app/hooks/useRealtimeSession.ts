@@ -29,7 +29,7 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
   const sessionRef = useRef<RealtimeSession | null>(null);
   const [status, setStatus] = useState<
     SessionStatus
-  >('disconnected');
+  >('DISCONNECTED');
   const { logClientEvent } = useEvent();
 
   const updateStatus = useCallback(
@@ -109,7 +109,7 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
     }: ConnectOptions) => {
       if (sessionRef.current) return; // already connected
 
-      updateStatus('connecting');
+      updateStatus('CONNECTING');
 
       const ek = await getEphemeralKey();
       const rootAgent = initialAgents[0];
@@ -150,7 +150,7 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
       });
 
       await sessionRef.current.connect({ apiKey: ek });
-      updateStatus('connected');
+      updateStatus('CONNECTED');
     },
     [callbacks, updateStatus],
   );
@@ -158,7 +158,7 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
   const disconnect = useCallback(() => {
     sessionRef.current?.close();
     sessionRef.current = null;
-    updateStatus('disconnected');
+    updateStatus('DISCONNECTED');
   }, [updateStatus]);
 
   const assertconnected = () => {

@@ -32,8 +32,8 @@ function BottomToolbar({
   codec,
   onCodecChange,
 }: BottomToolbarProps) {
-  const isConnected = sessionStatus === "connected";
-  const isConnecting = sessionStatus === "connecting";
+  const isConnected = sessionStatus === "CONNECTED";
+  const isConnecting = sessionStatus === "CONNECTING";
 
   const handleCodecChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newCodec = e.target.value;

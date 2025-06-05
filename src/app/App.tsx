@@ -105,7 +105,7 @@ function App() {
   });
 
   const [sessionStatus, setSessionStatus] =
-    useState<SessionStatus>("disconnected");
+    useState<SessionStatus>("DISCONNECTED");
 
   const [isEventsPaneExpanded, setIsEventsPaneExpanded] =
     useState<boolean>(true);
@@ -155,14 +155,14 @@ function App() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (selectedAgentName && sessionStatus === "disconnected") {
+    if (selectedAgentName && sessionStatus === "DISCONNECTED") {
       connectToRealtime();
     }
   }, [selectedAgentName]);
 
   useEffect(() => {
     if (
-      sessionStatus === "connected" &&
+      sessionStatus === "CONNECTED" &&
       selectedAgentConfigSet &&
       selectedAgentName
     ) {
@@ -175,7 +175,7 @@ function App() {
   }, [selectedAgentConfigSet, selectedAgentName, sessionStatus]);
 
   useEffect(() => {
-    if (sessionStatus === "connected") {
+    if (sessionStatus === "CONNECTED") {
       updateSession();
     }
   }, [isPTTActive]);
@@ -189,7 +189,7 @@ function App() {
     if (!data.client_secret?.value) {
       logClientEvent(data, "error.no_ephemeral_key");
       console.error("No ephemeral key provided by the server");
-      setSessionStatus("disconnected");
+      setSessionStatus("DISCONNECTED");
       return null;
     }
 
@@ -199,8 +199,8 @@ function App() {
   const connectToRealtime = async () => {
     const agentSetKey = searchParams.get("agentConfig") || "default";
     if (sdkScenarioMap[agentSetKey]) {
-      if (sessionStatus !== "disconnected") return;
-      setSessionStatus("connecting");
+      if (sessionStatus !== "DISCONNECTED") return;
+      setSessionStatus("CONNECTING");
 
       try {
         const EPHEMERAL_KEY = await fetchEphemeralKey();
@@ -225,7 +225,7 @@ function App() {
         });
       } catch (err) {
         console.error("Error connecting via SDK:", err);
-        setSessionStatus("disconnected");
+        setSessionStatus("DISCONNECTED");
       }
       return;
     }
@@ -233,7 +233,7 @@ function App() {
 
   const disconnectFromRealtime = () => {
     disconnect();
-    setSessionStatus("disconnected");
+    setSessionStatus("DISCONNECTED");
     setIsPTTUserSpeaking(false);
   };
 
@@ -304,7 +304,7 @@ function App() {
   };
 
   const handleTalkButtonDown = () => {
-    if (sessionStatus !== 'connected') return;
+    if (sessionStatus !== 'CONNECTED') return;
     cancelAssistantSpeech();
 
     setIsPTTUserSpeaking(true);
@@ -314,7 +314,7 @@ function App() {
   };
 
   const handleTalkButtonUp = () => {
-    if (sessionStatus !== 'connected' || !isPTTUserSpeaking)
+    if (sessionStatus !== 'CONNECTED' || !isPTTUserSpeaking)
       return;
 
     setIsPTTUserSpeaking(false);
@@ -323,9 +323,9 @@ function App() {
   };
 
   const onToggleConnection = () => {
-    if (sessionStatus === "connected" || sessionStatus === "connecting") {
+    if (sessionStatus === "CONNECTED" || sessionStatus === "CONNECTING") {
       disconnectFromRealtime();
-      setSessionStatus("disconnected");
+      setSessionStatus("DISCONNECTED");
     } else {
       connectToRealtime();
     }
@@ -414,7 +414,7 @@ function App() {
   // Ensure mute state is propagated to transport right after we connect or
   // whenever the SDK client reference becomes available.
   useEffect(() => {
-    if (sessionStatus === 'connected') {
+    if (sessionStatus === 'CONNECTED') {
       try {
         mute(!isAudioPlaybackEnabled);
       } catch (err) {
@@ -424,7 +424,7 @@ function App() {
   }, [sessionStatus, isAudioPlaybackEnabled]);
 
   useEffect(() => {
-    if (sessionStatus === "connected" && audioElementRef.current?.srcObject) {
+    if (sessionStatus === "CONNECTED" && audioElementRef.current?.srcObject) {
       // The remote audio stream from the audio element.
       const remoteStream = audioElementRef.current.srcObject as MediaStream;
       startRecording(remoteStream);
@@ -528,7 +528,7 @@ function App() {
           onSendMessage={handleSendTextMessage}
           downloadRecording={downloadRecording}
           canSend={
-            sessionStatus === "connected"
+            sessionStatus === "CONNECTED"
           }
         />
 
