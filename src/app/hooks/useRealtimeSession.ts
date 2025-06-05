@@ -5,6 +5,7 @@ import {
   OpenAIRealtimeWebRTC,
 } from '@openai/agents/realtime';
 import { moderationGuardrail } from '@/app/agentConfigs/guardrails';
+import { useEvent } from '../contexts/EventContext';
 
 export interface RealtimeSessionCallbacks {
   onConnectionChange?: (
@@ -26,6 +27,7 @@ export interface ConnectOptions {
 
 export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
   const sessionRef = useRef<RealtimeSession | null>(null);
+  const { logHistoryItem } = useEvent();
   const [status, setStatus] = useState<
     'disconnected' | 'connecting' | 'connected'
   >('disconnected');
@@ -91,7 +93,7 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
       const transport: any = session.transport;
 
       // Forward every low-level server event so transcript updates.
-      transport.on('*', (ev: any) => {
+      transport.on('message', (ev: any) => {
         callbacks.onMessage?.(ev);
       });
 
@@ -99,16 +101,24 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
         if (s === 'disconnected') updateStatus('disconnected');
       });
 
-      // Track granular additions so UI can mimic history_added behavior.
+      // Prevent duplicate history items
       const seen = new Set<string>();
+      session.on('history_added', (item: any) => {
+        const key = `${item.itemId}:${item.status}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          logHistoryItem(item);
+        }
+      });
+
       session.on('history_updated', (history: any[]) => {
-        history.forEach((item: any) => {
-          const key = `${item.itemId}:${item.status}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            callbacks.onHistoryAdded?.(item);
-          }
-        });
+        // history.forEach((item: any) => {
+        //   const key = `${item.itemId}:${item.status}`;
+        //   if (!seen.has(key)) {
+        //     seen.add(key);
+        //     callbacks.onHistoryAdded?.(item);
+        //   }
+        // });
         callbacks.onHistoryUpdated?.(history);
       });
 

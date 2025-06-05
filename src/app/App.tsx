@@ -69,7 +69,7 @@ function App() {
   useEffect(() => {
     transcriptItemsRef.current = transcriptItems;
   }, [transcriptItems]);
-  const { logClientEvent, logServerEvent, logHistoryItem } = useEvent();
+  const { logClientEvent, logServerEvent } = useEvent();
 
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
   const [selectedAgentConfigSet, setSelectedAgentConfigSet] = useState<
@@ -106,13 +106,12 @@ function App() {
     onConnectionChange: (s) => setSessionStatus(s.toUpperCase() as SessionStatus),
     onMessage: (ev) => handleServerEventRef.current?.(ev),
     onGuardrailTripped: (info) =>
-      handleServerEventRef.current?.({ type: 'guardrail_tripped', info }),
+      handleServerEventRef.current?.(ev),
     onHistoryAdded: (item) => {
-      handleServerEventRef.current?.({ type: 'history_added', item });
-      logHistoryItem(item);
+      handleServerEventRef.current?.(ev);
     },
     onHistoryUpdated: (history) => {
-      handleServerEventRef.current?.({ type: 'history_updated', history });
+      handleServerEventRef.current?.(ev);
     },
   });
 
