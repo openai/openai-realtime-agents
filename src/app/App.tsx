@@ -105,6 +105,8 @@ function App() {
   } = useRealtimeSession({
     onConnectionChange: (s) => setSessionStatus(s.toUpperCase() as SessionStatus),
     onMessage: (ev) => handleServerEventRef.current?.(ev),
+    onGuardrailTripped: (info) =>
+      handleServerEventRef.current?.({ type: 'guardrail_tripped', info }),
     onHistoryAdded: (item) => {
       handleServerEventRef.current?.({ type: 'history_added', item });
       logHistoryItem(item);
@@ -236,7 +238,10 @@ function App() {
           getEphemeralKey: async () => EPHEMERAL_KEY,
           initialAgents: reorderedAgents,
           audioElement: sdkAudioElement,
-          extraContext: { addTranscriptBreadcrumb },
+          extraContext: {
+            addTranscriptBreadcrumb,
+            companyName: agentSetKey === 'customerServiceRetail' ? 'Snowy Peak Boards' : 'newTelco',
+          },
         });
       } catch (err) {
         console.error("Error connecting via SDK:", err);

@@ -14,6 +14,7 @@ export interface RealtimeSessionCallbacks {
   onHistoryAdded?: (item: any) => void;
   onHistoryUpdated?: (history: any[]) => void;
   onAudioInterrupted?: () => void;
+  onGuardrailTripped?: (info: any) => void;
 }
 
 export interface ConnectOptions {
@@ -65,6 +66,15 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
         else if (codec === 'pcma') audioFormat = 'g711_alaw';
       }
 
+      const guardrailWithCtx = {
+        name: moderationGuardrail.name,
+        execute: ({ agentOutput }: { agentOutput: string }) =>
+          moderationGuardrail.execute({
+            agentOutput,
+            companyName: extraContext?.companyName ?? 'newTelco',
+          }),
+      };
+
       sessionRef.current = new RealtimeSession(rootAgent, {
         transport: transportValue,
         model: 'gpt-4o-mini-realtime-preview-2024-06-03',
@@ -73,7 +83,7 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
           outputAudioFormat: audioFormat,
           inputAudioTranscription: { model: 'gpt-4o-mini-transcribe' },
         },
-        outputGuardrails: [moderationGuardrail as any],
+        outputGuardrails: [guardrailWithCtx as any],
         context: extraContext ?? {},
       });
 
@@ -118,8 +128,9 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
           moderation = extractModeration(a);
           if (moderation) break;
         }
-        const primary = args[0];
-        callbacks.onMessage?.({ type: 'guardrail_tripped', info: moderation ?? primary });
+        const payload = moderation ?? args[0];
+
+        callbacks.onGuardrailTripped?.(payload);
       });
 
       session.on('audio_interrupted', () => {
