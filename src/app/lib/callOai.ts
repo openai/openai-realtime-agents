@@ -3,6 +3,7 @@ import { GuardrailOutputZod, GuardrailOutput } from '@/app/types';
 
 export async function runGuardrailClassifier(
   message: string,
+  companyName: string = 'newTelco',
 ): Promise<GuardrailOutput> {
   const messages = [
     {
@@ -10,7 +11,7 @@ export async function runGuardrailClassifier(
       content: `You are an expert at classifying text according to moderation policies. Consider the provided message, analyze potential classes from output_classes, and output the best classification. Output json, following the provided schema. Keep your analysis and reasoning short and to the point, maximum 2 sentences.
 
       <info>
-      - Company name: newTelco, or Snowy Peak Boards
+      - Company name: ${companyName}
       </info>
 
       <message>

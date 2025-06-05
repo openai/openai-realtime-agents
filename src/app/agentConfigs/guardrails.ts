@@ -2,9 +2,9 @@ import { runGuardrailClassifier } from '@/app/lib/callOai';
 
 export const moderationGuardrail = {
   name: 'moderation_guardrail',
-  async execute({ agentOutput }: { agentOutput: string }) {
+  async execute({ agentOutput, companyName = 'newTelco' }: { agentOutput: string, companyName?: string }) {
     try {
-      const res = await runGuardrailClassifier(agentOutput);
+      const res = await runGuardrailClassifier(agentOutput, companyName);
       const triggered = res.moderationCategory !== 'NONE';
       return {
         tripwireTriggered: triggered,
