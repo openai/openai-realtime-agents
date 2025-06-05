@@ -71,27 +71,6 @@ export function useHandleSessionHistory() {
     );
   }
 
-  function handleHistoryUpdated(items: any[]) {
-    items.forEach((item: any) => {
-      if (!item || item.type !== 'message') return;
-
-      const { itemId, content = [], status } = item;
-
-      const text = extractMessageText(content);
-
-      // Always update with latest text
-      if (text) {
-        updateTranscriptMessage(itemId, text, false);
-      }
-
-      if (status) {
-        updateTranscriptItem(itemId, {
-          status: status === 'completed' ? 'DONE' : 'IN_PROGRESS',
-        });
-      }
-    });
-  }
-  
   function handleHistoryAdded(item: any) {
     if (!item || item.type !== 'message') return;
 
@@ -116,6 +95,21 @@ export function useHandleSessionHistory() {
         },
       });
     }
+  }
+
+  function handleHistoryUpdated(items: any[]) {
+    items.forEach((item: any) => {
+      if (!item || item.type !== 'message') return;
+
+      const { itemId, content = [] } = item;
+
+      const text = extractMessageText(content);
+
+      // Always update with latest text
+      if (text) {
+        updateTranscriptMessage(itemId, text, false);
+      }
+    });
   }
 
   function handleTranscriptionDelta(item: any) {

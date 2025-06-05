@@ -10,12 +10,8 @@ import { useHandleServerEvent } from './useHandleServerEvent';
 import { useHandleSessionHistory } from './useHandleSessionHistory';
 import { SessionStatus } from '../types';
 export interface RealtimeSessionCallbacks {
-  onConnectionChange?: (
-    status: SessionStatus,
-  ) => void;
-  onAgentHandoff?: (
-    agentName: string,
-  ) => void;
+  onConnectionChange?: (status: SessionStatus) => void;
+  onAgentHandoff?: (agentName: string) => void;
 }
 
 export interface ConnectOptions {
@@ -166,6 +162,7 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
   };
 
   /* ----------------------- message helpers ------------------------- */
+  
   const sendUserText = useCallback((text: string) => {
     assertconnected();
     sessionRef.current!.sendMessage(text);

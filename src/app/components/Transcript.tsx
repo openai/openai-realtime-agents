@@ -128,11 +128,8 @@ function Transcript({
               }`;
               const isBracketedMessage =
                 title.startsWith("[") && title.endsWith("]");
-
-              const isUserPlaceholder = isUser && status !== 'DONE';
-
               const messageStyle =
-                isBracketedMessage || isUserPlaceholder
+                isBracketedMessage
                   ? 'italic text-gray-400'
                   : '';
               const displayTitle = isBracketedMessage
