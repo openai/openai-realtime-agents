@@ -6,6 +6,7 @@ import { useEvent } from "@/app/contexts/EventContext";
 
 export function useHandleSessionHistory() {
   const {
+    transcriptItems,
     addTranscriptBreadcrumb,
     addTranscriptMessage,
     updateTranscriptMessage,
@@ -14,13 +15,8 @@ export function useHandleSessionHistory() {
 
   const { logServerEvent } = useEvent();
 
-  /**
-   * Extract user or assistant text from a message `content` array.
-   * Only two content types are currently supported:
-   *  - `input_text`   -> use the `text` field
-   *  - `audio`        -> use the `transcript` field
-   * Returns all texts joined by a newline.
-   */
+  /* ----------------------- helpers ------------------------- */
+
   const extractMessageText = (content: any[] = []): string => {
     if (!Array.isArray(content)) return "";
 
@@ -35,12 +31,45 @@ export function useHandleSessionHistory() {
       .join("\n");
   };
 
-  function handleAgentToolStart(...args: any[]) {
-    console.log("agent_tool_start event", ...args);
+  const extractFunctionCallByName = (name: string, content: any[] = []): any => {
+    if (!Array.isArray(content)) return undefined;
+    return content.find((c: any) => c.type === 'function_call' && c.name === name);
+  };
+
+  const maybeParseJson = (val: any) => {
+    if (typeof val === 'string') {
+      try {
+        return JSON.parse(val);
+      } catch {
+        console.warn('Failed to parse JSON:', val);
+        return val;
+      }
+    }
+    return val;
+  };
+
+  /* ----------------------- event handlers ------------------------- */
+
+  function handleAgentToolStart(details: any, _agent: any, functionCall: any) {
+    const lastFunctionCall = extractFunctionCallByName(functionCall.name, details?.context?.history);
+    const function_name = lastFunctionCall?.name;
+    const function_args = lastFunctionCall?.arguments;
+
+    addTranscriptBreadcrumb(
+      `function call: ${function_name}`,
+      function_args,
+      lastFunctionCall?.itemId
+    );    
   }
-  function handleAgentToolEnd(...args: any[]) {
-    console.log("agent_tool_end event", ...args);
+  function handleAgentToolEnd(details: any, _agent: any, _functionCall: any, result: any) {
+    const lastFunctionCall = extractFunctionCallByName(_functionCall.name, details?.context?.history);
+    addTranscriptBreadcrumb(
+      `function call result: ${lastFunctionCall?.name}`,
+      maybeParseJson(result),
+      `${lastFunctionCall?.itemId}-result`
+    );
   }
+
   function handleGuardrailTripped(...args: any[]) {
     console.log("guardrail_tripped event", ...args);
     // Explicitly surface guardrail trips with deep moderation extraction.
@@ -60,18 +89,33 @@ export function useHandleSessionHistory() {
     }
     const payload = moderation ?? args[0];
     logServerEvent({ type: 'guardrail_tripped', payload });
-    // callbacks.onGuardrailTripped?.(payload);
+
+    // Update the last assistant message in the transcript with FAIL state.
+    const lastAssistant = [...transcriptItems]
+      .reverse()
+      .find((i) => i.role === 'assistant');
+
+    if (lastAssistant && moderation) {
+      const category = moderation.moderationCategory ?? 'NONE';
+      const rationale = moderation.moderationRationale ?? '';
+      const testText = moderation.testText ?? '';
+
+      updateTranscriptItem(lastAssistant.itemId, {
+        guardrailResult: {
+          status: 'DONE',
+          category,
+          rationale,
+          testText,
+        },
+      });
+    }
   }
 
   function handleHistoryUpdated(items: any[]) {
-    // console.log("history_updated event", JSON.stringify(items));
-
-    if (!Array.isArray(items)) return;
-
     items.forEach((item: any) => {
       if (!item || item.type !== 'message') return;
 
-      const { itemId, content = [], status } = item;
+      const { itemId, content = [] } = item;
 
       const text = extractMessageText(content);
 
@@ -79,46 +123,54 @@ export function useHandleSessionHistory() {
       if (text) {
         updateTranscriptMessage(itemId, text, false);
       }
-
-      if (status) {
-        updateTranscriptItem(itemId, {
-          status: status === 'completed' ? 'DONE' : 'IN_PROGRESS',
-        });
-      }
     });
   }
   
   function handleHistoryAdded(item: any) {
     if (!item || item.type !== 'message') return;
 
-    const { itemId, role, content = [], status } = item;
+    const { itemId, role, content = [] } = item;
 
-    const text = extractMessageText(content);
 
-    addTranscriptMessage(itemId, role ?? 'assistant', text, false);
+    if (itemId && role) {
+      const isUser = role === "user";
+      let text = extractMessageText(content);
 
-    if (status) {
+      if (isUser && !text) {
+        text = "[Transcribing...]";
+      }
+
+      addTranscriptMessage(itemId, role, text);
+    }
+
+    // If this is an assistant message, initialize guardrailResult as IN_PROGRESS.
+    if (role === 'assistant') {
       updateTranscriptItem(itemId, {
-        status: status === 'completed' ? 'DONE' : 'IN_PROGRESS',
+        guardrailResult: {
+          status: 'IN_PROGRESS',
+        },
       });
     }
   }
 
   function handleTranscriptionCompleted(item: any) {
-    // console.log("transcription_completed event", JSON.stringify(item)); 
-
     const itemId = item.item_id;
     const finalTranscript =
         !item.transcript || item.transcript === "\n"
         ? "[inaudible]"
         : item.transcript;
     if (itemId) {
-        updateTranscriptMessage(itemId, finalTranscript, false);
+      updateTranscriptMessage(itemId, finalTranscript, false);
+      if (item.role === 'user') {
         updateTranscriptItem(itemId, { status: "DONE" });
+      } else {
+        updateTranscriptItem(itemId, { guardrailResult: { status: "DONE", category: "NONE" } });
+      }
     }
+
   }
 
-  // Return a ref to all handler functions
+  // Ref that always holds the latest handler functions.
   const handlersRef = useRef({
     handleAgentToolStart,
     handleAgentToolEnd,
@@ -127,6 +179,16 @@ export function useHandleSessionHistory() {
     handleHistoryAdded,
     handleTranscriptionCompleted,
   });
+
+  // Ensure .current is kept up-to-date on every render.
+  handlersRef.current = {
+    handleAgentToolStart,
+    handleAgentToolEnd,
+    handleGuardrailTripped,
+    handleHistoryUpdated,
+    handleHistoryAdded,
+    handleTranscriptionCompleted,
+  };
 
   return handlersRef;
 }
