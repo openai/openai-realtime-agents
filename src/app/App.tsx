@@ -131,20 +131,13 @@ function App() {
   const { startRecording, stopRecording, downloadRecording } =
     useAudioDownload();
 
-  const sendClientEvent = (eventObj: any) => {
-    const suffixMap: Record<string, string> = {
-      'input_audio_buffer.clear': 'clear PTT buffer',
-      'output_audio_buffer.clear': 'cancel due to user interruption',
-    };
-
+  const sendClientEvent = (eventObj: any, eventNameSuffix = "") => {
     try {
       sendEventRealtime(eventObj);
+      logClientEvent(eventObj, eventNameSuffix);
     } catch (err) {
       console.error('Failed to send via SDK', err);
     }
-
-    // Log the client-side event so it shows up in the Events pane
-    logClientEvent(eventObj, suffixMap[eventObj.type] ?? '');
   };
 
   const handleServerEventRef = useHandleServerEvent({
@@ -196,9 +189,6 @@ function App() {
 
   useEffect(() => {
     if (sessionStatus === "CONNECTED") {
-      console.log(
-        `updatingSession, isPTTACtive=${isPTTActive} sessionStatus=${sessionStatus}`
-      );
       updateSession();
     }
   }, [isPTTActive]);
@@ -273,15 +263,10 @@ function App() {
         content: [{ type: 'input_text', text }],
       },
     });
-    sendClientEvent({ type: 'response.create' });
+    sendClientEvent({ type: 'response.create' }, '(simulated user text message)');
   };
 
   const updateSession = (shouldTriggerResponse: boolean = false) => {
-    // Send an initial 'hi' message to trigger the agent to greet the user
-    if (shouldTriggerResponse) {
-      sendSimulatedUserMessage('hi');
-    }
-
     // Reflect Push-to-Talk UI state by (de)activating server VAD on the
     // backend. The Realtime SDK supports live session updates via the
     // `session.update` event.
@@ -294,15 +279,17 @@ function App() {
           silence_duration_ms: 500,
           create_response: true,
         };
-    try {
-      sendEventRealtime({
-        type: 'session.update',
-        session: {
-          turn_detection: turnDetection,
-        },
-      });
-    } catch (err) {
-      console.warn('Failed to update session', err);
+
+    sendEventRealtime({
+      type: 'session.update',
+      session: {
+        turn_detection: turnDetection,
+      },
+    });
+
+    // Send an initial 'hi' message to trigger the agent to greet the user
+    if (shouldTriggerResponse) {
+      sendSimulatedUserMessage('hi');
     }
     return;
   }
