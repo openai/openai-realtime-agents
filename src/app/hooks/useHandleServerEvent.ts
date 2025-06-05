@@ -4,11 +4,9 @@ import { useRef } from "react";
 import {
   SessionStatus,
   AgentConfig,
-  GuardrailResultType,
 } from "@/app/types";
 import { useTranscript } from "@/app/contexts/TranscriptContext";
 import { useEvent } from "@/app/contexts/EventContext";
-import { runGuardrailClassifier } from "@/app/lib/callOai";
 
 export interface UseHandleServerEventParams {
   setSessionStatus: (status: SessionStatus) => void;
@@ -24,7 +22,6 @@ export function useHandleServerEvent({
   setSessionStatus,
   selectedAgentName,
   selectedAgentConfigSet,
-  sendClientEvent,
   setSelectedAgentName,
   setIsOutputAudioBufferActive,
 }: UseHandleServerEventParams) {
@@ -37,8 +34,6 @@ export function useHandleServerEvent({
   } = useTranscript();
 
   const { logServerEvent } = useEvent();
-
-  const assistantDeltasRef = useRef<{ [itemId: string]: string }>({});
 
   const maybeParseJson = (val: any) => {
     if (typeof val === 'string') {
@@ -60,112 +55,35 @@ export function useHandleServerEvent({
     }
   };
 
-  async function processGuardrail(itemId: string, text: string) {
-    let res;
-    try {
-      res = await runGuardrailClassifier(text);
-    } catch (error) {
-      console.warn(error);
-      return;
-    }
-
-    const currentItem = transcriptItems.find((item) => item.itemId === itemId);
-    if ((currentItem?.guardrailResult?.testText?.length ?? 0) > text.length) {
-      // If the existing guardrail result is more complete, skip updating. We're running multiple guardrail checks and you don't want an earlier one to overwrite a later, more complete result.
-      return;
-    }
-    
-    const newGuardrailResult: GuardrailResultType = {
-      status: "DONE",
-      testText: text,
-      category: res.moderationCategory,
-      rationale: res.moderationRationale,
-    };
-
-    // Update the transcript item with the new guardrail result.
-    updateTranscriptItem(itemId, { guardrailResult: newGuardrailResult });
+  function addFunctionCallBreadcrumb({ name, arguments: args, output, itemId, type }: {
+    name: string;
+    arguments?: any;
+    output?: any;
+    itemId: string;
+    type: string;
+  }) {
+    const isResult = type === 'function_call_output' || (type === 'function_call' && output !== undefined && output !== null);
+    const titlePrefix = isResult ? 'function call result' : 'function call';
+    const breadcrumbTitle = `${titlePrefix}: ${name}`;
+    const data = isResult ? maybeParseJson(output) : maybeParseJson(args);
+    const idSuffix = isResult ? `result-${itemId}` : itemId;
+    addTranscriptBreadcrumb(breadcrumbTitle, data, `func-${idSuffix}`);
   }
 
-  const handleFunctionCall = async (functionCallParams: {
-    name: string;
-    call_id?: string;
-    arguments: string;
-  }) => {
-    const args = JSON.parse(functionCallParams.arguments);
-    const currentAgent = selectedAgentConfigSet?.find(
-      (a) => a.name === selectedAgentName
-    );
-
-    if (currentAgent?.toolLogic?.[functionCallParams.name]) {
-      const fn = currentAgent.toolLogic[functionCallParams.name];
-      const fnResult = await fn(args, transcriptItems, addTranscriptBreadcrumb);
-
-      sendClientEvent({
-        type: "conversation.item.create",
-        item: {
-          type: "function_call_output",
-          call_id: functionCallParams.call_id,
-          output: JSON.stringify(fnResult),
-        },
-      });
-      sendClientEvent({ type: "response.create" });
-    } else if (functionCallParams.name === "transferAgents") {
-      const destinationAgent = args.destination_agent;
-      const newAgentConfig =
-        selectedAgentConfigSet?.find((a) => a.name === destinationAgent) ||
-        null;
-      if (newAgentConfig) {
-        setSelectedAgentName(destinationAgent);
-      }
-      const functionCallOutput = {
-        destination_agent: destinationAgent,
-        did_transfer: !!newAgentConfig,
-      };
-      sendClientEvent({
-        type: "conversation.item.create",
-        item: {
-          type: "function_call_output",
-          call_id: functionCallParams.call_id,
-          output: JSON.stringify(functionCallOutput),
-        },
-      });
-      // Breadcrumbs for call and result will arrive via history events.
-    } // else: no local handling; let server/SDK manage output
-  };
-
-  // Centralized server-event processing – expects raw events from the
-  // Realtime SDK transport (`client.on('message')`) *or* synthesized wrappers
-  // for `history_added` / `history_updated`.
   const handleServerEvent = (serverEvent: any) => {
-    // ------------------------------------------------------------------
-    // Direct function_call / function_call_output items (arrive via
-    // history_added, history_updated or potentially other sources)
-    // ------------------------------------------------------------------
     if (
       serverEvent &&
       (serverEvent.type === 'function_call' || serverEvent.type === 'function_call_output')
     ) {
-      // The Realtime SDK may emit either a dedicated `function_call_output` item
-      // or a `function_call` item with an `output` field once the call is
-      // completed. Treat the latter the same as a `function_call_output` so we
-      // always surface the result to the UI.
+      addFunctionCallBreadcrumb({
+        name: serverEvent.name,
+        arguments: serverEvent.arguments,
+        output: serverEvent.output,
+        itemId: serverEvent.itemId,
+        type: serverEvent.type,
+      });
 
-      const isResult =
-        serverEvent.type === 'function_call_output' ||
-        (serverEvent.type === 'function_call' &&
-          serverEvent.output !== undefined &&
-          serverEvent.output !== null);
-      const titlePrefix = isResult ? 'function call result' : 'function call';
-      const breadcrumbTitle = `${titlePrefix}: ${serverEvent.name}`;
-
-      const data = isResult
-        ? maybeParseJson(serverEvent.output)
-        : maybeParseJson(serverEvent.arguments);
-
-      const idSuffix = isResult ? `result-${serverEvent.itemId}` : serverEvent.itemId;
-      addTranscriptBreadcrumb(breadcrumbTitle, data, `func-${idSuffix}`);
-
-      // Agent hand-off
+      // Agent hand-off UI update
       const handoffMatch = (serverEvent.name ?? '').match(/^transfer_to_(.+)$/);
       if (handoffMatch) {
         const newAgentKey = handoffMatch[1];
@@ -176,7 +94,6 @@ export function useHandleServerEvent({
           setSelectedAgentName(candidate.name);
         }
       }
-      // Continue so wrapper-specific blocks don't re-emit duplicate crumb
     }
     logServerEvent(serverEvent);
 
@@ -216,10 +133,17 @@ export function useHandleServerEvent({
         }
 
         if (itemId && role) {
-          if (role === "user" && !text) {
+          const isUser = role === "user";
+
+          if (isUser && !text) {
             text = "[Transcribing...]";
           }
+
           addTranscriptMessage(itemId, role, text);
+
+          if (isUser && text && text !== "[Transcribing...]") {
+            updateTranscriptItem(itemId, { status: "DONE" });
+          }
         }
         break;
       }
@@ -232,6 +156,7 @@ export function useHandleServerEvent({
             : serverEvent.transcript;
         if (itemId) {
           updateTranscriptMessage(itemId, finalTranscript, false);
+          updateTranscriptItem(itemId, { status: "DONE" });
         }
         break;
       }
@@ -242,32 +167,14 @@ export function useHandleServerEvent({
         if (itemId) {
           // Update the transcript message with the new text.
           updateTranscriptMessage(itemId, deltaText, true);
-
-          // Accumulate the deltas and run the output guardrail at regular intervals.
-          if (!assistantDeltasRef.current[itemId]) {
-            assistantDeltasRef.current[itemId] = "";
-          }
-          assistantDeltasRef.current[itemId] += deltaText;
-          const newAccumulated = assistantDeltasRef.current[itemId];
-          const wordCount = newAccumulated.trim().split(" ").length;
-
-          // Run guardrail classifier every 5 words.
-          if (wordCount > 0 && wordCount % 5 === 0) {
-            processGuardrail(itemId, newAccumulated);
-          }
         }
         break;
       }
 
       // Assistant text streaming (chat responses)
       case "response.text.delta": {
-        let itemId: string | undefined = serverEvent.item_id;
-        const deltaText: string = serverEvent.delta || serverEvent.text || "";
-
-        // Older transport used response_id instead of item_id.
-        if (!itemId && serverEvent.response_id) {
-          itemId = `assistant-${serverEvent.response_id}`;
-        }
+        const itemId = serverEvent.item_id;
+        const deltaText = serverEvent.delta || serverEvent.text || "";
 
         if (!itemId || !deltaText) break;
 
@@ -329,31 +236,6 @@ export function useHandleServerEvent({
       }
 
       case "response.done": {
-        if (serverEvent.response?.output) {
-          (serverEvent.response.output as any[]).forEach((outputItem: any) => {
-            if (
-              outputItem.type === "function_call" &&
-              outputItem.name &&
-              outputItem.arguments
-            ) {
-              handleFunctionCall({
-                name: outputItem.name,
-                call_id: outputItem.call_id,
-                arguments: outputItem.arguments,
-              });
-            }
-            if (
-              outputItem.type === "message" &&
-              outputItem.role === "assistant"
-            ) {
-              const itemId = outputItem.id;
-              const text = outputItem.content[0].transcript;
-              // Final guardrail for this message
-              processGuardrail(itemId, text);
-            }
-          });
-        }
-
         // After assistant turn completes ensure guardrailResult is marked as
         // PASS if still pending.
         const lastAssistant = [...transcriptItems]
@@ -401,103 +283,6 @@ export function useHandleServerEvent({
 
       default:
         break;
-    }
-
-    // ------------------------------------------------------------------
-    // Realtime SDK *history* events
-    // ------------------------------------------------------------------
-    if (serverEvent.type === 'history_added') {
-      const item = serverEvent.item;
-      if (!item) return;
-
-      if (['function_call', 'function_call_output'].includes(item.type as string)) {
-        // Similar to the top-level handler, a completed `function_call` item
-        // may already contain an `output` field instead of a separate
-        // `function_call_output` companion item. Detect that scenario so the
-        // breadcrumb for the call *result* is still rendered.
-
-        const isResult =
-          item.type === 'function_call_output' ||
-          (item.type === 'function_call' && item.output !== undefined && item.output !== null);
-        const titlePrefix = isResult ? 'function call result' : 'function call';
-        const breadcrumbTitle = `${titlePrefix}: ${item.name}`;
-
-        const data: any = isResult
-          ? maybeParseJson(item.output)
-          : maybeParseJson(item.arguments);
-
-        const idSuffix = isResult ? `result-${item.itemId}` : item.itemId;
-        addTranscriptBreadcrumb(breadcrumbTitle, data, `func-${idSuffix}`);
-
-        // Handle transfer_to_* agent switch
-        const handoffMatch = (item.name ?? '').match(/^transfer_to_(.+)$/);
-        if (handoffMatch) {
-          const newAgentKey = handoffMatch[1];
-          const candidate = selectedAgentConfigSet?.find(
-            (a) => a.name.toLowerCase() === newAgentKey.toLowerCase(),
-          );
-          if (candidate && candidate.name !== selectedAgentName) {
-            setSelectedAgentName(candidate.name);
-          }
-        }
-        return;
-      }
-
-      if (item.type === 'message') {
-        const textContent = (item.content || [])
-          .map((c: any) => {
-            if (c.type === 'text') return c.text;
-            if (c.type === 'input_text') return c.text;
-            if (c.type === 'input_audio') return c.transcript ?? '';
-            if (c.type === 'audio') return c.transcript ?? '';
-            return '';
-          })
-          .join(' ')
-          .trim();
-
-        if (textContent.includes('Failed Guardrail Reason: moderation_guardrail')) return;
-
-        const role = item.role as 'user' | 'assistant';
-
-        const exists = transcriptItems.some((t) => t.itemId === item.itemId);
-
-        if (!exists) {
-          const initialText = textContent || (role === 'user' ? 'Transcribing…' : '');
-          addTranscriptMessage(item.itemId, role, initialText, false);
-
-          if (role === 'assistant') {
-            updateTranscriptItem(item.itemId, {
-              guardrailResult: {
-                status: 'IN_PROGRESS',
-              },
-            });
-          }
-        }
-
-        if (textContent) {
-          updateTranscriptMessage(item.itemId, textContent, false);
-        }
-
-        if (role === 'assistant' && (item as any).status === 'completed') {
-          const existing = transcriptItems.find((t) => t.itemId === item.itemId) as any;
-          if (existing && (!existing.guardrailResult || existing.guardrailResult.status === 'IN_PROGRESS')) {
-            updateTranscriptItem(item.itemId, {
-              guardrailResult: {
-                status: 'DONE',
-                category: 'NONE',
-                rationale: '',
-              },
-            });
-          }
-        }
-
-        if ('status' in item) {
-          const shouldMarkDone = (item as any).status === 'completed' && textContent.length > 0;
-          updateTranscriptItem(item.itemId, { status: shouldMarkDone ? 'DONE' : 'IN_PROGRESS' });
-        }
-      }
-
-      return; // Already fully handled
     }
 
     if (serverEvent.type === 'history_updated') {
