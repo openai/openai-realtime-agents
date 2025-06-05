@@ -72,13 +72,21 @@ export class RealtimeClient {
 
     const transportValue: any = this.#options.audioElement
       ? new OpenAIRealtimeWebRTC({
-          useInsecureApiKey: true,
           audioElement: this.#options.audioElement,
         } as any)
       : 'webrtc';
 
     this.#session = new RealtimeSession(rootAgent, {
       transport: transportValue,
+      model: `gpt-4o-mini-realtime-preview-2024-06-03`,
+      config: {
+        inputAudioFormat:  "g711_ulaw",   // or "g711_alaw"
+        outputAudioFormat: "g711_ulaw",   // or "g711_alaw"
+        inputAudioTranscription: {
+          model: 'gpt-4o-mini-transcribe',
+        },
+      },
+
       outputGuardrails: [moderationGuardrail as any],
       context: this.#options.extraContext ?? {},
     });
