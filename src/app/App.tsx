@@ -134,6 +134,7 @@ function App() {
   const sendClientEvent = (eventObj: any) => {
     try {
       sendEventRealtime(eventObj);
+      logClientEvent(eventObj);
     } catch (err) {
       console.error('Failed to send via SDK', err);
     }
