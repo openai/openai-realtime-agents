@@ -1,16 +1,23 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 import { useTranscript } from "@/app/contexts/TranscriptContext";
 import { useEvent } from "@/app/contexts/EventContext";
 
 export function useHandleSessionHistory() {
   const {
+    transcriptItems,
     addTranscriptBreadcrumb,
     addTranscriptMessage,
     updateTranscriptMessage,
     updateTranscriptItem,
   } = useTranscript();
+
+  // Add a ref to always have the latest transcriptItems
+  const transcriptItemsRef = useRef(transcriptItems);
+  useEffect(() => {
+    transcriptItemsRef.current = transcriptItems;
+  }, [transcriptItems]);
 
   const { logServerEvent } = useEvent();
 
@@ -87,8 +94,6 @@ export function useHandleSessionHistory() {
 
     // find the last assistant message in details.context.history
     const lastAssistant = extractLastAssistantMessage(details?.context?.history);
-    console.log("lastAssistant", lastAssistant);
-    console.log("moderation", moderation);
 
     if (lastAssistant && moderation) {
       const category = moderation.moderationCategory ?? 'NONE';
@@ -109,13 +114,19 @@ export function useHandleSessionHistory() {
     items.forEach((item: any) => {
       if (!item || item.type !== 'message') return;
 
-      const { itemId, content = [] } = item;
+      const { itemId, content = [], status } = item;
 
       const text = extractMessageText(content);
 
-      // Always update with latest text & status
+      // Always update with latest text
       if (text) {
         updateTranscriptMessage(itemId, text, false);
+      }
+
+      if (status) {
+        updateTranscriptItem(itemId, {
+          status: status === 'completed' ? 'DONE' : 'IN_PROGRESS',
+        });
       }
     });
   }
@@ -124,16 +135,15 @@ export function useHandleSessionHistory() {
     if (!item || item.type !== 'message') return;
 
     const { itemId, role, content = [] } = item;
-
-
     if (itemId && role) {
       const isUser = role === "user";
       let text = extractMessageText(content);
+      // Skip guardrail messages - these are added by the SDK and sent to the realtime model
+      if (text.includes('Failed Guardrail Reason: moderation_guardrail')) return;
 
       if (isUser && !text) {
         text = "[Transcribing...]";
       }
-
       addTranscriptMessage(itemId, role, text);
     }
 
@@ -156,6 +166,8 @@ export function useHandleSessionHistory() {
   }
 
   function handleTranscriptionCompleted(item: any) {
+    // History updates don't reliably end in a completed item, 
+    // so we need to handle finishing up when the transcription is completed.
     const itemId = item.item_id;
     const finalTranscript =
         !item.transcript || item.transcript === "\n"
@@ -163,13 +175,24 @@ export function useHandleSessionHistory() {
         : item.transcript;
     if (itemId) {
       updateTranscriptMessage(itemId, finalTranscript, false);
-      if (item.role === 'user') {
-        updateTranscriptItem(itemId, { status: "DONE" });
+      // Use the ref to get the latest transcriptItems
+      const transcriptItem = transcriptItemsRef.current.find((i) => i.itemId === itemId);
+
+      if (transcriptItem?.role === 'user') {
+        updateTranscriptItem(itemId, { status: 'DONE' });
       } else {
-        updateTranscriptItem(itemId, { guardrailResult: { status: "DONE", category: "NONE" } });
+        // If guardrailResult still pending, mark PASS.
+        if (transcriptItem?.guardrailResult?.status === 'IN_PROGRESS') {
+          updateTranscriptItem(itemId, {
+            guardrailResult: {
+              status: 'DONE',
+              category: 'NONE',
+              rationale: '',
+            },
+          });
+        }
       }
     }
-
   }
 
   // Ref that always holds the latest handler functions.
