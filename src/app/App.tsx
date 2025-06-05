@@ -101,7 +101,6 @@ function App() {
     sendEvent: sendEventRealtime,
     interrupt: interruptRealtime,
     mute: muteRealtime,
-    // PT-T helpers are unused in current flow; may wire later.
   } = useRealtimeSession({
     onConnectionChange: (s) => setSessionStatus(s.toUpperCase() as SessionStatus),
     onMessage: (ev) => handleServerEventRef.current?.(ev),
