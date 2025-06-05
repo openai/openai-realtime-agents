@@ -5,6 +5,7 @@ import {
   SessionStatus,
 } from "@/app/types";
 import { useEvent } from "@/app/contexts/EventContext";
+import { useTranscript } from "@/app/contexts/TranscriptContext";
 
 export interface UseHandleSessionEventParams {
   setSessionStatus: (status: SessionStatus) => void;
@@ -13,6 +14,21 @@ export interface UseHandleSessionEventParams {
 
 export function useHandleServerEvent({}: UseHandleSessionEventParams) {
   const { logServerEvent } = useEvent();
+  const { updateTranscriptItem } = useTranscript();
+
+  /* ----------------------- helpers ------------------------- */
+  
+  const extractLastAssistantMessage = (history: any[] = []): any => {
+    if (!Array.isArray(history)) return undefined;
+    return history.reverse().find((c: any) => c.type === 'message' && c.role === 'assistant');
+  };
+
+  const extractModeration = (obj: any) => {
+    if ('moderationCategory' in obj) return obj;
+    if ('outputInfo' in obj) return extractModeration(obj.outputInfo);
+    if ('output' in obj) return extractModeration(obj.output);
+    if ('result' in obj) return extractModeration(obj.result);
+  };
 
   /* ----------------------- event handlers ------------------------- */
 
@@ -42,12 +58,35 @@ export function useHandleServerEvent({}: UseHandleSessionEventParams) {
     });
   }
 
+  function handleGuardrailTripped(details: any, _agent: any, guardrail: any) {
+    const moderation = extractModeration(guardrail.result.output.outputInfo);
+    logServerEvent({ type: 'guardrail_tripped', payload: moderation });
+
+    // find the last assistant message in details.context.history
+    const lastAssistant = extractLastAssistantMessage(details?.context?.history);
+
+    if (lastAssistant && moderation) {
+      const category = moderation.moderationCategory ?? 'NONE';
+      const rationale = moderation.moderationRationale ?? '';
+
+      // Update the last assistant message in the transcript with FAIL state.
+      updateTranscriptItem(lastAssistant.itemId, {
+        guardrailResult: {
+          status: 'DONE',
+          category,
+          rationale,
+        },
+      });
+    }
+  }
+
   // Return a ref to all handler functions
   const handlersRef = useRef({
     handleError,
     handleAudioInterrupted,
     handleAudioStart,
     handleAudioStopped,
+    handleGuardrailTripped,
   });
 
   return handlersRef;

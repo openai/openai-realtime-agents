@@ -86,12 +86,12 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
       sessionRef.current.on("audio_interrupted", serverEventHandlers.handleAudioInterrupted);      
       sessionRef.current.on("audio_start", serverEventHandlers.handleAudioStart);
       sessionRef.current.on("audio_stopped", serverEventHandlers.handleAudioStopped);
+      sessionRef.current.on("guardrail_tripped", serverEventHandlers.handleGuardrailTripped);
 
       // history events
       sessionRef.current.on("agent_handoff", handleAgentHandoff);
       sessionRef.current.on("agent_tool_start", historyHandlers.handleAgentToolStart);
       sessionRef.current.on("agent_tool_end", historyHandlers.handleAgentToolEnd);
-      sessionRef.current.on("guardrail_tripped", historyHandlers.handleGuardrailTripped);
       sessionRef.current.on("history_updated", historyHandlers.handleHistoryUpdated);
       sessionRef.current.on("history_added", historyHandlers.handleHistoryAdded);
 

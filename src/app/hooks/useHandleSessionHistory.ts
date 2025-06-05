@@ -2,7 +2,6 @@
 
 import { useRef, useEffect } from "react";
 import { useTranscript } from "@/app/contexts/TranscriptContext";
-import { useEvent } from "@/app/contexts/EventContext";
 
 export function useHandleSessionHistory() {
   const {
@@ -18,8 +17,6 @@ export function useHandleSessionHistory() {
   useEffect(() => {
     transcriptItemsRef.current = transcriptItems;
   }, [transcriptItems]);
-
-  const { logServerEvent } = useEvent();
 
   /* ----------------------- helpers ------------------------- */
 
@@ -40,18 +37,6 @@ export function useHandleSessionHistory() {
   const extractFunctionCallByName = (name: string, content: any[] = []): any => {
     if (!Array.isArray(content)) return undefined;
     return content.find((c: any) => c.type === 'function_call' && c.name === name);
-  };
-
-  const extractLastAssistantMessage = (history: any[] = []): any => {
-    if (!Array.isArray(history)) return undefined;
-    return history.reverse().find((c: any) => c.type === 'message' && c.role === 'assistant');
-  };
-
-  const extractModeration = (obj: any) => {
-    if ('moderationCategory' in obj) return obj;
-    if ('outputInfo' in obj) return extractModeration(obj.outputInfo);
-    if ('output' in obj) return extractModeration(obj.output);
-    if ('result' in obj) return extractModeration(obj.result);
   };
 
   const maybeParseJson = (val: any) => {
@@ -84,28 +69,6 @@ export function useHandleSessionHistory() {
       `function call result: ${lastFunctionCall?.name}`,
       maybeParseJson(result)
     );
-  }
-
-  function handleGuardrailTripped(details: any, _agent: any, guardrail: any) {
-    const moderation = extractModeration(guardrail.result.output.outputInfo);
-    logServerEvent({ type: 'guardrail_tripped', payload: moderation });
-
-    // find the last assistant message in details.context.history
-    const lastAssistant = extractLastAssistantMessage(details?.context?.history);
-
-    if (lastAssistant && moderation) {
-      const category = moderation.moderationCategory ?? 'NONE';
-      const rationale = moderation.moderationRationale ?? '';
-
-      // Update the last assistant message in the transcript with FAIL state.
-      updateTranscriptItem(lastAssistant.itemId, {
-        guardrailResult: {
-          status: 'DONE',
-          category,
-          rationale,
-        },
-      });
-    }
   }
 
   function handleHistoryUpdated(items: any[]) {
@@ -193,11 +156,9 @@ export function useHandleSessionHistory() {
     }
   }
 
-  // Ref that always holds the latest handler functions.
   const handlersRef = useRef({
     handleAgentToolStart,
     handleAgentToolEnd,
-    handleGuardrailTripped,
     handleHistoryUpdated,
     handleHistoryAdded,
     handleTranscriptionDelta,
