@@ -2,6 +2,17 @@
 
 This is a demonstration of more advanced patterns for voice agents, using the OpenAI Realtime API and the OpenAI Agents SDK. 
 
+## About the OpenAI Agents SDK
+
+This project uses the [OpenAI Agents SDK](https://github.com/openai/openai-agents), a toolkit for building, managing, and deploying advanced AI agents. The SDK provides:
+
+- A unified interface for defining agent behaviors and tool integrations.
+- Built-in support for agent orchestration, state management, and event handling.
+- Easy integration with the OpenAI Realtime API for low-latency, streaming interactions.
+- Extensible patterns for multi-agent collaboration, handoffs, and tool use.
+
+For full documentation, guides, and API references, see the official [OpenAI Agents SDK Documentation](https://github.com/openai/openai-agents#readme).
+
 **NOTE:** For a version that does not use the OpenAI Agents SDK, see the [branch without-agents-sdk](https://github.com/openai/openai-realtime-agents/tree/without-agents-sdk).
 
 There are two main patterns demonstrated:

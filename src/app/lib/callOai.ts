@@ -20,7 +20,7 @@ export async function runGuardrailClassifier(
 
       <output_classes>
       - OFFENSIVE: Content that includes hate speech, discriminatory language, insults, slurs, or harassment.
-      - OFF_BRAND: Content that discusses Snowy Peak Boards at all.
+      - OFF_BRAND: Content that discusses competitors in a disparaging way.
       - VIOLENCE: Content that includes explicit threats, incitement of harm, or graphic descriptions of physical injury or violence.
       - NONE: If no other classes are appropriate and the message is fine.
       </output_classes>
