@@ -5,6 +5,7 @@ import {
   OpenAIRealtimeWebRTC,
 } from '@openai/agents/realtime';
 
+import { audioFormatForCodec } from '../lib/codecPatch';
 import { useEvent } from '../contexts/EventContext';
 import { useHandleServerEvent } from './useHandleServerEvent';
 import { useHandleSessionHistory } from './useHandleSessionHistory';
@@ -112,22 +113,11 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
       const ek = await getEphemeralKey();
       const rootAgent = initialAgents[0];
 
-      const transportValue: any = audioElement
-        ? new OpenAIRealtimeWebRTC({ audioElement })
-        : 'webrtc';
-
-      // Match audio format according to ?codec query param so
-      // server & browser agree on format.
-      let audioFormat: 'pcm16' | 'g711_ulaw' | 'g711_alaw' = 'pcm16';
-      if (typeof window !== 'undefined') {
-        const codec =
-          (new URLSearchParams(window.location.search).get('codec') ?? 'opus').toLowerCase();
-        if (codec === 'pcmu') audioFormat = 'g711_ulaw';
-        else if (codec === 'pcma') audioFormat = 'g711_alaw';
-      }
+      // Required for changing the codec via the patch - unsupported by the SDK for now
+      const audioFormat = audioFormatForCodec((new URLSearchParams(window.location.search).get('codec') ?? 'opus').toLowerCase());
 
       sessionRef.current = new RealtimeSession(rootAgent, {
-        transport: transportValue,
+        transport: new OpenAIRealtimeWebRTC({ audioElement }),
         model: 'gpt-4o-realtime-preview-2024-06-03',
         config: {
           inputAudioFormat: audioFormat,

@@ -77,3 +77,12 @@ let alreadyPatched = false;
     };
   
   })();
+
+  export function audioFormatForCodec(codec: string) {
+    let audioFormat: 'pcm16' | 'g711_ulaw' | 'g711_alaw' = 'pcm16';
+    if (typeof window !== 'undefined') {
+      if (codec === 'pcmu') audioFormat = 'g711_ulaw';
+      else if (codec === 'pcma') audioFormat = 'g711_alaw';
+    }
+    return audioFormat;
+  }
