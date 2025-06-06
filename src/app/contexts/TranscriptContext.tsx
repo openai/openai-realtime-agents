@@ -12,7 +12,7 @@ import { v4 as uuidv4 } from "uuid";
 import { TranscriptItem } from "@/app/types";
 
 export type GuardrailState = {
-  hideGuardrailModerationMessages: boolean;
+  hideModerationMessage: boolean;
   offendingItemId?: string;
 };
 
@@ -22,7 +22,7 @@ type TranscriptContextValue = {
     itemId: string,
     role: "user" | "assistant",
     text: string,
-    hidden?: boolean,
+    isHidden?: boolean,
   ) => void;
   updateTranscriptMessage: (itemId: string, text: string, isDelta: boolean) => void;
   addTranscriptBreadcrumb: (title: string, data?: Record<string, any>) => void;
@@ -43,7 +43,7 @@ export const TranscriptProvider: FC<PropsWithChildren> = ({ children }) => {
   // message is received. This is set by the guardrail_tripped server event
   // handler and cleared in the history handler once an assistant message lands.
   const [guardrailStateInner, _setGuardrailState] = useState<GuardrailState>({
-    hideGuardrailModerationMessages: false,
+    hideModerationMessage: false,
   });
   const guardrailStateRef = useRef<GuardrailState>(guardrailStateInner);
 
@@ -145,7 +145,6 @@ export const TranscriptProvider: FC<PropsWithChildren> = ({ children }) => {
         addTranscriptBreadcrumb,
         toggleTranscriptItemExpand,
         updateTranscriptItem,
-
         guardrailState: guardrailStateInner,
         guardrailStateRef,
         setGuardrailState,

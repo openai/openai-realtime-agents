@@ -84,20 +84,19 @@ export function useHandleSessionHistory() {
       let text = extractMessageText(content);
 
       // Don't display messages sent back to the realtime model about moderation
-      if (role === 'user' && guardrailStateRef.current.hideGuardrailModerationMessages) {
-        return;
-      }
+      const shouldHide = role === 'user' && guardrailStateRef.current.hideModerationMessage;
 
       if (isUser && !text) {
         text = "[Transcribing...]";
       }
-      addTranscriptMessage(itemId, role, text);
+
+      addTranscriptMessage(itemId, role, text, shouldHide);
     }
 
     // If this is an assistant message, initialize guardrailResult 
     if (role === 'assistant') {
       // Clear guardrail message suppression once we receive the next assistant message.
-      setGuardrailState({ hideGuardrailModerationMessages: false });
+      setGuardrailState({ hideModerationMessage: false });
       updateTranscriptItem(itemId, {
         guardrailResult: {
           status: 'IN_PROGRESS',

@@ -80,10 +80,10 @@ export function useHandleServerEvent({}: UseHandleSessionEventParams) {
         },
       });
 
-      // Set global guardrail state so that history handler can suppress
+      // Set global guardrail state so that history handler can hide
       // subsequent user messages until the next assistant turn.
       setGuardrailState({
-        hideGuardrailModerationMessages: true,
+        hideModerationMessage: true,
         offendingItemId: lastAssistant.itemId,
       });
     }
