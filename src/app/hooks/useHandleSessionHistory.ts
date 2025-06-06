@@ -4,8 +4,10 @@ import { useRef, useEffect } from "react";
 import { useTranscript } from "@/app/contexts/TranscriptContext";
 
 export function useHandleSessionHistory() {
-  // Ref to track if user messages should be blocked after a guardrail trip
-  const userBlockedAfterGuardrailRef = useRef(false);
+  const {
+    guardrailStateRef,
+    setGuardrailState,
+  } = useTranscript();
   const {
     transcriptItems,
     addTranscriptBreadcrumb,
@@ -81,29 +83,8 @@ export function useHandleSessionHistory() {
       const isUser = role === "user";
       let text = extractMessageText(content);
 
-      // Check to see if the previous message failed guardrail - 
-      // If it failed (category !== 'NONE'), don't append the message back to the
-      // realtime model explaining that it was
-      const previousItem = transcriptItemsRef.current.find((i) => i.itemId === item.previousItemId);
-      if (
-        previousItem?.guardrailResult?.category &&
-        previousItem.guardrailResult.category !== 'NONE'
-      ) {
-        addTranscriptBreadcrumb(
-          'Message blocked by guardrail',
-          {
-            blockedItemId: item.itemId,
-            previousItemId: previousItem.itemId,
-            category: previousItem.guardrailResult.category,
-            rationale: previousItem.guardrailResult.rationale,
-          }
-        );
-        // Block further messages until an assistant message comes in -
-        // multiple messages come back from the guardrails processor since it processes
-        // the transcript as it is streaming.
-        userBlockedAfterGuardrailRef.current = true;
-      }
-      if (role === 'user' && userBlockedAfterGuardrailRef.current) {
+      // Don't display messages sent back to the realtime model about moderation
+      if (role === 'user' && guardrailStateRef.current.hideGuardrailModerationMessages) {
         return;
       }
 
@@ -115,7 +96,8 @@ export function useHandleSessionHistory() {
 
     // If this is an assistant message, initialize guardrailResult 
     if (role === 'assistant') {
-      userBlockedAfterGuardrailRef.current = false;
+      // Clear guardrail message suppression once we receive the next assistant message.
+      setGuardrailState({ hideGuardrailModerationMessages: false });
       updateTranscriptItem(itemId, {
         guardrailResult: {
           status: 'IN_PROGRESS',

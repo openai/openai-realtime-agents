@@ -135,11 +135,10 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
 
       sessionRef.current = new RealtimeSession(rootAgent, {
         transport: transportValue,
-        model: 'gpt-4o-mini-realtime-preview-2024-06-03',
+        model: 'gpt-4o-realtime-preview-2024-06-03',
         config: {
           inputAudioFormat: audioFormat,
           outputAudioFormat: audioFormat,
-          inputAudioTranscription: { model: 'gpt-4o-mini-transcribe' },
         },
         outputGuardrails: [guardrailWithCtx as any],
         context: extraContext ?? {},
@@ -162,7 +161,7 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
   };
 
   /* ----------------------- message helpers ------------------------- */
-  
+
   const sendUserText = useCallback((text: string) => {
     assertconnected();
     sessionRef.current!.sendMessage(text);

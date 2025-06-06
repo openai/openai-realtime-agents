@@ -1,22 +1,58 @@
 "use client";
 
-import React, { createContext, useContext, useState, FC, PropsWithChildren } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useRef,
+  FC,
+  PropsWithChildren,
+} from "react";
 import { v4 as uuidv4 } from "uuid";
 import { TranscriptItem } from "@/app/types";
 
+export type GuardrailState = {
+  hideGuardrailModerationMessages: boolean;
+  offendingItemId?: string;
+};
+
 type TranscriptContextValue = {
   transcriptItems: TranscriptItem[];
-  addTranscriptMessage: (itemId: string, role: "user" | "assistant", text: string, hidden?: boolean) => void;
+  addTranscriptMessage: (
+    itemId: string,
+    role: "user" | "assistant",
+    text: string,
+    hidden?: boolean,
+  ) => void;
   updateTranscriptMessage: (itemId: string, text: string, isDelta: boolean) => void;
   addTranscriptBreadcrumb: (title: string, data?: Record<string, any>) => void;
   toggleTranscriptItemExpand: (itemId: string) => void;
   updateTranscriptItem: (itemId: string, updatedProperties: Partial<TranscriptItem>) => void;
+
+  guardrailState: GuardrailState;
+  guardrailStateRef: React.MutableRefObject<GuardrailState>;
+  setGuardrailState: (state: GuardrailState) => void;
 };
 
 const TranscriptContext = createContext<TranscriptContextValue | undefined>(undefined);
 
 export const TranscriptProvider: FC<PropsWithChildren> = ({ children }) => {
   const [transcriptItems, setTranscriptItems] = useState<TranscriptItem[]>([]);
+
+  // When true we suppress subsequent user messages until the next assistant
+  // message is received. This is set by the guardrail_tripped server event
+  // handler and cleared in the history handler once an assistant message lands.
+  const [guardrailStateInner, _setGuardrailState] = useState<GuardrailState>({
+    hideGuardrailModerationMessages: false,
+  });
+  const guardrailStateRef = useRef<GuardrailState>(guardrailStateInner);
+
+  const setGuardrailState: TranscriptContextValue["setGuardrailState"] = (
+    state,
+  ) => {
+    guardrailStateRef.current = state;
+    _setGuardrailState(state);
+  };
 
   function newTimestampPretty(): string {
     const now = new Date();
@@ -109,6 +145,10 @@ export const TranscriptProvider: FC<PropsWithChildren> = ({ children }) => {
         addTranscriptBreadcrumb,
         toggleTranscriptItemExpand,
         updateTranscriptItem,
+
+        guardrailState: guardrailStateInner,
+        guardrailStateRef,
+        setGuardrailState,
       }}
     >
       {children}
