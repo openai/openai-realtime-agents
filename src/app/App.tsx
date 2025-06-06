@@ -940,7 +940,7 @@ function App() {
           onCancelAssistantSpeech={cancelAssistantSpeech}
           isInterviewMode={isInterviewMode}
           currentAgentName={selectedAgentName}
-          currentAgentConfig={customAgentConfig || selectedAgentConfigSet?.find(a => a.name === selectedAgentName) || undefined}
+          currentAgentConfig={customAgentConfig || selectedAgentConfigSet?.find((a: AgentConfig) => a.name === selectedAgentName) || undefined}
         />
         )}
 
