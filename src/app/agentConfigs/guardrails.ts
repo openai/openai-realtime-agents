@@ -55,7 +55,10 @@ export async function runGuardrailClassifier(
 
   try {
     const output = GuardrailOutputZod.parse(data.output_parsed);
-    return output;
+    return {
+      ...output,
+      testText: message,
+    };
   } catch (error) {
     console.error('Error parsing the message content as GuardrailOutput:', error);
     return Promise.reject('Failed to parse guardrail output.');

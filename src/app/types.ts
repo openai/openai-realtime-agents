@@ -142,6 +142,7 @@ export interface LoggedEvent {
 export const GuardrailOutputZod = z.object({
   moderationRationale: z.string(),
   moderationCategory: ModerationCategoryZod,
+  testText: z.string().optional(),
 });
 
 export type GuardrailOutput = z.infer<typeof GuardrailOutputZod>;

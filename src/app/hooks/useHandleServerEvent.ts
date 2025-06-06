@@ -1,9 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import {
-  SessionStatus,
-} from "@/app/types";
+import { SessionStatus } from "@/app/types";
 import { useEvent } from "@/app/contexts/EventContext";
 import { useTranscript } from "@/app/contexts/TranscriptContext";
 
@@ -70,13 +68,14 @@ export function useHandleServerEvent({}: UseHandleSessionEventParams) {
     if (lastAssistant && moderation) {
       const category = moderation.moderationCategory ?? 'NONE';
       const rationale = moderation.moderationRationale ?? '';
+      const offendingText: string | undefined = moderation?.testText;
 
-      // Update the last assistant message in the transcript with FAIL state.
       updateTranscriptItem(lastAssistant.itemId, {
         guardrailResult: {
           status: 'DONE',
           category,
           rationale,
+          testText: offendingText,
         },
       });
 
