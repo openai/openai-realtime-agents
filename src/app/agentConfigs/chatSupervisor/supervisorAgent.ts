@@ -309,7 +309,7 @@ export const getNextResponseFromSupervisor = tool({
     }
 
     const finalText = await handleToolCalls(body, response, addBreadcrumb);
-    if ((finalText as any)?.error) {
+    if ((finalText)?.error) {
       return { error: 'Something went wrong.' };
     }
 

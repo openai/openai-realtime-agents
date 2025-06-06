@@ -93,15 +93,9 @@ export function useHandleSessionHistory() {
       addTranscriptMessage(itemId, role, text, shouldHide);
     }
 
-    // If this is an assistant message, initialize guardrailResult 
     if (role === 'assistant') {
       // Clear guardrail message suppression once we receive the next assistant message.
       setGuardrailState({ hideModerationMessage: false });
-      updateTranscriptItem(itemId, {
-        guardrailResult: {
-          status: 'IN_PROGRESS',
-        },
-      });
     }
   }
 

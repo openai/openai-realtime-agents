@@ -4,7 +4,7 @@ import {
   RealtimeAgent,
   OpenAIRealtimeWebRTC,
 } from '@openai/agents/realtime';
-import { moderationGuardrail } from '@/app/agentConfigs/guardrails';
+
 import { useEvent } from '../contexts/EventContext';
 import { useHandleServerEvent } from './useHandleServerEvent';
 import { useHandleSessionHistory } from './useHandleSessionHistory';
@@ -19,6 +19,7 @@ export interface ConnectOptions {
   initialAgents: RealtimeAgent[];
   audioElement?: HTMLAudioElement;
   extraContext?: Record<string, any>;
+  outputGuardrails?: any[];
 }
 
 export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
@@ -102,6 +103,7 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
       initialAgents,
       audioElement,
       extraContext,
+      outputGuardrails,
     }: ConnectOptions) => {
       if (sessionRef.current) return; // already connected
 
@@ -124,15 +126,6 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
         else if (codec === 'pcma') audioFormat = 'g711_alaw';
       }
 
-      const guardrailWithCtx = {
-        name: moderationGuardrail.name,
-        execute: ({ agentOutput }: { agentOutput: string }) =>
-          moderationGuardrail.execute({
-            agentOutput,
-            companyName: extraContext?.companyName ?? 'newTelco',
-          }),
-      };
-
       sessionRef.current = new RealtimeSession(rootAgent, {
         transport: transportValue,
         model: 'gpt-4o-realtime-preview-2024-06-03',
@@ -140,7 +133,7 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
           inputAudioFormat: audioFormat,
           outputAudioFormat: audioFormat,
         },
-        outputGuardrails: [guardrailWithCtx as any],
+        outputGuardrails: outputGuardrails ?? [],
         context: extraContext ?? {},
       });
 
