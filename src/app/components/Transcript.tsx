@@ -111,7 +111,6 @@ function Transcript({
                 title = "",
                 isHidden,
                 guardrailResult,
-                status,
               } = item;
 
             if (isHidden) {
@@ -128,10 +127,9 @@ function Transcript({
               }`;
               const isBracketedMessage =
                 title.startsWith("[") && title.endsWith("]");
-              const messageStyle =
-                isBracketedMessage
-                  ? 'italic text-gray-400'
-                  : '';
+              const messageStyle = isBracketedMessage
+                ? 'italic text-gray-400'
+                : '';
               const displayTitle = isBracketedMessage
                 ? title.slice(1, -1)
                 : title;
