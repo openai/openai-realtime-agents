@@ -13,7 +13,6 @@ export interface UseHandleSessionEventParams {
 export function useHandleServerEvent({}: UseHandleSessionEventParams) {
   const { logServerEvent } = useEvent();
   const { updateTranscriptItem } = useTranscript();
-  const { setGuardrailState } = useTranscript();
 
   /* ----------------------- helpers ------------------------- */
   
@@ -77,13 +76,6 @@ export function useHandleServerEvent({}: UseHandleSessionEventParams) {
           rationale,
           testText: offendingText,
         },
-      });
-
-      // Set global guardrail state so that history handler can hide
-      // subsequent user messages until the next assistant turn.
-      setGuardrailState({
-        hideModerationMessage: true,
-        offendingItemId: lastAssistant.itemId,
       });
     }
   }

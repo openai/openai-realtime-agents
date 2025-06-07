@@ -5,10 +5,6 @@ import { useTranscript } from "@/app/contexts/TranscriptContext";
 
 export function useHandleSessionHistory() {
   const {
-    guardrailStateRef,
-    setGuardrailState,
-  } = useTranscript();
-  const {
     transcriptItems,
     addTranscriptBreadcrumb,
     addTranscriptMessage,
@@ -83,19 +79,11 @@ export function useHandleSessionHistory() {
       const isUser = role === "user";
       let text = extractMessageText(content);
 
-      // Don't display messages sent back to the realtime model about moderation
-      const shouldHide = role === 'user' && guardrailStateRef.current.hideModerationMessage;
-
       if (isUser && !text) {
         text = "[Transcribing...]";
       }
 
-      addTranscriptMessage(itemId, role, text, shouldHide);
-    }
-
-    if (role === 'assistant') {
-      // Clear guardrail message suppression once we receive the next assistant message.
-      setGuardrailState({ hideModerationMessage: false });
+      addTranscriptMessage(itemId, role, text);
     }
   }
 
