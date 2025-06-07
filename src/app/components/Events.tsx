@@ -45,7 +45,7 @@ function Events({ isExpanded }: EventsProps) {
             <span className="font-semibold">Logs</span>
           </div>
           <div>
-            {loggedEvents.map((log) => {
+            {loggedEvents.map((log, idx) => {
               const arrowInfo = getDirectionArrow(log.direction);
               const isError =
                 log.eventName.toLowerCase().includes("error") ||
@@ -53,7 +53,7 @@ function Events({ isExpanded }: EventsProps) {
 
               return (
                 <div
-                  key={log.id}
+                  key={`${log.id}-${idx}`}
                   className="border-t border-gray-200 py-2 px-6 font-mono"
                 >
                   <div

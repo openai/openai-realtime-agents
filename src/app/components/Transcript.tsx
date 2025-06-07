@@ -101,17 +101,17 @@ function Transcript({
           {[...transcriptItems]
             .sort((a, b) => a.createdAtMs - b.createdAtMs)
             .map((item) => {
-            const {
-              itemId,
-              type,
-              role,
-              data,
-              expanded,
-              timestamp,
-              title = "",
-              isHidden,
-              guardrailResult,
-            } = item;
+              const {
+                itemId,
+                type,
+                role,
+                data,
+                expanded,
+                timestamp,
+                title = "",
+                isHidden,
+                guardrailResult,
+              } = item;
 
             if (isHidden) {
               return null;
@@ -128,8 +128,8 @@ function Transcript({
               const isBracketedMessage =
                 title.startsWith("[") && title.endsWith("]");
               const messageStyle = isBracketedMessage
-                ? "italic text-gray-400"
-                : "";
+                ? 'italic text-gray-400'
+                : '';
               const displayTitle = isBracketedMessage
                 ? title.slice(1, -1)
                 : title;

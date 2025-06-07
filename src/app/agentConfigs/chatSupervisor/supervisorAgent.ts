@@ -181,7 +181,7 @@ function getToolResponse(fName: string) {
 
 /**
  * Iteratively handles function calls returned by the Responses API until the
- * assistant produces a final textual answer. Returns that answer as a string.
+ * supervisor produces a final textual answer. Returns that answer as a string.
  */
 async function handleToolCalls(
   body: any,
@@ -217,22 +217,22 @@ async function handleToolCalls(
       return finalText;
     }
 
-    // For each function call returned by the model, execute it locally and append its
+    // For each function call returned by the supervisor model, execute it locally and append its
     // output to the request body as a `function_call_output` item.
     for (const toolCall of functionCalls) {
       const fName = toolCall.name;
       const args = JSON.parse(toolCall.arguments || '{}');
+      const toolRes = getToolResponse(fName);
 
+      // Since we're using a local function, we don't need to add our own breadcrumbs
       if (addBreadcrumb) {
         addBreadcrumb(`[supervisorAgent] function call: ${fName}`, args);
       }
-
-      const toolRes = getToolResponse(fName);
-
       if (addBreadcrumb) {
         addBreadcrumb(`[supervisorAgent] function call result: ${fName}`, toolRes);
       }
 
+      // Add function call and result to the request body to send back to realtime
       body.input.push(
         {
           type: 'function_call',
@@ -303,7 +303,7 @@ export const getNextResponseFromSupervisor = tool({
       tools: supervisorAgentTools,
     };
 
-    let response = await fetchResponsesMessage(body);
+    const response = await fetchResponsesMessage(body);
     if (response.error) {
       return { error: 'Something went wrong.' };
     }

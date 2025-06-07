@@ -1,12 +1,28 @@
 "use client";
 
-import React, { createContext, useContext, useState, FC, PropsWithChildren } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  FC,
+  PropsWithChildren,
+} from "react";
 import { v4 as uuidv4 } from "uuid";
 import { TranscriptItem } from "@/app/types";
 
+export type GuardrailState = {
+  hideModerationMessage: boolean;
+  offendingItemId?: string;
+};
+
 type TranscriptContextValue = {
   transcriptItems: TranscriptItem[];
-  addTranscriptMessage: (itemId: string, role: "user" | "assistant", text: string, hidden?: boolean) => void;
+  addTranscriptMessage: (
+    itemId: string,
+    role: "user" | "assistant",
+    text: string,
+    isHidden?: boolean,
+  ) => void;
   updateTranscriptMessage: (itemId: string, text: string, isDelta: boolean) => void;
   addTranscriptBreadcrumb: (title: string, data?: Record<string, any>) => void;
   toggleTranscriptItemExpand: (itemId: string) => void;

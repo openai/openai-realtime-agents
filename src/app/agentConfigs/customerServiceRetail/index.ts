@@ -17,3 +17,6 @@ export const customerServiceRetailScenario = [
   salesAgent,
   simulatedHumanAgent,
 ];
+
+// Name of the company represented by this agent set. Used by guardrails
+export const customerServiceRetailCompanyName = 'Snowy Peak Boards';
