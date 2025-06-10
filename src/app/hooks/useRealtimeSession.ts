@@ -8,11 +8,13 @@ import {
 import { audioFormatForCodec, applyCodecPreferences } from '../lib/codecUtils';
 import { useEvent } from '../contexts/EventContext';
 import { useHandleSessionHistory } from './useHandleSessionHistory';
+import { useTranscript } from '../contexts/TranscriptContext';
 import { SessionStatus } from '../types';
 
 export interface RealtimeSessionCallbacks {
   onConnectionChange?: (status: SessionStatus) => void;
   onAgentHandoff?: (agentName: string) => void;
+  onOutputAudioBufferActive?: (active: boolean) => void;
 }
 
 export interface ConnectOptions {
@@ -56,6 +58,14 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
       }
       case "response.audio_transcript.delta": {
         historyHandlers.handleTranscriptionDelta(event);
+        break;
+      }
+      case "output_audio_buffer.started": {
+        callbacks.onOutputAudioBufferActive?.(true);
+        break;
+      }
+      case "output_audio_buffer.stopped": {
+        callbacks.onOutputAudioBufferActive?.(false);
         break;
       }
       default: {
@@ -173,10 +183,6 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
     sessionRef.current?.transport.sendEvent(ev);
   }, []);
 
-  const interrupt = useCallback(() => {
-    sessionRef.current?.transport.interrupt();
-  }, []);
-
   const mute = useCallback((m: boolean) => {
     sessionRef.current?.mute(m);
   }, []);
@@ -198,7 +204,6 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
     disconnect,
     sendUserText,
     sendEvent,
-    interrupt,
     mute,
     pushToTalkStart,
     pushToTalkStop,

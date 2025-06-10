@@ -11,7 +11,7 @@ import Events from "./components/Events";
 import BottomToolbar from "./components/BottomToolbar";
 
 // Types
-import { SessionStatus, TranscriptItem } from "@/app/types";
+import { SessionStatus } from "@/app/types";
 import type { RealtimeAgent } from '@openai/agents/realtime';
 
 // Context providers & hooks
@@ -61,14 +61,6 @@ function App() {
     addTranscriptMessage,
     addTranscriptBreadcrumb,
   } = useTranscript();
-
-  // Keep a mutable reference to the latest transcriptItems so that streaming
-  // callbacks registered once during setup always have access to up-to-date
-  // data without being re-registered on every render.
-  const transcriptItemsRef = useRef<TranscriptItem[]>(transcriptItems);
-  useEffect(() => {
-    transcriptItemsRef.current = transcriptItems;
-  }, [transcriptItems]);
   const { logClientEvent, logServerEvent } = useEvent();
 
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
@@ -99,11 +91,11 @@ function App() {
     disconnect,
     sendUserText,
     sendEvent,
-    interrupt,
     mute,
   } = useRealtimeSession({
     onConnectionChange: (s) => setSessionStatus(s as SessionStatus),
     onAgentHandoff: (agentName: string) => setSelectedAgentName(agentName),
+    onOutputAudioBufferActive: (active: boolean) => setIsOutputAudioBufferActive(active),
   });
 
   const [sessionStatus, setSessionStatus] =
@@ -121,6 +113,7 @@ function App() {
       return stored ? stored === 'true' : true;
     },
   );
+  const [isOutputAudioBufferActive, setIsOutputAudioBufferActive] = useState<boolean>(false);
 
   // Initialize the recording hook.
   const { startRecording, stopRecording, downloadRecording } =
@@ -287,11 +280,29 @@ function App() {
   }
 
   const cancelAssistantSpeech = async () => {
-    // Interrupts server response and clears local audio.
-    try {
-      interrupt();
-    } catch (err) {
-      console.error('Failed to interrupt', err);
+    // Send a response.cancel if the most recent assistant conversation item is IN_PROGRESS. This implicitly does a item.truncate as well
+    const mostRecentAssistantMessage = [...transcriptItems]
+      .reverse()
+      .find((item) => item.role === "assistant");
+
+
+    if (!mostRecentAssistantMessage) {
+      console.warn("can't cancel, no recent assistant message found");
+      return;
+    }
+    if (mostRecentAssistantMessage.status === "IN_PROGRESS") {
+      sendClientEvent(
+        { type: "response.cancel" },
+        "(cancel due to user interruption)"
+      );
+    }
+
+    // Send an output_audio_buffer.cancel if the isOutputAudioBufferActive is True
+    if (isOutputAudioBufferActive) {
+      sendClientEvent(
+        { type: "output_audio_buffer.clear" },
+        "(cancel due to user interruption)"
+      );
     }
   };
 

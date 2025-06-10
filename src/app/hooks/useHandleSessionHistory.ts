@@ -13,11 +13,6 @@ export function useHandleSessionHistory() {
     updateTranscriptItem,
   } = useTranscript();
 
-  // Add a ref to always have the latest transcriptItems
-  const transcriptItemsRef = useRef(transcriptItems);
-  useEffect(() => {
-    transcriptItemsRef.current = transcriptItems;
-  }, [transcriptItems]);
   const { logServerEvent } = useEvent();
 
   /* ----------------------- helpers ------------------------- */
@@ -134,7 +129,7 @@ export function useHandleSessionHistory() {
     if (itemId) {
       updateTranscriptMessage(itemId, finalTranscript, false);
       // Use the ref to get the latest transcriptItems
-      const transcriptItem = transcriptItemsRef.current.find((i) => i.itemId === itemId);
+      const transcriptItem = transcriptItems.find((i) => i.itemId === itemId);
 
       if (transcriptItem?.role === 'user') {
         updateTranscriptItem(itemId, { status: 'DONE' });
