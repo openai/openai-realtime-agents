@@ -7,7 +7,6 @@ import {
 
 import { audioFormatForCodec } from '../lib/codecPatch';
 import { useEvent } from '../contexts/EventContext';
-import { useHandleServerEvent } from './useHandleServerEvent';
 import { useHandleSessionHistory } from './useHandleSessionHistory';
 import { SessionStatus } from '../types';
 export interface RealtimeSessionCallbacks {
@@ -38,11 +37,6 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
     },
     [callbacks],
   );
-
-  const serverEventHandlers = useHandleServerEvent({
-    setSessionStatus: updateStatus,
-    sendClientEvent: logClientEvent,
-  }).current;
 
   const { logServerEvent } = useEvent();
 
@@ -79,12 +73,13 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
 
   useEffect(() => {
     if (sessionRef.current) {
-      // server events
-      sessionRef.current.on("error", serverEventHandlers.handleError);
-      sessionRef.current.on("audio_interrupted", serverEventHandlers.handleAudioInterrupted);      
-      sessionRef.current.on("audio_start", serverEventHandlers.handleAudioStart);
-      sessionRef.current.on("audio_stopped", serverEventHandlers.handleAudioStopped);
-      sessionRef.current.on("guardrail_tripped", serverEventHandlers.handleGuardrailTripped);
+      // Log server errors
+      sessionRef.current.on("error", (...args: any[]) => {
+        logServerEvent({
+          type: "error",
+          message: args[0],
+        });
+      });
 
       // history events
       sessionRef.current.on("agent_handoff", handleAgentHandoff);
@@ -92,11 +87,12 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
       sessionRef.current.on("agent_tool_end", historyHandlers.handleAgentToolEnd);
       sessionRef.current.on("history_updated", historyHandlers.handleHistoryUpdated);
       sessionRef.current.on("history_added", historyHandlers.handleHistoryAdded);
+      sessionRef.current.on("guardrail_tripped", historyHandlers.handleGuardrailTripped);
 
       // additional transport events
       sessionRef.current.on("transport_event", handleTransportEvent);
     }
-  }, [sessionRef.current, serverEventHandlers]);
+  }, [sessionRef.current]);
 
   const connect = useCallback(
     async ({

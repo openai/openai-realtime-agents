@@ -20,7 +20,6 @@ import { useTranscript } from "@/app/contexts/TranscriptContext";
 import { useEvent } from "@/app/contexts/EventContext";
 import { useRealtimeSession } from "./hooks/useRealtimeSession";
 import { createModerationGuardrail } from "@/app/agentConfigs/guardrails";
-import { useHandleServerEvent } from "./hooks/useHandleServerEvent";
 
 // Agent configs
 import { allAgentSets, defaultAgentSetKey } from "@/app/agentConfigs";
@@ -134,9 +133,7 @@ function App() {
     }
   };
 
-  useHandleServerEvent({ setSessionStatus, sendClientEvent });
   useHandleSessionHistory();
-
 
   useEffect(() => {
     let finalAgentConfig = searchParams.get("agentConfig");

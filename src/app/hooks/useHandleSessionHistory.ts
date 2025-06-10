@@ -2,6 +2,7 @@
 
 import { useRef, useEffect } from "react";
 import { useTranscript } from "@/app/contexts/TranscriptContext";
+import { useEvent } from "@/app/contexts/EventContext";
 
 export function useHandleSessionHistory() {
   const {
@@ -17,6 +18,7 @@ export function useHandleSessionHistory() {
   useEffect(() => {
     transcriptItemsRef.current = transcriptItems;
   }, [transcriptItems]);
+  const { logServerEvent } = useEvent();
 
   /* ----------------------- helpers ------------------------- */
 
@@ -49,6 +51,18 @@ export function useHandleSessionHistory() {
       }
     }
     return val;
+  };
+
+  const extractLastAssistantMessage = (history: any[] = []): any => {
+    if (!Array.isArray(history)) return undefined;
+    return history.reverse().find((c: any) => c.type === 'message' && c.role === 'assistant');
+  };
+
+  const extractModeration = (obj: any) => {
+    if ('moderationCategory' in obj) return obj;
+    if ('outputInfo' in obj) return extractModeration(obj.outputInfo);
+    if ('output' in obj) return extractModeration(obj.output);
+    if ('result' in obj) return extractModeration(obj.result);
   };
 
   /* ----------------------- event handlers ------------------------- */
@@ -139,6 +153,30 @@ export function useHandleSessionHistory() {
     }
   }
 
+  function handleGuardrailTripped(details: any, _agent: any, guardrail: any) {
+    console.log("[guardrail tripped]", details, _agent, guardrail);
+    const moderation = extractModeration(guardrail.result.output.outputInfo);
+    logServerEvent({ type: 'guardrail_tripped', payload: moderation });
+
+    // find the last assistant message in details.context.history
+    const lastAssistant = extractLastAssistantMessage(details?.context?.history);
+
+    if (lastAssistant && moderation) {
+      const category = moderation.moderationCategory ?? 'NONE';
+      const rationale = moderation.moderationRationale ?? '';
+      const offendingText: string | undefined = moderation?.testText;
+
+      updateTranscriptItem(lastAssistant.itemId, {
+        guardrailResult: {
+          status: 'DONE',
+          category,
+          rationale,
+          testText: offendingText,
+        },
+      });
+    }
+  }
+
   const handlersRef = useRef({
     handleAgentToolStart,
     handleAgentToolEnd,
@@ -146,6 +184,7 @@ export function useHandleSessionHistory() {
     handleHistoryAdded,
     handleTranscriptionDelta,
     handleTranscriptionCompleted,
+    handleGuardrailTripped,
   });
 
   return handlersRef;
