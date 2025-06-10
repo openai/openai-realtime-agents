@@ -15,6 +15,7 @@ There are two main patterns demonstrated:
 - Start the server with `npm run dev`
 - Open your browser to [http://localhost:3000](http://localhost:3000). It should default to the `chatSupervisor` Agent Config.
 - You can change examples via the "Scenario" dropdown in the top right.
+- A new `elderCompanion` scenario is included as a minimal conversational companion for older adults.
 
 # Agentic Pattern 1: Chat-Supervisor
 
