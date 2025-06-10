@@ -5,10 +5,11 @@ import {
   OpenAIRealtimeWebRTC,
 } from '@openai/agents/realtime';
 
-import { audioFormatForCodec } from '../lib/codecPatch';
+import { audioFormatForCodec, applyCodecPreferences } from '../lib/codecUtils';
 import { useEvent } from '../contexts/EventContext';
 import { useHandleSessionHistory } from './useHandleSessionHistory';
 import { SessionStatus } from '../types';
+
 export interface RealtimeSessionCallbacks {
   onConnectionChange?: (status: SessionStatus) => void;
   onAgentHandoff?: (agentName: string) => void;
@@ -64,6 +65,19 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
     }
   }
 
+  const codecParamRef = useRef<string>(
+    (typeof window !== 'undefined'
+      ? (new URLSearchParams(window.location.search).get('codec') ?? 'opus')
+      : 'opus')
+      .toLowerCase(),
+  );
+
+  // Wrapper to pass current codec param
+  const applyCodec = useCallback(
+    (pc: RTCPeerConnection) => applyCodecPreferences(pc, codecParamRef.current),
+    [],
+  );
+
   const handleAgentHandoff = (item: any) => {
     const history = item.context.history;
     const lastMessage = history[history.length - 1];
@@ -109,11 +123,20 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
       const ek = await getEphemeralKey();
       const rootAgent = initialAgents[0];
 
-      // Required for changing the codec via the patch - unsupported by the SDK for now
-      const audioFormat = audioFormatForCodec((new URLSearchParams(window.location.search).get('codec') ?? 'opus').toLowerCase());
+      // This lets you use the codec selector in the UI to force narrow-band (8 kHz) codecs to
+      //  simulate how the voice agent sounds over a PSTN/SIP phone call.
+      const codecParam = codecParamRef.current;
+      const audioFormat = audioFormatForCodec(codecParam);
 
       sessionRef.current = new RealtimeSession(rootAgent, {
-        transport: new OpenAIRealtimeWebRTC({ audioElement }),
+        transport: new OpenAIRealtimeWebRTC({
+          audioElement,
+          // Set preferred codec before offer creation
+          changePeerConnection: async (pc: RTCPeerConnection) => {
+            applyCodec(pc);
+            return pc;
+          },
+        }),
         model: 'gpt-4o-realtime-preview-2024-06-03',
         config: {
           inputAudioFormat: audioFormat,

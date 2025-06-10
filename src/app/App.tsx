@@ -1,5 +1,4 @@
 "use client";
-import "./lib/codecPatch";
 import React, { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
@@ -27,8 +26,11 @@ import { customerServiceRetailScenario } from "@/app/agentConfigs/customerServic
 import { chatSupervisorScenario } from "@/app/agentConfigs/chatSupervisor";
 import { customerServiceRetailCompanyName } from "@/app/agentConfigs/customerServiceRetail";
 import { chatSupervisorCompanyName } from "@/app/agentConfigs/chatSupervisor";
+import { simpleHandoffScenario } from "@/app/agentConfigs/simpleHandoff";
 
+// Map used by connect logic for scenarios defined via the SDK.
 const sdkScenarioMap: Record<string, RealtimeAgent[]> = {
+  simpleHandoff: simpleHandoffScenario,
   customerServiceRetail: customerServiceRetailScenario,
   chatSupervisor: chatSupervisorScenario,
 };
@@ -45,9 +47,9 @@ function App() {
   // a traditional phone line and to validate ASR / VAD behaviour under that
   // constraint.
   //
-  // We read the `?codec=` query-param and rely on ./lib/codecPatch to patch
-  // WebRTC at module-load so that the preferred codec is selected before
-  // offer/answer negotiation.
+  // We read the `?codec=` query-param and rely on the `changePeerConnection`
+  // hook (configured in `useRealtimeSession`) to set the preferred codec
+  // before the offer/answer negotiation.
   // ---------------------------------------------------------------------
   const urlCodec = searchParams.get("codec") || "opus";
 
