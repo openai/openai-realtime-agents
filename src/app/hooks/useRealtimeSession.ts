@@ -8,7 +8,6 @@ import {
 import { audioFormatForCodec, applyCodecPreferences } from '../lib/codecUtils';
 import { useEvent } from '../contexts/EventContext';
 import { useHandleSessionHistory } from './useHandleSessionHistory';
-import { useTranscript } from '../contexts/TranscriptContext';
 import { SessionStatus } from '../types';
 
 export interface RealtimeSessionCallbacks {
