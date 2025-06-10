@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef } from "react";
 import { useTranscript } from "@/app/contexts/TranscriptContext";
 import { useEvent } from "@/app/contexts/EventContext";
 
@@ -130,20 +130,17 @@ export function useHandleSessionHistory() {
       updateTranscriptMessage(itemId, finalTranscript, false);
       // Use the ref to get the latest transcriptItems
       const transcriptItem = transcriptItems.find((i) => i.itemId === itemId);
+      updateTranscriptItem(itemId, { status: 'DONE' });
 
-      if (transcriptItem?.role === 'user') {
-        updateTranscriptItem(itemId, { status: 'DONE' });
-      } else {
-        // If guardrailResult still pending, mark PASS.
-        if (transcriptItem?.guardrailResult?.status === 'IN_PROGRESS') {
-          updateTranscriptItem(itemId, {
-            guardrailResult: {
-              status: 'DONE',
-              category: 'NONE',
-              rationale: '',
-            },
-          });
-        }
+      // If guardrailResult still pending, mark PASS.
+      if (transcriptItem?.guardrailResult?.status === 'IN_PROGRESS') {
+        updateTranscriptItem(itemId, {
+          guardrailResult: {
+            status: 'DONE',
+            category: 'NONE',
+            rationale: '',
+          },
+        });
       }
     }
   }
