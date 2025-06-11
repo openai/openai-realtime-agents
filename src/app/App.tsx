@@ -57,7 +57,6 @@ function App() {
   // via global codecPatch at module load 
 
   const {
-    transcriptItems,
     addTranscriptMessage,
     addTranscriptBreadcrumb,
   } = useTranscript();
@@ -69,6 +68,8 @@ function App() {
   >(null);
 
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  // Ref to identify whether the latest agent switch came from an automatic handoff
+  const handoffTriggeredRef = useRef(false);
 
   const sdkAudioElement = React.useMemo(() => {
     if (typeof window === 'undefined') return undefined;
@@ -91,11 +92,14 @@ function App() {
     disconnect,
     sendUserText,
     sendEvent,
+    interrupt,
     mute,
   } = useRealtimeSession({
     onConnectionChange: (s) => setSessionStatus(s as SessionStatus),
-    onAgentHandoff: (agentName: string) => setSelectedAgentName(agentName),
-    onOutputAudioBufferActive: (active: boolean) => setIsOutputAudioBufferActive(active),
+    onAgentHandoff: (agentName: string) => {
+      handoffTriggeredRef.current = true;
+      setSelectedAgentName(agentName);
+    },
   });
 
   const [sessionStatus, setSessionStatus] =
@@ -113,7 +117,6 @@ function App() {
       return stored ? stored === 'true' : true;
     },
   );
-  const [isOutputAudioBufferActive, setIsOutputAudioBufferActive] = useState<boolean>(false);
 
   // Initialize the recording hook.
   const { startRecording, stopRecording, downloadRecording } =
@@ -163,7 +166,9 @@ function App() {
         (a) => a.name === selectedAgentName
       );
       addTranscriptBreadcrumb(`Agent: ${selectedAgentName}`, currentAgent);
-      updateSession(true);
+      updateSession(!handoffTriggeredRef.current);
+      // Reset flag after handling so subsequent effects behave normally
+      handoffTriggeredRef.current = false;
     }
   }, [selectedAgentConfigSet, selectedAgentName, sessionStatus]);
 
@@ -279,36 +284,9 @@ function App() {
     return;
   }
 
-  const cancelAssistantSpeech = async () => {
-    // Send a response.cancel if the most recent assistant conversation item is IN_PROGRESS. This implicitly does a item.truncate as well
-    const mostRecentAssistantMessage = [...transcriptItems]
-      .reverse()
-      .find((item) => item.role === "assistant");
-
-
-    if (!mostRecentAssistantMessage) {
-      console.warn("can't cancel, no recent assistant message found");
-      return;
-    }
-    if (mostRecentAssistantMessage.status === "IN_PROGRESS") {
-      sendClientEvent(
-        { type: "response.cancel" },
-        "(cancel due to user interruption)"
-      );
-    }
-
-    // Send an output_audio_buffer.cancel if the isOutputAudioBufferActive is True
-    if (isOutputAudioBufferActive) {
-      sendClientEvent(
-        { type: "output_audio_buffer.clear" },
-        "(cancel due to user interruption)"
-      );
-    }
-  };
-
   const handleSendTextMessage = () => {
     if (!userText.trim()) return;
-    cancelAssistantSpeech();
+    interrupt();
 
     try {
       sendUserText(userText.trim());
@@ -321,7 +299,7 @@ function App() {
 
   const handleTalkButtonDown = () => {
     if (sessionStatus !== 'CONNECTED') return;
-    cancelAssistantSpeech();
+    interrupt();
 
     setIsPTTUserSpeaking(true);
     sendClientEvent({ type: 'input_audio_buffer.clear' }, 'clear PTT buffer');

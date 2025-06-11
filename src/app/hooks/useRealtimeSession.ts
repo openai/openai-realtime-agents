@@ -13,7 +13,6 @@ import { SessionStatus } from '../types';
 export interface RealtimeSessionCallbacks {
   onConnectionChange?: (status: SessionStatus) => void;
   onAgentHandoff?: (agentName: string) => void;
-  onOutputAudioBufferActive?: (active: boolean) => void;
 }
 
 export interface ConnectOptions {
@@ -57,14 +56,6 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
       }
       case "response.audio_transcript.delta": {
         historyHandlers.handleTranscriptionDelta(event);
-        break;
-      }
-      case "output_audio_buffer.started": {
-        callbacks.onOutputAudioBufferActive?.(true);
-        break;
-      }
-      case "output_audio_buffer.stopped": {
-        callbacks.onOutputAudioBufferActive?.(false);
         break;
       }
       default: {
@@ -173,6 +164,10 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
 
   /* ----------------------- message helpers ------------------------- */
 
+  const interrupt = useCallback(() => {
+    sessionRef.current?.interrupt();
+  }, []);
+  
   const sendUserText = useCallback((text: string) => {
     assertconnected();
     sessionRef.current!.sendMessage(text);
@@ -206,5 +201,6 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
     mute,
     pushToTalkStart,
     pushToTalkStop,
+    interrupt,
   } as const;
 }
