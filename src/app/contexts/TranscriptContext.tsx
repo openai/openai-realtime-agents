@@ -10,11 +10,6 @@ import React, {
 import { v4 as uuidv4 } from "uuid";
 import { TranscriptItem } from "@/app/types";
 
-export type GuardrailState = {
-  hideModerationMessage: boolean;
-  offendingItemId?: string;
-};
-
 type TranscriptContextValue = {
   transcriptItems: TranscriptItem[];
   addTranscriptMessage: (
