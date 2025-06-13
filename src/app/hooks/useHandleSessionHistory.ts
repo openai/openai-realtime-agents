@@ -15,12 +15,6 @@ export function useHandleSessionHistory() {
 
   const { logServerEvent } = useEvent();
 
-  const guardrailTrippedRef = useRef(false);
-  const setGuardrailTripped = (tripped: boolean) => {
-    guardrailTrippedRef.current = tripped;
-  };
-
-
   /* ----------------------- helpers ------------------------- */
 
   const extractMessageText = (content: any[] = []): string => {
@@ -66,6 +60,11 @@ export function useHandleSessionHistory() {
     if ('result' in obj) return extractModeration(obj.result);
   };
 
+  // Temporary helper until the guardrail_tripped event includes the itemId in the next version of the SDK
+  const sketchilyDetectGuardrailMessage = (text: string) => {
+    return text.match(/Failure Details: (\{.*?\})/)?.[1];
+  };
+
   /* ----------------------- event handlers ------------------------- */
 
   function handleAgentToolStart(details: any, _agent: any, functionCall: any) {
@@ -101,10 +100,10 @@ export function useHandleSessionHistory() {
 
       // If the guardrail has been tripped, this message is a message that gets sent to the 
       // assistant to correct it, so we add it as a breadcrumb instead of a message.
-      if (guardrailTrippedRef.current) {
-        const failureDetails = JSON.parse(text.match(/Failure Details: (\{.*?\})/)?.[1] || '{}');
+      const guardrailMessage = sketchilyDetectGuardrailMessage(text);
+      if (guardrailMessage) {
+        const failureDetails = JSON.parse(guardrailMessage);
         addTranscriptBreadcrumb('Output Guardrail Active', { details: failureDetails });
-        setGuardrailTripped(false);
       } else {
         addTranscriptMessage(itemId, role, text);
       }
@@ -165,9 +164,6 @@ export function useHandleSessionHistory() {
     console.log("[guardrail tripped]", details, _agent, guardrail);
     const moderation = extractModeration(guardrail.result.output.outputInfo);
     logServerEvent({ type: 'guardrail_tripped', payload: moderation });
-    // this allows for turning the guardrail tripped user messages that get
-    // sent back up to the assistant into breadcrumbs in the UI
-    setGuardrailTripped(true);
 
     // find the last assistant message in details.context.history
     const lastAssistant = extractLastAssistantMessage(details?.context?.history);
