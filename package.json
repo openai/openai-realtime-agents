@@ -2,11 +2,12 @@
   "name": "realtime-examples",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "scripts": {
+      "dev": "next dev",
+      "build": "next build",
+      "start": "next start",
+      "lint": "next lint",
+      "twilio:server": "ts-node scripts/twilioServer.ts"
   },
   "dependencies": {
     "@openai/agents": "^0.0.1",
