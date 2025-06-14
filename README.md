@@ -9,7 +9,7 @@ This project uses the [OpenAI Agents SDK](https://github.com/openai/openai-agent
 - A unified interface for defining agent behaviors and tool integrations.
 - Built-in support for agent orchestration, state management, and event handling.
 - Easy integration with the OpenAI Realtime API for low-latency, streaming interactions.
-- Extensible patterns for multi-agent collaboration, handoffs, and tool use.
+- Extensible patterns for multi-agent collaboration, handoffs, tool use, and guardrails.
 
 For full documentation, guides, and API references, see the official [OpenAI Agents SDK Documentation](https://github.com/openai/openai-agents#readme).
 
