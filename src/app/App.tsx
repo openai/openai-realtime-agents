@@ -36,6 +36,7 @@ const sdkScenarioMap: Record<string, RealtimeAgent[]> = {
 };
 
 import useAudioDownload from "./hooks/useAudioDownload";
+import { v4 as uuidv4 } from "uuid";
 
 function App() {
   const searchParams = useSearchParams()!;
@@ -106,6 +107,24 @@ function App() {
   // Initialize the recording hook.
   const { startRecording, stopRecording, downloadRecording } =
     useAudioDownload();
+
+  // Subscribe to Twilio media stream transcripts via SSE
+  useEffect(() => {
+    const source = new EventSource('http://localhost:3001/events');
+    source.onmessage = (ev) => {
+      try {
+        const { role, text } = JSON.parse(ev.data);
+        if (role === 'user' || role === 'assistant') {
+          addTranscriptMessage(`twilio-${uuidv4()}`, role, text);
+        }
+      } catch (err) {
+        console.error('Failed to parse Twilio event', err);
+      }
+    };
+    return () => {
+      source.close();
+    };
+  }, []);
 
   const sendClientEvent = (eventObj: any, eventNameSuffix = '') => {
     if (!sdkClientRef.current) {

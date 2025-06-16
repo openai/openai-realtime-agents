@@ -14,6 +14,7 @@ There are two main patterns demonstrated:
 - Add your `OPENAI_API_KEY` to your env. Either add it to your `.bash_profile` or equivalent, or copy `.env.sample` to `.env` and add it there.
 - Start the server with `npm run dev`
 - Start the Twilio server with `npm run twilio:server`
+- Phone call transcripts will stream live into the Transcript panel.
 - Open your browser to [http://localhost:3000](http://localhost:3000). It should default to the `chatSupervisor` Agent Config.
 - You can change examples via the "Scenario" dropdown in the top right.
 
