@@ -27,6 +27,25 @@ There are two main patterns demonstrated:
 - Open your browser to [http://localhost:3000](http://localhost:3000). It should default to the `chatSupervisor` Agent Config.
 - You can change examples via the "Scenario" dropdown in the top right.
 
+# Twilio Integration
+
+This project supports integration with Twilio to allow users to interact with the agent via SMS.
+
+## Environment Variables
+Ensure the following environment variables are set in your `.env` file:
+- `TWILIO_ACCOUNT_SID`: Your Twilio Account SID.
+- `TWILIO_AUTH_TOKEN`: Your Twilio Auth Token.
+- `TWILIO_PHONE_NUMBER`: The Twilio phone number you will use to send and receive messages.
+
+## Webhook Configuration
+To connect your Twilio phone number to this application, you need to configure its webhook:
+1. In your Twilio console, navigate to the settings for your phone number.
+2. Find the "Messaging" section, specifically where it asks for a webhook for "A MESSAGE COMES IN".
+3. Set the webhook URL to point to the `/api/twilio` endpoint of your deployed application (e.g., `https://your-app-url.com/api/twilio`).
+4. Ensure the method is set to `HTTP POST`.
+
+This configuration will forward incoming SMS messages to your Twilio number to the application, allowing the agent to process and respond to them.
+
 # Agentic Pattern 1: Chat-Supervisor
 
 This is demonstrated in the [chatSupervisor](src/app/agentConfigs/chatSupervisor/index.ts) Agent Config. The chat agent uses the realtime model to converse with the user and handle basic tasks, like greeting the user, casual conversation, and collecting information, and a more intelligent, text-based supervisor model (e.g. `gpt-4.1`) is used extensively to handle tool calls and more challenging responses. You can control the decision boundary by "opting in" specific tasks to the chat agent as desired.
