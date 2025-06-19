@@ -207,31 +207,41 @@ function Transcript({
               );
             }
           })}
+          
+          {/* Show conversation ended message when disconnected */}
+          {!canSend && transcriptItems.length > 0 && (
+            <div className="flex justify-center text-gray-500 text-sm italic font-mono mt-4">
+              Conversation ended
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="p-4 flex items-center gap-x-2 flex-shrink-0 border-t border-gray-200">
-        <input
-          ref={inputRef}
-          type="text"
-          value={userText}
-          onChange={(e) => setUserText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && canSend) {
-              onSendMessage();
-            }
-          }}
-          className="flex-1 px-4 py-2 focus:outline-none"
-          placeholder="Type a message..."
-        />
-        <button
-          onClick={onSendMessage}
-          disabled={!canSend || !userText.trim()}
-          className="bg-gray-900 text-white rounded-full px-2 py-2 disabled:opacity-50"
-        >
-          <Image src="arrow.svg" alt="Send" width={24} height={24} />
-        </button>
-      </div>
+      {/* Only show input field when connected */}
+      {canSend && (
+        <div className="p-4 flex items-center gap-x-2 flex-shrink-0 border-t border-gray-200">
+          <input
+            ref={inputRef}
+            type="text"
+            value={userText}
+            onChange={(e) => setUserText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && canSend) {
+                onSendMessage();
+              }
+            }}
+            className="flex-1 px-4 py-2 focus:outline-none"
+            placeholder="Type a message..."
+          />
+          <button
+            onClick={onSendMessage}
+            disabled={!canSend || !userText.trim()}
+            className="bg-gray-900 text-white rounded-full px-2 py-2 disabled:opacity-50"
+          >
+            <Image src="arrow.svg" alt="Send" width={24} height={24} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
