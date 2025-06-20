@@ -14,6 +14,7 @@ export interface TranscriptProps {
   onSendMessage: () => void;
   canSend: boolean;
   downloadRecording: () => void;
+  hasSelectedAgent: boolean;
 }
 
 function Transcript({
@@ -22,6 +23,7 @@ function Transcript({
   onSendMessage,
   canSend,
   downloadRecording,
+  hasSelectedAgent,
 }: TranscriptProps) {
   const { transcriptItems, toggleTranscriptItemExpand } = useTranscript();
   const transcriptRef = useRef<HTMLDivElement | null>(null);
@@ -70,27 +72,44 @@ function Transcript({
     }
   };
 
+  const handleDownloadTranscript = () => {
+    if (!transcriptRef.current) return;
+    
+    const transcriptText = transcriptRef.current.innerText;
+    const blob = new Blob([transcriptText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `conversation-transcript-${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="flex flex-col flex-1 bg-white min-h-0 rounded-xl">
       <div className="flex flex-col flex-1 min-h-0">
         <div className="flex items-center justify-between px-6 py-3 sticky top-0 z-10 text-base border-b bg-white rounded-t-xl">
           <span className="font-semibold">Transcript</span>
-          <div className="flex gap-x-2">
-            <button
-              onClick={handleCopyTranscript}
-              className="w-24 text-sm px-3 py-1 rounded-md bg-gray-200 hover:bg-gray-300 flex items-center justify-center gap-x-1"
-            >
-              <ClipboardCopyIcon />
-              {justCopied ? "Copied!" : "Copy"}
-            </button>
-            <button
-              onClick={downloadRecording}
-              className="w-40 text-sm px-3 py-1 rounded-md bg-gray-200 hover:bg-gray-300 flex items-center justify-center gap-x-1"
-            >
-              <DownloadIcon />
-              <span>Download Audio</span>
-            </button>
-          </div>
+          {hasSelectedAgent && canSend && (
+            <div className="flex gap-x-2">
+              <button
+                onClick={handleDownloadTranscript}
+                className="w-40 text-sm px-3 py-1 rounded-md bg-gray-200 hover:bg-gray-300 flex items-center justify-center gap-x-1"
+              >
+                <DownloadIcon />
+                <span>Download Transcript</span>
+              </button>
+              <button
+                onClick={downloadRecording}
+                className="w-40 text-sm px-3 py-1 rounded-md bg-gray-200 hover:bg-gray-300 flex items-center justify-center gap-x-1"
+              >
+                <DownloadIcon />
+                <span>Download Audio</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Transcript Content */}
