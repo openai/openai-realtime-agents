@@ -11,12 +11,14 @@
   "dependencies": {
     "@openai/agents": "^0.0.5",
     "@radix-ui/react-icons": "^1.3.2",
+    "@types/three": "^0.178.1",
     "dotenv": "^16.4.7",
     "next": "^15.3.1",
     "openai": "^4.77.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^9.0.3",
+    "three": "^0.178.0",
     "uuid": "^11.0.4",
     "zod": "^3.24.1"
   },

@@ -440,22 +440,33 @@ function App() {
   return (
     <div className="text-base flex flex-col h-screen bg-gray-100 text-gray-800 relative">
       <div className="p-5 text-lg font-semibold flex justify-between items-center">
-        <div
-          className="flex items-center cursor-pointer"
-          onClick={() => window.location.reload()}
-        >
-          <div>
-            <Image
-              src="/openai-logomark.svg"
-              alt="OpenAI Logo"
-              width={20}
-              height={20}
-              className="mr-2"
-            />
+        <div className="flex items-center space-x-4">
+          <div
+            className="flex items-center cursor-pointer"
+            onClick={() => window.location.reload()}
+          >
+            <div>
+              <Image
+                src="/openai-logomark.svg"
+                alt="OpenAI Logo"
+                width={20}
+                height={20}
+                className="mr-2"
+              />
+            </div>
+            <div>
+              Realtime API <span className="text-gray-500">Agents</span>
+            </div>
           </div>
-          <div>
-            Realtime API <span className="text-gray-500">Agents</span>
-          </div>
+
+          {/* VR Therapy Link */}
+          <a
+            href="/vr-therapy"
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center space-x-2"
+          >
+            <span>🥽</span>
+            <span>VR Therapy</span>
+          </a>
         </div>
         <div className="flex items-center">
           <label className="flex items-center text-base gap-1 mr-2 font-medium">
