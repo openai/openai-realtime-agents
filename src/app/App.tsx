@@ -9,6 +9,7 @@ import Image from "next/image";
 import Transcript from "./components/Transcript";
 import Events from "./components/Events";
 import BottomToolbar from "./components/BottomToolbar";
+import ProsperDashboard from "./components/ProsperDashboard";
 
 // Types
 import { SessionStatus } from "@/app/types";
@@ -40,21 +41,7 @@ import { useHandleSessionHistory } from "./hooks/useHandleSessionHistory";
 
 function App() {
   const searchParams = useSearchParams()!;
-
-  // ---------------------------------------------------------------------
-  // Codec selector – lets you toggle between wide-band Opus (48 kHz)
-  // and narrow-band PCMU/PCMA (8 kHz) to hear what the agent sounds like on
-  // a traditional phone line and to validate ASR / VAD behaviour under that
-  // constraint.
-  //
-  // We read the `?codec=` query-param and rely on the `changePeerConnection`
-  // hook (configured in `useRealtimeSession`) to set the preferred codec
-  // before the offer/answer negotiation.
-  // ---------------------------------------------------------------------
-  const urlCodec = searchParams.get("codec") || "opus";
-
-  // Agents SDK doesn't currently support codec selection so it is now forced 
-  // via global codecPatch at module load 
+  const agentSetKey = searchParams.get("agentConfig") || "default";
 
   const {
     addTranscriptMessage,
@@ -68,7 +55,6 @@ function App() {
   >(null);
 
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
-  // Ref to identify whether the latest agent switch came from an automatic handoff
   const handoffTriggeredRef = useRef(false);
 
   const sdkAudioElement = React.useMemo(() => {
@@ -80,7 +66,6 @@ function App() {
     return el;
   }, []);
 
-  // Attach SDK audio element once it exists (after first render in browser)
   useEffect(() => {
     if (sdkAudioElement && !audioElementRef.current) {
       audioElementRef.current = sdkAudioElement;
@@ -118,7 +103,6 @@ function App() {
     },
   );
 
-  // Initialize the recording hook.
   const { startRecording, stopRecording, downloadRecording } =
     useAudioDownload();
 
@@ -167,7 +151,6 @@ function App() {
       );
       addTranscriptBreadcrumb(`Agent: ${selectedAgentName}`, currentAgent);
       updateSession(!handoffTriggeredRef.current);
-      // Reset flag after handling so subsequent effects behave normally
       handoffTriggeredRef.current = false;
     }
   }, [selectedAgentConfigSet, selectedAgentName, sessionStatus]);
@@ -204,7 +187,6 @@ function App() {
         const EPHEMERAL_KEY = await fetchEphemeralKey();
         if (!EPHEMERAL_KEY) return;
 
-        // Ensure the selectedAgentName is first so that it becomes the root
         const reorderedAgents = [...sdkScenarioMap[agentSetKey]];
         const idx = reorderedAgents.findIndex((a) => a.name === selectedAgentName);
         if (idx > 0) {
@@ -257,9 +239,6 @@ function App() {
   };
 
   const updateSession = (shouldTriggerResponse: boolean = false) => {
-    // Reflect Push-to-Talk UI state by (de)activating server VAD on the
-    // backend. The Realtime SDK supports live session updates via the
-    // `session.update` event.
     const turnDetection = isPTTActive
       ? null
       : {
@@ -277,7 +256,6 @@ function App() {
       },
     });
 
-    // Send an initial 'hi' message to trigger the agent to greet the user
     if (shouldTriggerResponse) {
       sendSimulatedUserMessage('hi');
     }
@@ -303,8 +281,6 @@ function App() {
 
     setIsPTTUserSpeaking(true);
     sendClientEvent({ type: 'input_audio_buffer.clear' }, 'clear PTT buffer');
-
-    // No placeholder; we'll rely on server transcript once ready.
   };
 
   const handleTalkButtonUp = () => {
@@ -336,14 +312,11 @@ function App() {
     e: React.ChangeEvent<HTMLSelectElement>
   ) => {
     const newAgentName = e.target.value;
-    // Reconnect session with the newly selected agent as root so that tool
-    // execution works correctly.
     disconnectFromRealtime();
     setSelectedAgentName(newAgentName);
-    // connectToRealtime will be triggered by effect watching selectedAgentName
   };
 
-  // Because we need a new connection, refresh the page when codec changes
+  const urlCodec = searchParams.get("codec") || "opus";
   const handleCodecChange = (newCodec: string) => {
     const url = new URL(window.location.toString());
     url.searchParams.set("codec", newCodec);
@@ -390,14 +363,11 @@ function App() {
           console.warn("Autoplay may be blocked by browser:", err);
         });
       } else {
-        // Mute and pause to avoid brief audio blips before pause takes effect.
         audioElementRef.current.muted = true;
         audioElementRef.current.pause();
       }
     }
 
-    // Toggle server-side audio stream mute so bandwidth is saved when the
-    // user disables playback. 
     try {
       mute(!isAudioPlaybackEnabled);
     } catch (err) {
@@ -405,8 +375,6 @@ function App() {
     }
   }, [isAudioPlaybackEnabled]);
 
-  // Ensure mute state is propagated to transport right after we connect or
-  // whenever the SDK client reference becomes available.
   useEffect(() => {
     if (sessionStatus === 'CONNECTED') {
       try {
@@ -419,18 +387,16 @@ function App() {
 
   useEffect(() => {
     if (sessionStatus === "CONNECTED" && audioElementRef.current?.srcObject) {
-      // The remote audio stream from the audio element.
       const remoteStream = audioElementRef.current.srcObject as MediaStream;
       startRecording(remoteStream);
     }
-
-    // Clean up on unmount or when sessionStatus is updated.
     return () => {
       stopRecording();
     };
   }, [sessionStatus]);
 
-  const agentSetKey = searchParams.get("agentConfig") || "default";
+  const isChatSupervisor = agentSetKey === "chatSupervisor";
+  const householdId = "PP-HH-0001"; // For demo; in prod, derive from auth/session
 
   return (
     <div className="text-base flex flex-col h-screen bg-gray-100 text-gray-800 relative">
@@ -526,7 +492,11 @@ function App() {
           }
         />
 
-        <Events isExpanded={isEventsPaneExpanded} />
+        {isChatSupervisor ? (
+          <ProsperDashboard householdId={householdId} />
+        ) : (
+          <Events isExpanded={isEventsPaneExpanded} />
+        )}
       </div>
 
       <BottomToolbar
