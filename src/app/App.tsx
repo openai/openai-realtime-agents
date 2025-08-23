@@ -441,15 +441,15 @@ function App() {
         >
           <div>
             <Image
-              src="/openai-logomark.svg"
-              alt="OpenAI Logo"
+              src="/2D76K394.eps.svg"
+              alt="Prosper Logo"
               width={20}
               height={20}
               className="mr-2"
             />
           </div>
           <div>
-            Realtime API <span className="text-gray-500">Agents</span>
+            Prosper AI <span className="text-gray-400">your personal wealth coach</span>
           </div>
         </div>
         <div className="flex items-center">
