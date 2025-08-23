@@ -1,133 +1,186 @@
 import { RealtimeItem, tool } from '@openai/agents/realtime';
 
+/**
+ * Supervisor Agent (Prosper)
+ * - First-person voice. Chat agent reads my replies verbatim.
+ * - Calls domain tools: computeKpis → assignProsperLevels → (optionally) generateRecommendations.
+ * - Returns concise, voice-friendly messages.
+ */
 
-import {
-  exampleAccountInfo,
-  examplePolicyDocs,
-  exampleStoreLocations,
-} from './sampleData';
+// ---------- Demo tool outputs (replace with real services in prod) ----------
+const demoKpis = {
+  savings_rate_net: 0.18,
+  savings_rate_gross: 0.14,
+  dti: 0.24,
+  housing_ratio: 0.27,
+  ef_months: 3.5,
+  liquidity_ratio: 0.9,
+  allocation: { cash: 0.15, bonds: 0.15, equities: 0.65, other: 0.05 },
+  retirement: { target_pot: 600000, projected_pot: 420000, rr: 0.70 },
+  provisional: { investment_contrib_monthly: false, retirement_spend_annual_desired: true },
+};
 
+const demoLevels = {
+  pillars: {
+    spend:   { score: 45, level: 'L4' },
+    save:    { score: 48, level: 'L4' },
+    borrow:  { score: 37, level: 'L3', notes: 'High-APR penalty applied' },
+    protect: { score: 20, level: 'L2', provisional: true },
+    grow:    { score: 43, level: 'L4' },
+  },
+  overall: { level: 'L3', provisional: true },
+  gating_pillar: 'protect',
+  checklist: ['Add income protection', 'Set life cover ≈ 10× annual income'],
+  eta_weeks: 8,
+};
+
+const demoRecs = {
+  next_30_days: [
+    'Move payday transfers to the morning of payday (+$250/mo; Save +12 → L3→L4)',
+    'Request quotes for income protection (Protect +20 → L2→L4)',
+  ],
+  months_1_to_3: [
+    'Refinance 23% APR card to <10% (Borrow +15)',
+    'Create sinking fund for known expenses ($150/mo)',
+  ],
+  months_3_to_12: [
+    'Increase contributions by +2–3pp of net income',
+    'Fee audit: switch to low-cost trackers (save ~$300/yr)',
+  ],
+  long_term: [
+    'Annual rebalance ±5% bands',
+    'Review wills/guardianship once per year',
+  ],
+};
+
+// Local “router” for demo: swap with real HTTP calls later.
+function getToolResponse(name: string): unknown {
+  switch (name) {
+    case 'computeKpis': return demoKpis;
+    case 'assignProsperLevels': return demoLevels;
+    case 'generateRecommendations': return demoRecs;
+    default: return { ok: true };
+  }
+}
+
+// ---------- System prompt with first 3 conversation states ----------
 export const supervisorAgentInstructions = `I am Prosper, the Supervisor Agent behind the scenes. I generate the numbers and plan while the chat agent keeps the conversation flowing. I always speak in the first person because my words are read verbatim.
 
-# Mission
-Give concise, voice-friendly messages in first person. When needed, call tools to compute KPIs, assign Prosper Path levels (5 pillars × 10 micro-levels), and generate a short, prioritized action plan. Educational support only—no regulated advice.
+# Conversation States (first 3)
+[
+  {
+    "id": "1_discovery_adaptive",
+    "description": "Adaptive intake: introductions → getting-to-know-you → MQS-14 financial snapshot.",
+    "instructions": [
+      "If I’m invoked early and sufficiency is not met, I ask for the smallest missing items (1–2 at a time).",
+      "I start with getting-to-know-you, then gather MQS fields with ranges permitted; I label estimates as provisional.",
+      "I repeat back names/emails/phone numbers exactly to confirm."
+    ],
+    "transitions": [
+      { "next_step": "2_calculate_kpis", "condition": "Sufficiency met and the couple consents to compute." }
+    ]
+  },
+  {
+    "id": "2_calculate_kpis",
+    "description": "Compute core KPIs with provisional flags as needed.",
+    "instructions": [
+      "Call computeKpis with the MQS intake.",
+      "Return a short, first-person summary (e.g., savings rate, EF months, DTI, housing).",
+      "Flag provisional inputs and invite corrections if needed."
+    ],
+    "transitions": [
+      { "next_step": "3b_level_assignment_5p10l", "condition": "After KPIs are computed." }
+    ]
+  },
+  {
+    "id": "3b_level_assignment_5p10l",
+    "description": "Assign pillar scores (Spend, Save, Borrow, Protect, Grow) and 10-level mapping; compute overall with gates/boosters.",
+    "instructions": [
+      "Call assignProsperLevels with the KPIs.",
+      "Explain the overall level, the gating pillar, and a small next-level checklist with ETA."
+    ],
+    "transitions": [
+      { "next_step": "4_recommendations", "condition": "On request or if ready for actions." }
+    ]
+  }
+]
 
-# Conversation Start (if I’m invoked early)
-- I introduce the process in first person and ask the first getting-to-know-you question.
-  Example: “Hi, I’m Prosper. We’ll do a quick intro, a few questions about you, a short financial snapshot, then I’ll calculate your KPIs and level and suggest the smallest set of actions to move up. Shall we begin with your names?”
+# Mission
+I give concise, voice-friendly messages in first person. I call tools to compute KPIs, assign Prosper Path levels, and (optionally) generate a short, prioritized action plan. Educational support only—no regulated advice.
 
 # Intake & Proactivity
-- If any required MQS fields are missing, I ask for exactly 1–2 items at a time—start with getting-to-know-you (names → location/currency → goals → timelines → risk/stress) before financials.
-- For financials, I request only the smallest set needed to reach sufficiency (ranges allowed; I label estimates as provisional).
-- I repeat back names/emails/phone numbers verbatim to confirm.
+- If required inputs are missing, I ask for exactly 1–2 items at a time (start with getting-to-know-you before financials). I accept ranges and label estimates as provisional.
+- I do NOT call tools with placeholders; I ask for the specific values first.
 
 # Computation & Coaching
-- Once sufficiency is met, I call tools in this order: computeKpis → assignProsperLevels → generateRecommendations.
-- I present results plainly in first person, including provisional flags, and list 1–3 actions focused on the gating pillar with a short ETA.
-- If figures seem implausible, I ask for one quick confirmation instead of stalling.
+- When sufficiency is met: computeKpis → assignProsperLevels → (optionally) generateRecommendations.
+- I keep replies to 2–4 sentences, in first person, and read cleanly in voice.
 
 # Outputs
 - KPI/Level: “Emergency fund is ~3.5 months; savings rate ~18%. That puts us at Level L3 overall, gated by Protect (provisional). To level up, I suggest…”
 - Recommendations: smallest quantified set to lift the gating pillar by ≥10 points.
-- Preferences/Scheduling: I repeat captured values verbatim and confirm before saving.
-
-# Tools Policy
-- I call tools for any quantitative answer (KPIs, levels, recommendations, preferences, scheduling). If parameters are missing, I do NOT call the tool; I ask the user for the specific items first.
-- Keep responses short and human—2–4 sentences max.
 `;
 
+// ---------- Tool schemas used by the supervisor ----------
 export const supervisorAgentTools = [
   {
-    type: "function",
-    name: "lookupPolicyDocument",
-    description:
-      "Tool to look up internal documents and policies by topic or keyword.",
+    type: 'function',
+    name: 'computeKpis',
+    description: 'Calculate household KPIs from MQS-14 inputs; return values with provisional flags if ranges/heuristics were used.',
     parameters: {
-      type: "object",
+      type: 'object',
       properties: {
-        topic: {
-          type: "string",
-          description:
-            "The topic or keyword to search for in company policies or documents.",
-        },
+        inputs: { type: 'object', additionalProperties: true, description: 'MQS-14 intake object.' },
       },
-      required: ["topic"],
+      required: ['inputs'],
       additionalProperties: false,
     },
   },
   {
-    type: "function",
-    name: "getUserAccountInfo",
-    description:
-      "Tool to get user account information. This only reads user accounts information, and doesn't provide the ability to modify or delete any values.",
+    type: 'function',
+    name: 'assignProsperLevels',
+    description: 'Map KPIs to 5 pillar scores (Spend, Save, Borrow, Protect, Grow) with 10 micro-levels (L0–L9); compute overall level using gates/boosters.',
     parameters: {
-      type: "object",
+      type: 'object',
       properties: {
-        phone_number: {
-          type: "string",
-          description:
-            "Formatted as '(xxx) xxx-xxxx'. MUST be provided by the user, never a null or empty string.",
-        },
+        kpis: { type: 'object', additionalProperties: true },
       },
-      required: ["phone_number"],
+      required: ['kpis'],
       additionalProperties: false,
     },
   },
   {
-    type: "function",
-    name: "findNearestStore",
-    description:
-      "Tool to find the nearest store location to a customer, given their zip code.",
+    type: 'function',
+    name: 'generateRecommendations',
+    description: 'Produce a prioritized action plan linked to the gating pillar, with quantified impact and ETA where possible.',
     parameters: {
-      type: "object",
+      type: 'object',
       properties: {
-        zip_code: {
-          type: "string",
-          description: "The customer's 5-digit zip code.",
-        },
+        kpis: { type: 'object', additionalProperties: true },
+        levels: { type: 'object', additionalProperties: true },
+        preferences: { type: 'object', additionalProperties: true },
       },
-      required: ["zip_code"],
+      required: ['kpis', 'levels'],
       additionalProperties: false,
     },
   },
 ];
 
+// ---------- Responses API wrapper ----------
 async function fetchResponsesMessage(body: any) {
   const response = await fetch('/api/responses', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    // Preserve the previous behaviour of forcing sequential tool calls.
-    body: JSON.stringify({ ...body, parallel_tool_calls: false }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...body, parallel_tool_calls: false }), // keep sequential tool calls
   });
-
   if (!response.ok) {
     console.warn('Server returned an error:', response);
     return { error: 'Something went wrong.' };
   }
-
-  const completion = await response.json();
-  return completion;
+  return response.json();
 }
 
-function getToolResponse(fName: string) {
-  switch (fName) {
-    case "getUserAccountInfo":
-      return exampleAccountInfo;
-    case "lookupPolicyDocument":
-      return examplePolicyDocs;
-    case "findNearestStore":
-      return exampleStoreLocations;
-    default:
-      return { result: true };
-  }
-}
-
-/**
- * Iteratively handles function calls returned by the Responses API until the
- * supervisor produces a final textual answer. Returns that answer as a string.
- */
+// ---------- Tool-call resolver loop ----------
 async function handleToolCalls(
   body: any,
   response: any,
@@ -136,19 +189,13 @@ async function handleToolCalls(
   let currentResponse = response;
 
   while (true) {
-    if (currentResponse?.error) {
-      return { error: 'Something went wrong.' } as any;
-    }
+    if (currentResponse?.error) return { error: 'Something went wrong.' } as any;
 
     const outputItems: any[] = currentResponse.output ?? [];
-
-    // Gather all function calls in the output.
     const functionCalls = outputItems.filter((item) => item.type === 'function_call');
 
     if (functionCalls.length === 0) {
-      // No more function calls – build and return the assistant's final message.
       const assistantMessages = outputItems.filter((item) => item.type === 'message');
-
       const finalText = assistantMessages
         .map((msg: any) => {
           const contentArr = msg.content ?? [];
@@ -158,107 +205,80 @@ async function handleToolCalls(
             .join('');
         })
         .join('\n');
-
       return finalText;
     }
 
-    // For each function call returned by the supervisor model, execute it locally and append its
-    // output to the request body as a `function_call_output` item.
     for (const toolCall of functionCalls) {
-      const fName = toolCall.name;
+      const fName = toolCall.name as string;
       const args = JSON.parse(toolCall.arguments || '{}');
+
+      // In a real build, dispatch to your services with `args`.
       const toolRes = getToolResponse(fName);
 
-      // Since we're using a local function, we don't need to add our own breadcrumbs
-      if (addBreadcrumb) {
-        addBreadcrumb(`[supervisorAgent] function call: ${fName}`, args);
-      }
-      if (addBreadcrumb) {
-        addBreadcrumb(`[supervisorAgent] function call result: ${fName}`, toolRes);
-      }
+      if (addBreadcrumb) addBreadcrumb(`[supervisorAgent] function call: ${fName}`, args);
+      if (addBreadcrumb) addBreadcrumb(`[supervisorAgent] function call result: ${fName}`, toolRes);
 
-      // Add function call and result to the request body to send back to realtime
       body.input.push(
-        {
-          type: 'function_call',
-          call_id: toolCall.call_id,
-          name: toolCall.name,
-          arguments: toolCall.arguments,
-        },
-        {
-          type: 'function_call_output',
-          call_id: toolCall.call_id,
-          output: JSON.stringify(toolRes),
-        },
+        { type: 'function_call', call_id: toolCall.call_id, name: toolCall.name, arguments: toolCall.arguments },
+        { type: 'function_call_output', call_id: toolCall.call_id, output: JSON.stringify(toolRes) },
       );
     }
 
-    // Make the follow-up request including the tool outputs.
     currentResponse = await fetchResponsesMessage(body);
   }
 }
 
+// ---------- Public tool exposed to the chat agent ----------
 export const getNextResponseFromSupervisor = tool({
   name: 'getNextResponseFromSupervisor',
   description:
-    'Determines the next response whenever the agent faces a non-trivial decision, produced by a highly intelligent supervisor agent. Returns a message describing what to do next.',
+    'Determines the next response whenever the chat agent faces a non-trivial decision. Returns a concise first-person message the chat agent should read verbatim.',
   parameters: {
     type: 'object',
     properties: {
       relevantContextFromLastUserMessage: {
         type: 'string',
         description:
-          'Key information from the user described in their most recent message. This is critical to provide as the supervisor agent with full context as the last message might not be available. Okay to omit if the user message didn\'t add any new information.',
+          "Key information from the most recent user message (the supervisor may not have direct access to it). Keep this concise; it's okay to be empty if nothing new.",
       },
     },
     required: ['relevantContextFromLastUserMessage'],
     additionalProperties: false,
   },
-  execute: async (input, details) => {
-    const { relevantContextFromLastUserMessage } = input as {
-      relevantContextFromLastUserMessage: string;
-    };
+  execute: async (
+    input: { relevantContextFromLastUserMessage: string },
+    details: { context?: { addTranscriptBreadcrumb?: (title: string, data?: any) => void; history?: RealtimeItem[] } },
+  ) => {
+    const { relevantContextFromLastUserMessage } = input;
+    const addBreadcrumb = details?.context?.addTranscriptBreadcrumb;
 
-    const addBreadcrumb = (details?.context as any)?.addTranscriptBreadcrumb as
-      | ((title: string, data?: any) => void)
-      | undefined;
-
-    const history: RealtimeItem[] = (details?.context as any)?.history ?? [];
+    const history: RealtimeItem[] = details?.context?.history ?? [];
     const filteredLogs = history.filter((log) => log.type === 'message');
 
     const body: any = {
       model: 'gpt-4.1',
       input: [
-        {
-          type: 'message',
-          role: 'system',
-          content: supervisorAgentInstructions,
-        },
+        { type: 'message', role: 'system', content: supervisorAgentInstructions },
         {
           type: 'message',
           role: 'user',
           content: `==== Conversation History ====
-          ${JSON.stringify(filteredLogs, null, 2)}
-          
-          ==== Relevant Context From Last User Message ===
-          ${relevantContextFromLastUserMessage}
-          `,
+${JSON.stringify(filteredLogs, null, 2)}
+
+==== Relevant Context From Last User Message ===
+${relevantContextFromLastUserMessage}
+`,
         },
       ],
       tools: supervisorAgentTools,
     };
 
     const response = await fetchResponsesMessage(body);
-    if (response.error) {
-      return { error: 'Something went wrong.' };
-    }
+    if (response.error) return { error: 'Something went wrong.' };
 
     const finalText = await handleToolCalls(body, response, addBreadcrumb);
-    if ((finalText as any)?.error) {
-      return { error: 'Something went wrong.' };
-    }
+    if ((finalText as any)?.error) return { error: 'Something went wrong.' };
 
     return { nextResponse: finalText as string };
   },
 });
-  

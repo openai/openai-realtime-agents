@@ -441,7 +441,7 @@ function App() {
         >
           <div>
             <Image
-              src="/2D76K394.eps.svg"
+              src="2D76K394f.eps.svg"
               alt="Prosper Logo"
               width={20}
               height={20}
