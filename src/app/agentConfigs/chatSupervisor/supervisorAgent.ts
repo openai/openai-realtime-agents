@@ -1,16 +1,13 @@
-// src/app/agentConfigs/chatSupervisor/supervisorAgent.ts
 import { RealtimeItem, tool } from '@openai/agents/realtime';
 
 /**
  * Supervisor Agent (Prosper)
  * - First-person voice. Chat agent reads my replies verbatim.
- * - Tool chain (sequential): computeKpis → assignProsperLevels → generateRecommendations → persistSnapshot.
+ * - Calls domain tools: computeKpis → assignProsperLevels → (optionally) generateRecommendations.
  * - Returns concise, voice-friendly messages.
- *
- * Note: `persistSnapshot` is a demo stub here; swap its execute path to hit your API.
  */
 
-// ---------------- Demo tool outputs (replace with real services in prod) ----------------
+// ---------- Demo tool outputs (replace with real services in prod) ----------
 const demoKpis = {
   savings_rate_net: 0.18,
   savings_rate_gross: 0.14,
@@ -56,27 +53,20 @@ const demoRecs = {
   ],
 };
 
-const demoPersistOk = {
-  ok: true,
-  snapshotId: 'SNAP-DEMO-0001',
-  stored_at: new Date().toISOString(),
-};
-
-// Local router for demo: swap with real HTTP calls later.
+// Local “router” for demo: swap with real HTTP calls later.
 function getToolResponse(name: string): unknown {
   switch (name) {
     case 'computeKpis': return demoKpis;
     case 'assignProsperLevels': return demoLevels;
     case 'generateRecommendations': return demoRecs;
-    case 'persistSnapshot': return demoPersistOk;
     default: return { ok: true };
   }
 }
 
-// -------------------------------- Prompt with first 4 conversation states --------------------------------
+// ---------- System prompt with first 3 conversation states ----------
 export const supervisorAgentInstructions = `I am Prosper, the Supervisor Agent behind the scenes. I generate the numbers and plan while the chat agent keeps the conversation flowing. I always speak in the first person because my words are read verbatim.
 
-# Conversation States (first 4)
+# Conversation States (first 3)
 [
   {
     "id": "1_discovery_adaptive",
@@ -107,51 +97,36 @@ export const supervisorAgentInstructions = `I am Prosper, the Supervisor Agent b
     "description": "Assign pillar scores (Spend, Save, Borrow, Protect, Grow) and 10-level mapping; compute overall with gates/boosters.",
     "instructions": [
       "Call assignProsperLevels with the KPIs.",
-      "Explain the overall level, the gating pillar, and a small next-level checklist with ETA.",
-      "Then call generateRecommendations with { kpis, levels } to produce a short, prioritized plan (2–6 bullets total)."
+      "Explain the overall level, the gating pillar, and a small next-level checklist with ETA."
     ],
     "transitions": [
-      { "next_step": "4_persist_and_confirm", "condition": "After levels and recommendations are prepared." }
-    ]
-  },
-  {
-    "id": "4_persist_and_confirm",
-    "description": "Persist snapshot so the dashboard updates; then confirm next steps with the user.",
-    "instructions": [
-      "Call persistSnapshot with { householdId (if known or provisional), inputs, kpis, levels, recommendations }.",
-      "If assets_total and debts_total exist, include a netWorthPoint for the current YYYY-MM where net_worth = assets_total - debts_total.",
-      "Respond briefly in first person: confirm the snapshot saved and offer to refine the action plan or walk through first steps."
-    ],
-    "transitions": [
-      { "next_step": "done", "condition": "After confirmation or when user moves to execution." }
+      { "next_step": "4_recommendations", "condition": "On request or if ready for actions." }
     ]
   }
 ]
 
 # Mission
-I give concise, voice-friendly messages in first person. I call tools to compute KPIs, assign Prosper Path levels, generate a short, prioritized action plan, and persist the snapshot to power the dashboard. Educational support only—no regulated advice.
+I give concise, voice-friendly messages in first person. I call tools to compute KPIs, assign Prosper Path levels, and (optionally) generate a short, prioritized action plan. Educational support only—no regulated advice.
 
 # Intake & Proactivity
 - If required inputs are missing, I ask for exactly 1–2 items at a time (start with getting-to-know-you before financials). I accept ranges and label estimates as provisional.
 - I do NOT call tools with placeholders; I ask for the specific values first.
 
 # Computation & Coaching
-- When sufficiency is met: computeKpis → assignProsperLevels → generateRecommendations → persistSnapshot.
+- When sufficiency is met: computeKpis → assignProsperLevels → (optionally) generateRecommendations.
 - I keep replies to 2–4 sentences, in first person, and read cleanly in voice.
 
 # Outputs
 - KPI/Level: “Emergency fund is ~3.5 months; savings rate ~18%. That puts us at Level L3 overall, gated by Protect (provisional). To level up, I suggest…”
 - Recommendations: smallest quantified set to lift the gating pillar by ≥10 points.
-- Persistence: confirm the dashboard is updated and invite refinements.
 `;
 
-// -------------------------------- Tool schemas used by the supervisor --------------------------------
+// ---------- Tool schemas used by the supervisor ----------
 export const supervisorAgentTools = [
   {
     type: 'function',
     name: 'computeKpis',
-    description:
-      'Calculate household KPIs from MQS-14 inputs; return values with provisional flags if ranges/heuristics were used.',
+    description: 'Calculate household KPIs from MQS-14 inputs; return values with provisional flags if ranges/heuristics were used.',
     parameters: {
       type: 'object',
       properties: {
@@ -164,8 +139,7 @@ export const supervisorAgentTools = [
   {
     type: 'function',
     name: 'assignProsperLevels',
-    description:
-      'Map KPIs to 5 pillar scores (Spend, Save, Borrow, Protect, Grow) with 10 micro-levels (L0–L9); compute overall level using gates/boosters.',
+    description: 'Map KPIs to 5 pillar scores (Spend, Save, Borrow, Protect, Grow) with 10 micro-levels (L0–L9); compute overall level using gates/boosters.',
     parameters: {
       type: 'object',
       properties: {
@@ -178,8 +152,7 @@ export const supervisorAgentTools = [
   {
     type: 'function',
     name: 'generateRecommendations',
-    description:
-      'Produce a prioritized action plan linked to the gating pillar, with quantified impact and ETA where possible.',
+    description: 'Produce a prioritized action plan linked to the gating pillar, with quantified impact and ETA where possible.',
     parameters: {
       type: 'object',
       properties: {
@@ -191,45 +164,14 @@ export const supervisorAgentTools = [
       additionalProperties: false,
     },
   },
-  {
-    type: 'function',
-    name: 'persistSnapshot',
-    description:
-      'Persist the latest snapshot so the dashboard (KPIs, levels, action plan, net worth series) updates.',
-    parameters: {
-      type: 'object',
-      properties: {
-        householdId: { type: 'string', description: 'Household identifier (use provisional if not yet confirmed).' },
-        inputs: { type: 'object', additionalProperties: true, description: 'MQS-14 intake used to compute KPIs.' },
-        kpis: { type: 'object', additionalProperties: true },
-        levels: { type: 'object', additionalProperties: true },
-        recommendations: { type: 'object', additionalProperties: true },
-        netWorthPoint: {
-          type: 'object',
-          description: 'Optional monthly net worth point to append to the time series.',
-          properties: {
-            month: { type: 'string', description: 'YYYY-MM' },
-            assets_total: { type: 'number' },
-            debts_total: { type: 'number' },
-            net_worth: { type: 'number' },
-          },
-          required: ['month'],
-          additionalProperties: true,
-        },
-      },
-      required: ['householdId', 'inputs', 'kpis', 'levels'],
-      additionalProperties: false,
-    },
-  },
 ];
 
-// -------------------------------- Responses API wrapper --------------------------------
+// ---------- Responses API wrapper ----------
 async function fetchResponsesMessage(body: any) {
   const response = await fetch('/api/responses', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    // Keep sequential tool calls for determinism
-    body: JSON.stringify({ ...body, parallel_tool_calls: false }),
+    body: JSON.stringify({ ...body, parallel_tool_calls: false }), // keep sequential tool calls
   });
   if (!response.ok) {
     console.warn('Server returned an error:', response);
@@ -238,7 +180,7 @@ async function fetchResponsesMessage(body: any) {
   return response.json();
 }
 
-// -------------------------------- Tool-call resolver loop --------------------------------
+// ---------- Tool-call resolver loop ----------
 async function handleToolCalls(
   body: any,
   response: any,
@@ -286,7 +228,7 @@ async function handleToolCalls(
   }
 }
 
-// -------------------------------- Public tool exposed to the chat agent --------------------------------
+// ---------- Public tool exposed to the chat agent ----------
 export const getNextResponseFromSupervisor = tool({
   name: 'getNextResponseFromSupervisor',
   description:
@@ -303,14 +245,17 @@ export const getNextResponseFromSupervisor = tool({
     required: ['relevantContextFromLastUserMessage'],
     additionalProperties: false,
   },
-  execute: async (
-    input: { relevantContextFromLastUserMessage: string },
-    details: { context?: { addTranscriptBreadcrumb?: (title: string, data?: any) => void; history?: RealtimeItem[] } },
-  ) => {
-    const { relevantContextFromLastUserMessage } = input;
-    const addBreadcrumb = details?.context?.addTranscriptBreadcrumb;
+  // IMPORTANT: keep input/ctx as `any|unknown` to satisfy the SDK's ToolExecuteFunction typing
+  execute: async (input: any, details: any) => {
+    const relevantContextFromLastUserMessage: string =
+      (input && input.relevantContextFromLastUserMessage) || '';
 
-    const history: RealtimeItem[] = details?.context?.history ?? [];
+    const addBreadcrumb =
+      details?.context?.addTranscriptBreadcrumb as
+        | ((title: string, data?: any) => void)
+        | undefined;
+
+    const history: RealtimeItem[] = (details?.context?.history ?? []) as RealtimeItem[];
     const filteredLogs = history.filter((log) => log.type === 'message');
 
     const body: any = {
