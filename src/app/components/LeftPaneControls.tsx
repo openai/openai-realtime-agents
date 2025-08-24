@@ -1,9 +1,8 @@
 "use client";
-
 import React from "react";
 import { SessionStatus } from "@/app/types";
 
-type Props = {
+interface LeftPaneControlsProps {
   sessionStatus: SessionStatus;
   onToggleConnection: () => void;
 
@@ -17,9 +16,14 @@ type Props = {
   setIsAudioPlaybackEnabled: (v: boolean) => void;
 
   codec: string;
-  onCodecChange: (newCodec: string) => void;
-};
+  onCodecChange: (codec: string) => void;
+}
 
+/**
+ * Polished compact toolbar that sits above the transcript.
+ * - Sticky, blurred, and responsive
+ * - Keeps the dashboard untouched
+ */
 export default function LeftPaneControls({
   sessionStatus,
   onToggleConnection,
@@ -32,82 +36,71 @@ export default function LeftPaneControls({
   setIsAudioPlaybackEnabled,
   codec,
   onCodecChange,
-}: Props) {
+}: LeftPaneControlsProps) {
   const isConnected = sessionStatus === "CONNECTED";
   const isConnecting = sessionStatus === "CONNECTING";
 
-  const connectLabel =
-    isConnected ? "Disconnect" : isConnecting ? "Connecting..." : "Connect";
-
   return (
-    <div className="px-4 pb-4 pt-3 border-t border-gray-200/70">
-      <div className="flex items-center gap-3 flex-wrap">
+    <div className="sticky top-0 z-10">
+      <div className="backdrop-blur bg-white/80 border rounded-xl px-3 py-2 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={onToggleConnection}
+            disabled={isConnecting}
+            className={`px-3 h-9 rounded-lg text-sm font-medium shadow-sm border transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+              isConnected
+                ? "bg-red-600 text-white border-red-600 hover:bg-red-700 focus:ring-red-300"
+                : isConnecting
+                ? "bg-gray-300 text-gray-700 border-gray-300 cursor-wait"
+                : "bg-gray-900 text-white border-gray-900 hover:bg-gray-800 focus:ring-gray-300"
+            }`}
+            aria-pressed={isConnected}
+          >
+            {isConnected ? "Disconnect" : isConnecting ? "Connecting…" : "Connect"}
+          </button>
 
-        <button
-          onClick={onToggleConnection}
-          disabled={isConnecting}
-          className={`text-white text-sm px-3 py-2 rounded-md ${
-            isConnected
-              ? "bg-red-600 hover:bg-red-700"
-              : "bg-gray-900 hover:bg-gray-800"
-          } ${isConnecting ? "opacity-70 cursor-not-allowed" : "cursor-pointer"}`}
-        >
-          {connectLabel}
-        </button>
+          {/* PTT toggle + hold-to-talk */}
+          <label className="inline-flex items-center gap-2 text-sm select-none">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded"
+              checked={isPTTActive}
+              onChange={(e) => setIsPTTActive(e.target.checked)}
+              disabled={!isConnected}
+            />
+            <span>Push to talk</span>
+          </label>
 
-        {/* Push-to-talk */}
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="w-4 h-4"
-            checked={isPTTActive}
-            onChange={(e) => setIsPTTActive(e.target.checked)}
-            disabled={!isConnected}
-          />
-          Push to talk
-        </label>
-
-        <button
-          onMouseDown={handleTalkButtonDown}
-          onMouseUp={handleTalkButtonUp}
-          onTouchStart={handleTalkButtonDown}
-          onTouchEnd={handleTalkButtonUp}
-          disabled={!isPTTActive}
-          className={`text-sm px-3 py-2 rounded-md border ${
-            isPTTActive
-              ? isPTTUserSpeaking
+          <button
+            type="button"
+            onMouseDown={handleTalkButtonDown}
+            onMouseUp={handleTalkButtonUp}
+            onTouchStart={handleTalkButtonDown}
+            onTouchEnd={handleTalkButtonUp}
+            disabled={!isConnected || !isPTTActive}
+            aria-label="Hold to talk"
+            className={`h-9 px-3 rounded-lg border text-sm transition-colors ${
+              !isConnected || !isPTTActive
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : isPTTUserSpeaking
                 ? "bg-gray-200"
                 : "bg-white hover:bg-gray-50"
-              : "bg-gray-100 text-gray-400 cursor-not-allowed"
-          }`}
-        >
-          Talk
-        </button>
-
-        {/* Audio playback */}
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="w-4 h-4"
-            checked={isAudioPlaybackEnabled}
-            onChange={(e) => setIsAudioPlaybackEnabled(e.target.checked)}
-            disabled={!isConnected}
-          />
-          Audio playback
-        </label>
-
-        {/* Codec selector */}
-        <div className="flex items-center gap-2 text-sm ml-auto">
-          <span className="text-gray-600">Codec</span>
-          <select
-            value={codec}
-            onChange={(e) => onCodecChange(e.target.value)}
-            className="border border-gray-300 rounded-md px-2 py-1 focus:outline-none cursor-pointer bg-white"
+            }`}
           >
-            <option value="opus">Opus (48 kHz)</option>
-            <option value="pcmu">PCMU (8 kHz)</option>
-            <option value="pcma">PCMA (8 kHz)</option>
-          </select>
+            {isPTTUserSpeaking ? "Release to send" : "Talk"}
+          </button>
+
+          {/* Audio playback */}
+          <label className="inline-flex items-center gap-2 text-sm select-none">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded"
+              checked={isAudioPlaybackEnabled}
+              onChange={(e) => setIsAudioPlaybackEnabled(e.target.checked)}
+              disabled={!isConnected}
+            />
+            <span>Audio playback</span>
+          </label>
         </div>
       </div>
     </div>

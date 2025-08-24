@@ -4,38 +4,32 @@ import { useSearchParams } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 import Image from "next/image";
 
-// UI components
 import Transcript from "./components/Transcript";
-// Replaces the old Logs pane:
 import Dashboard from "./components/Dashboard";
-import BottomToolbar from "./components/BottomToolbar";
+import LeftPaneControls from "./components/LeftPaneControls";
 
-// Types
 import { SessionStatus } from "@/app/types";
-import type { RealtimeAgent } from '@openai/agents/realtime';
+import type { RealtimeAgent } from "@openai/agents/realtime";
 
-// Context providers & hooks
 import { useTranscript } from "@/app/contexts/TranscriptContext";
 import { useEvent } from "@/app/contexts/EventContext";
 import { useRealtimeSession } from "./hooks/useRealtimeSession";
 import { createModerationGuardrail } from "@/app/agentConfigs/guardrails";
 
-// Agent configs
 import { allAgentSets, defaultAgentSetKey } from "@/app/agentConfigs";
-import { customerServiceRetailScenario } from "@/app/agentConfigs/customerServiceRetail";
-import { chatSupervisorScenario } from "@/app/agentConfigs/chatSupervisor";
-import { customerServiceRetailCompanyName } from "@/app/agentConfigs/customerServiceRetail";
-import { chatSupervisorCompanyName } from "@/app/agentConfigs/chatSupervisor";
+import { customerServiceRetailScenario, customerServiceRetailCompanyName } from "@/app/agentConfigs/customerServiceRetail";
+import { chatSupervisorScenario, chatSupervisorCompanyName } from "@/app/agentConfigs/chatSupervisor";
 import { simpleHandoffScenario } from "@/app/agentConfigs/simpleHandoff";
+
+import useAudioDownload from "./hooks/useAudioDownload";
+import { useHandleSessionHistory } from "./hooks/useHandleSessionHistory";
+import { ensureHouseholdId } from "@/app/lib/householdLocal";
 
 const sdkScenarioMap: Record<string, RealtimeAgent[]> = {
   simpleHandoff: simpleHandoffScenario,
   customerServiceRetail: customerServiceRetailScenario,
   chatSupervisor: chatSupervisorScenario,
 };
-
-import useAudioDownload from "./hooks/useAudioDownload";
-import { useHandleSessionHistory } from "./hooks/useHandleSessionHistory";
 
 function App() {
   const searchParams = useSearchParams()!;
@@ -46,6 +40,9 @@ function App() {
 
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
   const [selectedAgentConfigSet, setSelectedAgentConfigSet] = useState<RealtimeAgent[] | null>(null);
+
+  const [householdId, setHouseholdId] = useState<string>("");
+  useEffect(() => { ensureHouseholdId().then(setHouseholdId); }, []);
 
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const handoffTriggeredRef = useRef(false);
@@ -96,7 +93,7 @@ function App() {
 
   useHandleSessionHistory();
 
-  // Initial scenario/agent selection (hidden from header UI now)
+  // Initial scenario/agent selection
   useEffect(() => {
     let finalAgentConfig = searchParams.get("agentConfig");
     if (!finalAgentConfig || !allAgentSets[finalAgentConfig]) {
@@ -281,13 +278,10 @@ function App() {
   }, [sessionStatus]);
 
   return (
-    <div className="text-base flex flex-col h-screen bg-gray-100 text-gray-800 relative">
-      {/* Header - simplified (profile instead of dropdowns) */}
-      <div className="p-5 text-lg font-semibold flex justify-between items-center">
-        <div
-          className="flex items-center cursor-pointer"
-          onClick={() => window.location.reload()}
-        >
+    <div className="text-base flex flex-col h-screen bg-gray-100 text-gray-800">
+      {/* Header */}
+      <div className="p-5 text-lg font-semibold flex justify-between items-center max-w-7xl mx-auto w-full">
+        <div className="flex items-center cursor-pointer" onClick={() => window.location.reload()}>
           <div>
             <Image src="2D76K394f.eps.svg" alt="Prosper Logo" width={20} height={20} className="mr-2" />
           </div>
@@ -300,7 +294,6 @@ function App() {
           aria-label="User profile"
           title="Profile"
         >
-          {/* simple user glyph */}
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
             <circle cx="12" cy="8" r="4" stroke="#111827" />
             <path d="M4 20c0-4 4-6 8-6s8 2 8 6" stroke="#111827" />
@@ -308,37 +301,43 @@ function App() {
         </button>
       </div>
 
-      <div className="flex flex-1 gap-2 px-2 overflow-hidden relative">
-        <Transcript
-          userText={userText}
-          setUserText={setUserText}
-          onSendMessage={handleSendTextMessage}
-          downloadRecording={downloadRecording}
-          canSend={sessionStatus === "CONNECTED"}
-        />
-        <Dashboard />
-      </div>
+      {/* BODY: centered 2-col grid so the left pane sizes cleanly */}
+      <div className="flex-1 w-full">
+        <div className="max-w-7xl mx-auto px-2">
+          <div className="grid grid-cols-1 lg:grid-cols-[520px_1fr] gap-4">
+            {/* Left column */}
+            <div className="min-w-0 flex flex-col gap-3">
+              <LeftPaneControls
+                sessionStatus={sessionStatus}
+                onToggleConnection={onToggleConnection}
+                isPTTActive={isPTTActive}
+                setIsPTTActive={setIsPTTActive}
+                isPTTUserSpeaking={isPTTUserSpeaking}
+                handleTalkButtonDown={handleTalkButtonDown}
+                handleTalkButtonUp={handleTalkButtonUp}
+                isAudioPlaybackEnabled={isAudioPlaybackEnabled}
+                setIsAudioPlaybackEnabled={setIsAudioPlaybackEnabled}
+                codec={urlCodec}
+                onCodecChange={(newCodec) => {
+                  const url = new URL(window.location.toString());
+                  url.searchParams.set("codec", newCodec);
+                  window.location.replace(url.toString());
+                }}
+              />
+              <Transcript
+                userText={userText}
+                setUserText={setUserText}
+                onSendMessage={handleSendTextMessage}
+                downloadRecording={downloadRecording}
+                canSend={sessionStatus === "CONNECTED"}
+              />
+            </div>
 
-      {/* Keep the bottom toolbar for now (PTT & transport controls) */}
-      <BottomToolbar
-        sessionStatus={sessionStatus}
-        onToggleConnection={onToggleConnection}
-        isPTTActive={isPTTActive}
-        setIsPTTActive={setIsPTTActive}
-        isPTTUserSpeaking={isPTTUserSpeaking}
-        handleTalkButtonDown={handleTalkButtonDown}
-        handleTalkButtonUp={handleTalkButtonUp}
-        isEventsPaneExpanded={false}
-        setIsEventsPaneExpanded={() => {}}
-        isAudioPlaybackEnabled={isAudioPlaybackEnabled}
-        setIsAudioPlaybackEnabled={setIsAudioPlaybackEnabled}
-        codec={urlCodec}
-        onCodecChange={(newCodec) => {
-          const url = new URL(window.location.toString());
-          url.searchParams.set("codec", newCodec);
-          window.location.replace(url.toString());
-        }}
-      />
+            {/* Right column: Dashboard (unchanged component) */}
+            <Dashboard />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
