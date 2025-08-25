@@ -1,3 +1,96 @@
+### Prosper AI: A Conversational Wealth Coach
+
+**Prosper AI** is a real-time, voice-first personal wealth coaching application. It empowers users to understand their financial health through a conversational interface powered by a two-agent AI system. By simply talking to the AI, users can receive an instant analysis of their finances, a personalized action plan, and a visual dashboard to track their progress.
+
+#### Key Features (MVP)
+
+  * **Real-time Voice Conversation:** Seamless, two-way audio interaction with an AI financial coach.
+  * **Tiered Data Collection:** Gathers essential financial data points (income, expenses, savings, debt) through a natural, question-based flow.
+  * **Automated Financial Analysis:** Calculates core KPIs (e.g., Spend-to-Income Ratio, Emergency Fund Months) to assess financial health.
+  * **Pillar-Based Scoring:** Assigns a score and "Prosper Level" based on five key pillars: Spend, Save, Borrow, Protect, and Grow.
+  * **Personalized Action Plan:** Generates a prioritized, 30-day action plan focused on the user's lowest-scoring ("gating") pillar.
+  * **Data Visualization:** Presents all financial data, KPIs, pillar scores, and recommendations on a clean, user-friendly dashboard.
+  * **Persistent Data:** Saves a snapshot of the user's financial state to a database for a persistent, anonymous experience.
+
+-----
+
+### Technical Architecture
+
+The application uses a **Chat-Supervisor pattern** to balance low-latency conversation with powerful analytical capabilities.
+
+  * **Chat Agent:** A lightweight, real-time agent handles the conversational flow and user interactions.
+  * **Supervisor Agent:** A more powerful, analytical agent (like `GPT-4`) is invoked by the Chat Agent to perform complex calculations and generate advice using specialized tools.
+  * **Domain Tools:** Core financial logic (KPI calculation, level assignment, recommendation generation) is encapsulated in deterministic functions that the Supervisor Agent can call.
+
+This architecture ensures a smooth, responsive user experience while providing sophisticated financial analysis in the background.
+
+-----
+
+### Technology Stack
+
+  * **Frontend:** Next.js 15, React 19, Tailwind CSS
+  * **AI & Voice:** OpenAI Realtime API, OpenAI Agents SDK
+  * **Database:** Supabase (PostgreSQL)
+  * **Deployment:** Vercel (recommended)
+
+-----
+
+### Getting Started (MVP Setup Guide)
+
+Follow these steps to get the application up and running locally.
+
+#### 1\. Set Up Environment Variables
+
+Create a new file named `.env` in the root of your project and add your credentials.
+
+```
+OPENAI_API_KEY=your_openai_api_key_here
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+```
+
+#### 2\. Configure Your Supabase Database
+
+Create the following three tables in your Supabase project using the Table Editor.
+
+**`households`**
+
+  * `id` (uuid, primary key, default: `uuid_generate_v4()`)
+  * `created_at` (timestamptz, default: `now()`)
+
+**`snapshots`**
+
+  * `id` (uuid, primary key, default: `uuid_generate_v4()`)
+  * `created_at` (timestamptz, default: `now()`)
+  * `household_id` (uuid, foreign key to `households.id`)
+  * `inputs` (jsonb)
+  * `kpis` (jsonb)
+  * `levels` (jsonb)
+  * `recommendations` (jsonb)
+  * `provisional_keys` (text[])
+
+**`net_worth_points`**
+
+  * `id` (bigint, primary key, identity)
+  * `household_id` (uuid, foreign key to `households.id`)
+  * `ts` (timestamptz, default: `now()`)
+  * `value` (numeric)
+
+#### 3\. Install Dependencies and Run
+
+From your terminal, navigate to the project directory and run the following commands:
+
+```bash
+# Install all required packages
+npm install
+
+# Start the development server
+npm run dev
+```
+
+The application will be accessible at `http://localhost:3000`.
+
 # Realtime API Agents Demo
 
 This is a demonstration of more advanced patterns for voice agents, using the OpenAI Realtime API and the OpenAI Agents SDK. 
