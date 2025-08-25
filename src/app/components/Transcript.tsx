@@ -105,8 +105,7 @@ export default function Transcript({
           ) : (
             <div className="max-w-[560px] mx-auto">
               <div className="rounded-2xl shadow-sm border bg-white p-4 text-sm leading-5 text-gray-800">
-                Hi, I’m Prosper, your financial coach. We’ll do a quick intro, a few questions to get to know you, a
-                financial snapshot, and then I’ll calculate your key indicators and suggest simple steps to improve.
+                Hi, I’m Prosper, your financial coach.
                 Ready to get started?
               </div>
             </div>
