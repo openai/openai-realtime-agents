@@ -1,158 +1,212 @@
-"use client";
-import React from "react";
-import { useTranscript } from "@/app/contexts/TranscriptContext";
+'use client';
 
-export type TranscriptProps = {
+import React, { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import Image from 'next/image';
+import { useTranscript } from '@/app/contexts/TranscriptContext';
+import { DownloadIcon, ClipboardCopyIcon } from '@radix-ui/react-icons';
+import { GuardrailChip } from './GuardrailChip';
+
+export interface TranscriptProps {
   userText: string;
-  setUserText: React.Dispatch<React.SetStateAction<string>>;
+  setUserText: (val: string) => void;
   onSendMessage: () => void;
-  downloadRecording: () => Promise<void>;
   canSend: boolean;
-};
+  downloadRecording: () => void;
+}
 
-/**
- * Transcript pane with avatar header + live message list.
- * - Greeting shows only when there are no messages yet
- * - Auto‑scrolls to latest message
- */
-export default function Transcript({
+function Transcript({
   userText,
   setUserText,
   onSendMessage,
-  downloadRecording,
   canSend,
+  downloadRecording,
 }: TranscriptProps) {
-  const tctx: any = useTranscript();
+  const { transcriptItems, toggleTranscriptItemExpand } = useTranscript();
+  const transcriptRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [prevItems, setPrevItems] = useState<typeof transcriptItems>([]);
+  const [justCopied, setJustCopied] = useState(false);
 
-  // --- Normalize context → [{id, role, text}] ---
-  const messages = React.useMemo(() => {
-    const raw = (tctx?.messages ?? tctx?.transcript ?? tctx?.logs ?? tctx?.history ?? []) as any[];
+  const scrollToBottom = () => {
+    if (transcriptRef.current) {
+      transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
+    }
+  };
 
-    const pullText = (content: any): string => {
-      if (!content) return "";
-      if (typeof content === "string") return content;
-      if (Array.isArray(content)) {
-        // OpenAI style: [{type:'output_text'|'input_text', text:string}, ...]
-        return content
-          .map((c: any) => (typeof c === "string" ? c : c?.text || ""))
-          .filter(Boolean)
-          .join("");
-      }
-      if (typeof content === "object") {
-        if (Array.isArray(content.content)) return pullText(content.content);
-        if (content.text) return String(content.text);
-      }
-      return "";
-    };
+  // Scroll when a new message arrives or an item’s title/data changes
+  useEffect(() => {
+    const hasNew = transcriptItems.length > prevItems.length;
+    const hasUpdate = transcriptItems.some((it, i) => {
+      const old = prevItems[i];
+      return !!old && (it.title !== old.title || it.data !== old.data);
+    });
+    if (hasNew || hasUpdate) scrollToBottom();
+    setPrevItems(transcriptItems);
+  }, [transcriptItems]);
 
-    const list = raw
-      .map((m: any) => {
-        const role = m?.role || m?.message?.role || (m?.isUser ? "user" : m?.speaker) || "assistant";
-        const content = m?.content ?? m?.message?.content ?? m?.text ?? m?.message?.text;
-        const text = pullText(content);
-        return { id: m?.id || crypto.randomUUID(), role: role === "tool" ? "assistant" : role, text };
-      })
-      .filter((m) => typeof m.text === "string" && m.text.trim().length > 0);
+  // Autofocus on load when we can send
+  useEffect(() => {
+    if (canSend && inputRef.current) inputRef.current.focus();
+  }, [canSend]);
 
-    return list as { id: string; role: "user" | "assistant"; text: string }[];
-  }, [tctx?.messages, tctx?.transcript, tctx?.logs, tctx?.history]);
-
-  const hasMessages = messages.length > 0;
-
-  // Auto‑scroll to bottom on new messages
-  const listRef = React.useRef<HTMLDivElement | null>(null);
-  React.useEffect(() => {
-    const el = listRef.current;
-    if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [messages.length]);
+  const handleCopyTranscript = async () => {
+    if (!transcriptRef.current) return;
+    try {
+      await navigator.clipboard.writeText(transcriptRef.current.innerText);
+      setJustCopied(true);
+      setTimeout(() => setJustCopied(false), 1500);
+    } catch (err) {
+      console.error('Failed to copy transcript:', err);
+    }
+  };
 
   return (
-    <div className="bg-white border rounded-xl shadow-sm h-[calc(100vh-240px)] min-h-[520px] flex flex-col overflow-hidden">
-      {/* Status bar */}
-      <div className="px-4 py-2 text-xs text-gray-600 flex items-center gap-2 border-b bg-white">
-        <span className={`inline-block h-2 w-2 rounded-full ${canSend ? "bg-green-500" : "bg-gray-400"}`} />
-        {canSend ? "Online" : "Offline"}
-      </div>
-
-      {/* Avatar + Transcript */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Avatar */}
-        <div className="py-5 flex items-center justify-center">
-          <div className="h-20 w-20 rounded-full bg-gray-100 border flex items-center justify-center shadow-sm text-3xl">
-            🤝
+    <div className="flex flex-col flex-1 bg-white min-h-0 rounded-xl">
+      <div className="flex flex-col flex-1 min-h-0">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-3 sticky top-0 z-10 text-base border-b bg-white rounded-t-xl">
+          <span className="font-semibold">Transcript</span>
+          <div className="flex gap-x-2">
+            <button
+              onClick={handleCopyTranscript}
+              className="w-24 text-sm px-3 py-1 rounded-md bg-gray-200 hover:bg-gray-300 flex items-center justify-center gap-x-1"
+            >
+              <ClipboardCopyIcon />
+              {justCopied ? 'Copied!' : 'Copy'}
+            </button>
+            <button
+              onClick={downloadRecording}
+              className="w-40 text-sm px-3 py-1 rounded-md bg-gray-200 hover:bg-gray-300 flex items-center justify-center gap-x-1"
+            >
+              <DownloadIcon />
+              <span>Download Audio</span>
+            </button>
           </div>
         </div>
 
         {/* Messages */}
-        <div ref={listRef} className="flex-1 overflow-auto px-4 pb-4" aria-live="polite">
-          {hasMessages ? (
-            <ul className="space-y-3">
-              {messages.map((m) => (
-                <li key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div
-                    className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-5 whitespace-pre-wrap break-words border ${
-                      m.role === "user"
-                        ? "bg-gray-900 text-white border-gray-900"
-                        : "bg-white text-gray-800 border-gray-200"
-                    }`}
-                  >
-                    {m.text}
+        <div ref={transcriptRef} className="overflow-auto p-4 flex flex-col gap-y-4 h-full">
+          {[...transcriptItems]
+            .sort((a, b) => a.createdAtMs - b.createdAtMs)
+            .map((item) => {
+              const {
+                itemId,
+                type,
+                role,
+                data,
+                expanded,
+                timestamp,
+                title = '',
+                isHidden,
+                guardrailResult,
+              } = item;
+
+              if (isHidden) return null;
+
+              if (type === 'MESSAGE') {
+                const isUser = role === 'user';
+                const containerClasses = `flex justify-end flex-col ${
+                  isUser ? 'items-end' : 'items-start'
+                }`;
+                const bubbleBase = `max-w-lg p-3 ${
+                  isUser ? 'bg-gray-900 text-gray-100' : 'bg-gray-100 text-black'
+                }`;
+                const isBracketed = title.startsWith('[') && title.endsWith(']');
+                const messageStyle = isBracketed ? 'italic text-gray-400' : '';
+                const displayTitle = isBracketed ? title.slice(1, -1) : title;
+
+                return (
+                  <div key={itemId} className={containerClasses}>
+                    <div className="max-w-lg">
+                      <div className={`${bubbleBase} rounded-t-xl ${guardrailResult ? '' : 'rounded-b-xl'}`}>
+                        <div className={`text-xs ${isUser ? 'text-gray-400' : 'text-gray-500'} font-mono`}>
+                          {timestamp}
+                        </div>
+                        <div className={`whitespace-pre-wrap ${messageStyle}`}>
+                          <ReactMarkdown>{displayTitle}</ReactMarkdown>
+                        </div>
+                      </div>
+                      {guardrailResult && (
+                        <div className="bg-gray-200 px-3 py-2 rounded-b-xl">
+                          <GuardrailChip guardrailResult={guardrailResult} />
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="max-w-[560px] mx-auto">
-              <div className="rounded-2xl shadow-sm border bg-white p-4 text-sm leading-5 text-gray-800">
-                Hi, I’m Prosper, your financial coach.
-                Ready to get started?
-              </div>
-            </div>
-          )}
+                );
+              }
+
+              if (type === 'BREADCRUMB') {
+                return (
+                  <div
+                    key={itemId}
+                    className="flex flex-col justify-start items-start text-gray-500 text-sm"
+                  >
+                    <span className="text-xs font-mono">{timestamp}</span>
+                    <div
+                      className={`whitespace-pre-wrap flex items-center font-mono text-sm text-gray-800 ${
+                        data ? 'cursor-pointer' : ''
+                      }`}
+                      onClick={() => data && toggleTranscriptItemExpand(itemId)}
+                    >
+                      {data && (
+                        <span
+                          className={`text-gray-400 mr-1 transform transition-transform duration-200 select-none font-mono ${
+                            expanded ? 'rotate-90' : 'rotate-0'
+                          }`}
+                        >
+                          ▶
+                        </span>
+                      )}
+                      {title}
+                    </div>
+                    {expanded && data && (
+                      <div className="text-gray-800 text-left">
+                        <pre className="border-l-2 ml-1 border-gray-200 whitespace-pre-wrap break-words font-mono text-xs mb-2 mt-2 pl-2">
+                          {JSON.stringify(data, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  key={itemId}
+                  className="flex justify-center text-gray-500 text-sm italic font-mono"
+                >
+                  Unknown item type: {type} <span className="ml-2 text-xs">{timestamp}</span>
+                </div>
+              );
+            })}
         </div>
       </div>
 
       {/* Composer */}
-      <div className="border-t bg-white/70 backdrop-blur px-3 py-3">
-        <div className="flex items-center gap-3">
-          <button
-            className="h-9 px-4 rounded-lg bg-gray-900 text-white text-sm disabled:opacity-50"
-            disabled={!canSend}
-            onClick={onSendMessage}
-          >
-            Start
-          </button>
-
-          <button
-            className="h-9 w-9 rounded-lg border text-gray-700 hover:bg-gray-50"
-            title="Download latest audio reply"
-            onClick={downloadRecording}
-          >
-            ⤓
-          </button>
-
-          <div className="relative flex-1 min-w-[200px]">
-            <input
-              className="h-10 w-full outline-none rounded-lg border pl-3 pr-12 text-sm"
-              placeholder="Type to send…"
-              value={userText}
-              onChange={(e) => setUserText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") onSendMessage();
-              }}
-              disabled={!canSend}
-            />
-            <button
-              className="absolute right-1 top-1.5 h-7 px-3 rounded-md bg-gray-900 text-white text-xs disabled:opacity-50"
-              onClick={onSendMessage}
-              disabled={!canSend || !userText.trim()}
-            >
-              Send
-            </button>
-          </div>
-        </div>
+      <div className="p-4 flex items-center gap-x-2 flex-shrink-0 border-t border-gray-200">
+        <input
+          ref={inputRef}
+          type="text"
+          value={userText}
+          onChange={(e) => setUserText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && canSend) onSendMessage();
+          }}
+          className="flex-1 px-4 py-2 focus:outline-none"
+          placeholder="Type a message..."
+        />
+        <button
+          onClick={onSendMessage}
+          disabled={!canSend || !userText.trim()}
+          className="bg-gray-900 text-white rounded-full px-2 py-2 disabled:opacity-50"
+        >
+          <Image src="arrow.svg" alt="Send" width={24} height={24} />
+        </button>
       </div>
     </div>
   );
 }
+
+export default Transcript;
