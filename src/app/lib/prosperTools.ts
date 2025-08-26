@@ -1,19 +1,42 @@
-/**
- * Simple domain tools for Prosper MVP.
- * All functions are deterministic and handle missing inputs by marking provisional keys.
- */
+// ================================================
+// FILE: src/app/lib/prosperTools.ts
+// ================================================
 
 export type MQSInputs = Record<string, any>;
+export type KPIs = {
+  savings_rate_net?: number;   // 0..1
+  dti?: number;                // 0..1 (lower better)
+  housing_ratio?: number;      // 0..1 (lower better)
+  ef_months?: number;          // months
+  retirement_rr?: number;      // 0..1
+};
 
-export function computeKpis(inputs: MQSInputs) {
+function clamp01(x: number) { return Math.max(0, Math.min(1, x)); }
+
+// tolerant number parser: "$6,500", "AUD 9000", "6.5k" → 6500 / 9000 / 6500
+function toNumber(raw: any): number | undefined {
+  if (typeof raw === "number") return Number.isFinite(raw) ? raw : undefined;
+  if (typeof raw !== "string") return undefined;
+
+  let s = raw.trim().toLowerCase();
+  s = s.replace(/aud|usd|eur|gbp|cad|nzd|chf|zar|hkd|¥|₩|₹|₱|₫|₴|₦/g, "");
+  s = s.replace(/[\$\£\€\,\s]/g, "");
+  let mul = 1;
+  if (s.endsWith("k")) { mul = 1_000; s = s.slice(0, -1); }
+  if (s.endsWith("m")) { mul = 1_000_000; s = s.slice(0, -1); }
+  const v = parseFloat(s);
+  return Number.isFinite(v) ? v * mul : undefined;
+}
+
+export function computeKpis(inputs: MQSInputs): { kpis: KPIs; provisional_keys: string[] } {
   const prov: string[] = [];
   const get = (k: string, d?: number) => {
-    const raw = (inputs as any)?.[k];
-    const v = typeof raw === "string" ? Number(raw) : raw;
-    if (!Number.isFinite(v)) { if (d !== undefined) prov.push(k); return d ?? 0; }
+    const v = toNumber((inputs as any)?.[k]);
+    if (!Number.isFinite(v as number)) { if (d !== undefined) prov.push(k); return d ?? 0; }
     return v as number;
   };
 
+  // MQS-14 (subset)
   const income_net_monthly = get("income_net_monthly", 0);
   const income_gross_monthly = get("income_gross_monthly", income_net_monthly || 0);
   const essentials_monthly = get("essentials_monthly", 0);
@@ -21,119 +44,182 @@ export function computeKpis(inputs: MQSInputs) {
   const debt_required_payments_monthly = get("debt_required_payments_monthly", 0);
   const emergency_savings_liquid = get("emergency_savings_liquid", 0);
   const investment_contrib_monthly = get("investment_contrib_monthly", 0);
+  // optional retirement fields
+  const retirement_pot_current = toNumber((inputs as any)?.retirement_pot_current);
+  const retirement_target_pot = toNumber((inputs as any)?.retirement_target_pot);
 
-  const monthlyTotalExpenses = essentials_monthly + housing_total_monthly + debt_required_payments_monthly;
+  const monthlyTotalExpenses =
+    essentials_monthly + housing_total_monthly + debt_required_payments_monthly;
 
   const savings_rate_net = income_net_monthly > 0
-    ? Math.max(0, Math.min(1, (income_net_monthly - monthlyTotalExpenses - investment_contrib_monthly) / income_net_monthly))
+    ? clamp01((income_net_monthly - monthlyTotalExpenses - investment_contrib_monthly) / income_net_monthly)
     : 0;
 
-  const dti = (income_gross_monthly || income_net_monthly) > 0
-    ? Math.max(0, Math.min(1, debt_required_payments_monthly / (income_gross_monthly || income_net_monthly)))
-    : 0;
+  const dtiBase = income_gross_monthly || income_net_monthly;
+  const dti = dtiBase > 0 ? clamp01(debt_required_payments_monthly / dtiBase) : 0;
 
   const housing_ratio = income_net_monthly > 0
-    ? Math.max(0, Math.min(1, housing_total_monthly / income_net_monthly))
+    ? clamp01(housing_total_monthly / income_net_monthly)
     : 0;
 
   const ef_months = monthlyTotalExpenses > 0
     ? emergency_savings_liquid / monthlyTotalExpenses
     : 0;
 
-  const pot = Number((inputs as any)?.retirement_pot_current);
-  const target = Number((inputs as any)?.retirement_target_pot);
-  const retirement_rr = Number.isFinite(pot) && Number.isFinite(target) && target > 0
-    ? Math.max(0, Math.min(1, pot / target))
-    : undefined;
+  const retirement_rr =
+    Number.isFinite(retirement_pot_current as number) &&
+    Number.isFinite(retirement_target_pot as number) &&
+    (retirement_target_pot as number) > 0
+      ? clamp01((retirement_pot_current as number) / (retirement_target_pot as number))
+      : undefined;
 
-  const kpis: Record<string, number | undefined> = {
-    savings_rate_net,
-    dti,
-    housing_ratio,
-    ef_months,
-    retirement_rr,
-  };
-
+  const kpis: KPIs = { savings_rate_net, dti, housing_ratio, ef_months, retirement_rr };
   return { kpis, provisional_keys: prov };
 }
 
-type PillarInfo = { score: number; level: string; provisional?: boolean };
+/** Map KPI values into pillar scores/levels and overall. */
+export function assignProsperLevels(kpis: KPIs) {
+  // pillar scores 0–100
+  const spendScore = Math.round(
+    ( (1 - (kpis.housing_ratio ?? 0)) * 0.6 + (kpis.savings_rate_net ?? 0) * 0.4 ) * 100
+  );
 
-export function assignProsperLevels(kpis: Record<string, any>) {
-  // Map KPI → 0..100 scores
-  const toScore = (val: number, good: number, bad: number) => {
-    if (!Number.isFinite(val)) return 0;
-    // linear scale: val==good => 85, val==bad => 15
-    const minv = Math.min(good, bad);
-    const maxv = Math.max(good, bad);
-    const clamped = Math.max(minv, Math.min(maxv, val));
-    const t = (clamped - bad) / (good - bad);
-    return Math.round(15 + t * 70);
+  const saveScore = Math.round(
+    clamp01((kpis.ef_months ?? 0) / 6) * 100 // 6 months buffer ⇒ 100
+  );
+
+  const borrowScore = Math.round(
+    clamp01(1 - (kpis.dti ?? 0)) * 100 // lower DTI is better
+  );
+
+  const growScore = Math.round(
+    clamp01(kpis.retirement_rr ?? 0) * 100
+  );
+
+  // Protect: if you don't compute it yet, keep it provisional and low until you add insurance checks
+  const protectScore = 15;
+
+  const scoreToLevel = (s: number) => `L${Math.max(0, Math.min(9, Math.round(s / 10)))}`;
+
+  const pillars = {
+    spend:  { score: spendScore,   level: scoreToLevel(spendScore) },
+    save:   { score: saveScore,    level: scoreToLevel(saveScore) },
+    borrow: { score: borrowScore,  level: scoreToLevel(borrowScore) },
+    protect:{ score: protectScore, level: scoreToLevel(protectScore), provisional: true },
+    grow:   { score: growScore,    level: scoreToLevel(growScore) },
   };
 
-  const spend = toScore(1 - (kpis.savings_rate_net ?? 0), 0.2, 0.6); // lower spend better
-  const save  = toScore(kpis.ef_months ?? 0, 6, 0);                  // 6+ months good
-  const borrow= toScore(1 - (kpis.dti ?? 0), 0.8, 0.2);              // lower DTI better
-  const protect = toScore(kpis.insurance_coverage_index ?? 0, 1, 0); // placeholder
-  const grow = toScore(kpis.retirement_rr ?? 0, 1, 0.3);
+  // Overall = average of pillars (simple for now)
+  const avg = (spendScore + saveScore + borrowScore + protectScore + growScore) / 5;
+  const overallLevel = scoreToLevel(avg);
 
-  const pillars: Record<string, PillarInfo> = {
-    spend:   { score: spend,  level: toLevel(spend)  },
-    save:    { score: save,   level: toLevel(save)   },
-    borrow:  { score: borrow, level: toLevel(borrow) },
-    protect: { score: protect,level: toLevel(protect), provisional: true },
-    grow:    { score: grow,   level: toLevel(grow)   },
-  };
-
-  const entries = Object.entries(pillars) as [string, PillarInfo][];
-  const gating = entries.reduce((min, cur) => (cur[1].score < min[1].score ? cur : min));
-  const overallScore = Math.min(...entries.map(([, v]) => v.score));
-
-  const checklist = [
-    "Build emergency fund to 3–6 months",
-    "Keep housing ≤ 30% of net income",
-    "DTI ≤ 36% (prefer < 28% housing + < 8% other)",
-  ];
+  // Gating pillar = lowest score
+  const entries = Object.entries(pillars) as Array<[keyof typeof pillars, any]>;
+  const gating = entries.reduce((min, cur) => (cur[1].score < min[1].score ? cur : min), entries[0])[0];
 
   const levels = {
+    overall: { level: overallLevel, provisional: true, points_to_next: "Keep momentum to reach next level." },
     pillars,
-    overall: { level: toLevel(overallScore), provisional: true },
-    gating_pillar: gating[0],
-    checklist,
+    checklist: [
+      "Build emergency fund to 3–6 months",
+      "Keep housing ≤ 30% of net income",
+      "DTI ≤ 36% (prefer < 28% housing + < 8% other)",
+    ],
     eta_weeks: 8,
+    gating_pillar: gating,
   };
 
   return levels;
 }
 
-export function generateRecommendations(kpis: Record<string, any>, levels: any, preferences?: Record<string, any>) {
-  const gating: string = levels?.gating_pillar || "protect";
-  const plan: Record<string, string[]> = {
-    next_30_days: [],
-    months_1_to_3: [],
-    months_3_to_12: [],
-  };
+/** Produce a small, prioritised action plan from KPIs & levels. */
+export function generateRecommendations(kpis: KPIs, levels: any, preferences: Record<string, any> = {}) {
+  const recs: any[] = [];
+  const gating = levels?.gating_pillar ?? "spend";
 
-  if (gating === "save") {
-    plan.next_30_days.push("Move payday transfers to the morning of payday (+$250/mo)");
-    plan.months_1_to_3.push("Set up automatic transfers to emergency fund until 3 months");
-  } else if (gating === "borrow") {
-    plan.next_30_days.push("Refinance any APR > 20% to < 10%");
-    plan.months_1_to_3.push("Snowball smallest balance while paying minimums on others");
-  } else if (gating === "protect") {
-    plan.next_30_days.push("Request quotes for income protection");
-    plan.months_1_to_3.push("Set life cover ≈ 10× annual income (if dependents)");
-  } else if (gating === "spend") {
-    plan.next_30_days.push("Create a weekly essentials cap and track it");
-  } else if (gating === "grow") {
-    plan.months_1_to_3.push("Increase retirement contributions by +2–3pp of net income");
+  const add = (r: any) => recs.push({ priority: recs.length + 1, ...r });
+
+  if (gating === "save" || (kpis.ef_months ?? 0) < 3) {
+    add({
+      pillar: "save",
+      title: "Build a 3–6 month emergency fund",
+      why: `You currently have ~${(kpis.ef_months ?? 0).toFixed(1)} months of buffer.`,
+      how: [
+        "Open a separate high-yield savings bucket",
+        "Automate a weekly transfer equal to 5–10% of take-home pay",
+      ],
+      impact: "High",
+      effort: "Low",
+    });
   }
 
-  return plan;
-}
+  if (gating === "spend" || (kpis.housing_ratio ?? 0) > 0.3) {
+    add({
+      pillar: "spend",
+      title: "Keep housing ≤ 30% of net income",
+      why: `Current housing ratio ≈ ${(Math.round((kpis.housing_ratio ?? 0) * 1000) / 10).toFixed(1)}%.`,
+      how: [
+        "Negotiate rent or refinance if feasible",
+        "Target a 3–6% expense reduction across utilities/insurance",
+      ],
+      impact: "Medium",
+      effort: "Medium",
+    });
+  }
 
-function toLevel(score: number) {
-  // 0..100 → L0..L9 (each 10 points)
-  const idx = Math.max(0, Math.min(9, Math.floor((score ?? 0) / 10)));
-  return `L${idx}`;
+  if ((kpis.dti ?? 0) > 0.36) {
+    add({
+      pillar: "borrow",
+      title: "Reduce DTI below 36%",
+      why: `Your DTI ≈ ${(Math.round((kpis.dti ?? 0) * 1000) / 10).toFixed(1)}%.`,
+      how: [
+        "Consolidate high-APR debt",
+        "Automate overpayments on the smallest balance (debt snowball)",
+      ],
+      impact: "High",
+      effort: "Medium",
+    });
+  }
+
+  if ((kpis.savings_rate_net ?? 0) < 0.2) {
+    add({
+      pillar: "spend",
+      title: "Lift savings rate to ≥ 20%",
+      why: `Current savings rate ≈ ${(Math.round((kpis.savings_rate_net ?? 0) * 1000) / 10).toFixed(1)}%.`,
+      how: [
+        "Skim 1–2% from top spending categories",
+        "Increase automatic investing by $50–$100/week",
+      ],
+      impact: "High",
+      effort: "Low",
+    });
+  }
+
+  if ((kpis.retirement_rr ?? 0) < 0.7 && (kpis.retirement_rr ?? 0) >= 0) {
+    add({
+      pillar: "grow",
+      title: "Nudge retirement readiness toward 70%+",
+      why: `Trajectory vs target ≈ ${(Math.round((kpis.retirement_rr ?? 0) * 1000) / 10).toFixed(1)}%.`,
+      how: [
+        "Increase contribution rate by 1–2% of salary",
+        "Rebalance to target allocation annually",
+      ],
+      impact: "Medium",
+      effort: "Low",
+    });
+  }
+
+  // Always return at least one item
+  if (recs.length === 0) {
+    add({
+      pillar: gating,
+      title: "Small win this week",
+      why: "Quick, confidence-building step unlocks momentum.",
+      how: "Cancel one unused subscription and redirect the saving into your emergency fund.",
+      impact: "Low",
+      effort: "Low",
+    });
+  }
+
+  return recs;
 }
