@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { ensureHouseholdId } from "@/app/lib/householdLocal";
+import { getProsperLevelLabel } from "@/app/lib/prosperLevelLabels";
 
 /** ===== Types expected from /api/prosper/dashboard ===== */
 export type SeriesPoint = { ts: string; value: number };
@@ -41,8 +42,8 @@ function kpiOrDash(v: any, kind: "pct" | "num" | "months" = "num") {
 
 /** Minimal sparkline (no deps) */
 function Sparkline({ points }: { points: SeriesPoint[] }) {
-  const { d } = React.useMemo(() => {
-    if (!points || points.length === 0) return { d: "" };
+  const { d, areaD } = React.useMemo(() => {
+    if (!points || points.length === 0) return { d: "", areaD: "" };
     const vals = points.map((p) => Number(p.value || 0));
     const min = Math.min(...vals);
     const max = Math.max(...vals);
@@ -50,26 +51,32 @@ function Sparkline({ points }: { points: SeriesPoint[] }) {
     const w = 260;
     const h = 72;
     const step = vals.length > 1 ? w / (vals.length - 1) : w;
-    const path = vals.map((v, i) => `${i === 0 ? "M" : "L"}${i * step},${h - norm(v) * h}`).join(" ");
-    return { d: path };
+    const coords = vals.map((v, i) => [i * step, h - norm(v) * h] as const);
+    const path = coords.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x},${y}`).join(" ");
+    const areaPath = `${path} L ${w},${h} L 0,${h} Z`;
+    return { d: path, areaD: areaPath };
   }, [points]);
 
   if (!d) {
     return (
-      <div className="h-20 w-full bg-gray-50 rounded-md border flex items-center justify-center text-xs text-gray-500">
-        No data
+      <div className="h-20 w-full bg-white rounded-md border flex items-center justify-center text-xs text-gray-500">
+        <div className="inline-flex items-center gap-2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="#9CA3AF" /></svg>
+          No data
+        </div>
       </div>
     );
   }
 
   return (
-    <svg viewBox="0 0 260 72" className="h-20 w-full">
+    <svg viewBox="0 0 260 72" className="h-20 w-full" role="img" aria-label="Net worth trend">
       <defs>
         <linearGradient id="slope" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="currentColor" stopOpacity="0.35" />
+          <stop offset="0%" stopColor="currentColor" stopOpacity="0.25" />
           <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
         </linearGradient>
       </defs>
+      <path d={areaD} fill="url(#slope)" />
       <path d={d} fill="none" stroke="currentColor" strokeWidth="2" />
     </svg>
   );
@@ -122,42 +129,87 @@ export default function Dashboard() {
   const deltaPct = last != null && prev != null && prev !== 0 ? ((last - prev) / prev) * 100 : undefined;
 
   const currency = "AUD";
+  const overallLevelCode = (levels?.overall?.level as string) || "L0";
+  const overallLevelLabel = getProsperLevelLabel(overallLevelCode);
+  const overallIdx = Number(overallLevelCode.match(/\d+/)?.[0] ?? 0);
 
   return (
     <div className="w-full h-full">
-      <div className="flex items-start justify-between mb-4 gap-3">
+      <header className="flex items-start justify-between mb-4 gap-3">
         <div>
-          <div className="text-sm text-gray-500">Household</div>
-          <div className="font-mono text-xs break-all">{householdId ?? "—"}</div>
+          <div className="text-xs uppercase tracking-wide text-gray-500">Household</div>
+          <div className="font-mono text-xs break-all text-gray-700">{householdId ?? "—"}</div>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={load}
-            className="text-xs px-3 py-1.5 rounded border bg-white hover:bg-gray-50"
+            className="h-8 px-2.5 inline-flex items-center gap-2 rounded-lg border bg-white hover:bg-gray-50 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-300"
             title="Re-fetch from server"
+            aria-label="Refresh dashboard"
           >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M20 12a8 8 0 1 1-2.343-5.657L20 8" stroke="#111827" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
             Refresh
           </button>
         </div>
-      </div>
+      </header>
 
       {error && (
-        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="text-sm text-gray-500">Loading…</div>
+        <div aria-busy="true" aria-live="polite" className="grid grid-cols-1 xl:grid-cols-5 gap-4 animate-pulse">
+          <div className="xl:col-span-5 bg-white border rounded-xl shadow-sm h-36" />
+          <div className="xl:col-span-3 bg-white border rounded-xl shadow-sm h-64" />
+          <div className="xl:col-span-2 bg-white border rounded-xl shadow-sm h-64" />
+          <div className="xl:col-span-5 bg-white border rounded-xl shadow-sm h-28" />
+          <div className="xl:col-span-5 bg-white border rounded-xl shadow-sm h-72" />
+        </div>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+          {/* ===== Horizontal Progress Ladder (full width, above Net Worth) ===== */}
+          <div className="xl:col-span-5">
+            <Card className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm text-gray-600 font-medium">Progress ladder</div>
+                <div className="text-xs text-gray-600">Current: {overallLevelCode} — {overallLevelLabel}</div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-10 gap-2">
+                {Array.from({ length: 10 }).map((_, i) => {
+                  const label = getProsperLevelLabel(i);
+                  const completed = i < overallIdx;
+                  const current = i === overallIdx;
+                  const stateClass = current
+                    ? "bg-emerald-100 border-emerald-300 text-emerald-900"
+                    : completed
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                    : "bg-white border-gray-200 text-gray-700";
+                  return (
+                    <div
+                      key={i}
+                      className={`rounded-md border p-2 text-center ${stateClass}`}
+                      aria-current={current ? "step" : undefined}
+                      title={`L${i} — ${label}`}
+                    >
+                      <div className="text-[11px] font-medium">L{i}</div>
+                      <div className="text-xs leading-4">{label}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          </div>
           {/* Overview / header */}
           <div className="xl:col-span-5">
-            <div className="border rounded-lg p-4">
+            <Card className="p-4">
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
                   <div className="text-gray-500 text-sm">Net worth</div>
-                  <div className="text-2xl font-semibold leading-tight">
+                  <div className="text-3xl font-semibold leading-tight tracking-tight">
                     {last != null ? fmtCurrency(last, currency) : "—"}
                   </div>
                   {delta != null && deltaPct != null && (
@@ -171,27 +223,28 @@ export default function Dashboard() {
                   {/* Level summary */}
                   <div className="text-sm">
                     <div className="text-gray-500">Level</div>
-                    <div className="text-xl font-semibold leading-tight">
-                      {levels?.overall?.level ?? "L0"}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {levels?.overall?.points_to_next ?? ""}
-                    </div>
+                  <div className="text-2xl font-semibold leading-tight">
+                    {overallLevelCode}
+                  </div>
+                  <div className="text-xs text-gray-700">{overallLevelLabel}</div>
+                  <div className="text-xs text-gray-500">
+                    {levels?.overall?.points_to_next ?? ""}
+                  </div>
                   </div>
 
                   {/* Gating pillar */}
-                  <div className="text-sm min-w-[180px]">
-                    <div className="text-gray-500">Gating pillar</div>
-                    <div className="inline-flex items-center gap-2">
-                      <span className="font-medium">{levels?.gating_pillar ?? "—"}</span>
-                      {levels?.overall?.provisional && (
-                        <span className="text-[10px] uppercase bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
-                          Provisional
-                        </span>
-                      )}
+                    <div className="text-sm min-w-[180px]">
+                      <div className="text-gray-500">Gating pillar</div>
+                      <div className="inline-flex items-center gap-2">
+                        <span className="font-medium">{levels?.gating_pillar ?? "—"}</span>
+                        {levels?.overall?.provisional && (
+                          <span className="text-[10px] uppercase bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
+                            Provisional
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500">ETA ~{levels?.eta_weeks ?? 8} weeks</div>
                     </div>
-                    <div className="text-xs text-gray-500">ETA ~{levels?.eta_weeks ?? 8} weeks</div>
-                  </div>
 
                   {/* Missing info callout */}
                   {!!latest?.provisional_keys?.length && (
@@ -207,16 +260,18 @@ export default function Dashboard() {
               </div>
 
               {/* Net worth sparkline */}
-              <div className="mt-4">
+              <div className="mt-4 text-gray-800">
                 <Sparkline points={series} />
               </div>
-            </div>
+            </Card>
           </div>
 
-          {/* ===== KPIs ===== */}
-          <div className="xl:col-span-3">
-            <div className="border rounded-lg p-4">
-              <div className="text-sm text-gray-600 mb-3">Key KPIs</div>
+          
+
+          {/* ===== KPIs (moved below, full width) ===== */}
+          <div className="xl:col-span-5">
+            <Card className="p-4">
+              <div className="text-sm text-gray-600 mb-3 font-medium">Key KPIs</div>
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                 <KpiCard
                   label="Savings rate (net)"
@@ -255,50 +310,18 @@ export default function Dashboard() {
                   tone="neutral"
                 />
               </div>
-            </div>
-          </div>
-
-          {/* ===== Prosper Level & Pillars ===== */}
-          <div className="xl:col-span-2">
-            <div className="border rounded-lg p-4 h-full grid grid-rows-[auto_1fr]">
-              <div className="text-sm text-gray-600 mb-2">Prosper Level</div>
-              <div className="flex items-start gap-4">
-                <div className="h-14 w-14 rounded-xl bg-gray-900 text-white flex items-center justify-center text-xl font-bold">
-                  {levels?.overall?.level ?? "L0"}
-                </div>
-                <div className="text-xs text-gray-600 leading-5">
-                  <div><span className="text-gray-800">Gating pillar:</span> {levels?.gating_pillar ?? "—"}</div>
-                  <div><span className="text-gray-800">ETA:</span> ~{levels?.eta_weeks ?? 8} weeks</div>
-                  <div className="text-gray-500">{levels?.overall?.points_to_next ?? ""}</div>
-                </div>
-              </div>
-
-              <div className="mt-3 grid grid-cols-5 gap-2">
-                {Array.from({ length: 10 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={`text-[10px] px-2 py-1 rounded border text-center ${
-                      (levels?.overall?.level || "L0") === `L${i}`
-                        ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                        : "bg-white text-gray-600"
-                    }`}
-                  >
-                    L{i}
-                  </div>
-                ))}
-              </div>
-            </div>
+            </Card>
           </div>
 
           {/* Pillars */}
           <div className="xl:col-span-5">
-            <div className="border rounded-lg p-4">
-              <div className="text-sm text-gray-600 mb-3">Pillars</div>
+            <Card className="p-4">
+              <div className="text-sm text-gray-600 mb-3 font-medium">Pillars</div>
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
                 {(["spend", "save", "borrow", "protect", "grow"] as const).map((p) => {
                   const item = levels?.pillars?.[p];
                   return (
-                    <div key={p} className="border rounded-lg p-3 flex items-center justify-between">
+                    <div key={p} className="border rounded-lg p-3 flex items-center justify-between bg-white hover:bg-gray-50 transition-colors">
                       <div>
                         <div className="text-xs text-gray-500 capitalize">{p}</div>
                         <div className="text-sm font-semibold">{item?.level ?? "L0"}</div>
@@ -318,13 +341,13 @@ export default function Dashboard() {
                   );
                 })}
               </div>
-            </div>
+            </Card>
           </div>
 
           {/* ===== Action plan ===== */}
           <div className="xl:col-span-5">
-            <div className="border rounded-lg p-4">
-              <div className="text-sm text-gray-600 mb-3">Action plan</div>
+            <Card className="p-4">
+              <div className="text-sm text-gray-600 mb-3 font-medium">Action plan</div>
 
               {!recs || (Array.isArray(recs) && recs.length === 0) ? (
                 <div className="text-sm text-gray-500">No recommendations yet. Provide more info in chat to unlock your plan.</div>
@@ -338,7 +361,7 @@ export default function Dashboard() {
                 // If the tool returns an object keyed by buckets
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
                   {Object.entries(recs).map(([bucket, arr]: any) => (
-                    <div key={bucket} className="border rounded-lg p-3">
+                    <div key={bucket} className="border rounded-lg p-3 bg-white">
                       <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">{bucket}</div>
                       <div className="space-y-2">
                         {(arr ?? []).map((r: any, i: number) => <RecommendationCard key={`${bucket}-${i}`} rec={r} />)}
@@ -347,7 +370,7 @@ export default function Dashboard() {
                   ))}
                 </div>
               )}
-            </div>
+            </Card>
           </div>
         </div>
       )}
@@ -370,18 +393,31 @@ function KpiCard({
 }) {
   const toneClass =
     tone === "good"
-      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+      ? "border-emerald-200"
       : tone === "warn"
-      ? "bg-yellow-50 text-yellow-800 border-yellow-200"
+      ? "border-yellow-200"
       : tone === "bad"
-      ? "bg-red-50 text-red-700 border-red-200"
-      : "bg-white text-gray-900 border-gray-200";
+      ? "border-red-200"
+      : "border-gray-200";
+  const accentClass =
+    tone === "good"
+      ? "bg-emerald-500"
+      : tone === "warn"
+      ? "bg-yellow-500"
+      : tone === "bad"
+      ? "bg-red-500"
+      : "bg-gray-200";
 
   return (
-    <div className={`rounded-lg border p-3 ${toneClass}`}>
-      <div className="text-xs text-gray-600">{label}</div>
-      <div className="text-lg font-semibold">{value}</div>
-      {hint ? <div className="text-[11px] text-gray-500 mt-1">{hint}</div> : null}
+    <div className={`rounded-lg border bg-white p-3 shadow-sm ${toneClass}`}>
+      <div className="flex items-start gap-3">
+        <div className={`h-8 w-1.5 rounded-sm ${accentClass}`} aria-hidden="true" />
+        <div className="flex-1 min-w-0">
+          <div className="text-xs text-gray-600 truncate">{label}</div>
+          <div className="text-lg font-semibold leading-tight">{value}</div>
+          {hint ? <div className="text-[11px] text-gray-500 mt-1">{hint}</div> : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -411,7 +447,7 @@ function RecommendationCard({ rec }: { rec: any }) {
   // Support either a string or a structured object
   if (typeof rec === "string") {
     return (
-      <div className="border rounded-lg p-3">
+      <div className="border rounded-lg p-3 bg-white shadow-sm">
         <div className="text-sm">{rec}</div>
       </div>
     );
@@ -426,9 +462,9 @@ function RecommendationCard({ rec }: { rec: any }) {
     rec?.pillar || rec?.kpi || rec?.category || (rec?.priority ? `P${rec.priority}` : null);
 
   return (
-    <div className="border rounded-lg p-3">
+    <div className="border rounded-lg p-3 bg-white shadow-sm hover:bg-gray-50 transition-colors">
       <div className="flex items-start justify-between gap-3">
-        <div className="font-medium">{title}</div>
+        <div className="font-medium leading-5">{title}</div>
         {badge && <div className="text-[10px] px-2 py-0.5 rounded bg-gray-100 text-gray-700">{String(badge)}</div>}
       </div>
       {why && <div className="text-xs text-gray-600 mt-1">{why}</div>}
@@ -451,4 +487,9 @@ function RecommendationCard({ rec }: { rec: any }) {
       )}
     </div>
   );
+}
+
+/** Small card wrapper for consistent styling */
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <div className={`bg-white border rounded-xl shadow-sm ${className}`}>{children}</div>;
 }
