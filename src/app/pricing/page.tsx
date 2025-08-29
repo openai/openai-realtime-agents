@@ -6,6 +6,17 @@ import { ensureHouseholdId } from "@/app/lib/householdLocal";
 
 export default function PricingPage() {
   const [loading, setLoading] = React.useState<'monthly'|'annual'|null>(null);
+  const [prices, setPrices] = React.useState<any | null>(null);
+  React.useEffect(() => {
+    (async () => {
+      try { const r = await fetch('/api/billing/prices', { cache: 'no-store' }); const j = await r.json(); setPrices(j); } catch {}
+    })();
+  }, []);
+  const fmt = (c?: string, cents?: number) => {
+    if (!c || typeof cents !== 'number') return '$';
+    const n = (cents || 0) / 100;
+    try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: c }).format(n); } catch { return `$${n}`; }
+  };
   const startCheckout = async (interval: 'monthly'|'annual') => {
     try {
       setLoading(interval);
@@ -67,7 +78,7 @@ export default function PricingPage() {
           {/* Monthly */}
           <div className="rounded-2xl border bg-white p-6 shadow-sm flex flex-col">
             <div className="text-sm font-medium">Monthly</div>
-            <div className="mt-2 text-4xl font-semibold">$ / mo</div>
+            <div className="mt-2 text-4xl font-semibold">{fmt(prices?.monthly?.currency, prices?.monthly?.unit_amount)}<span className="text-base text-gray-600"> / mo</span></div>
             <div className="mt-1 text-sm text-gray-600">Billed monthly</div>
             <ul className="mt-6 space-y-2 text-sm text-gray-800">
               <li>• Full dashboard and KPIs</li>
@@ -87,7 +98,7 @@ export default function PricingPage() {
           {/* Annual */}
           <div className="rounded-2xl border bg-white p-6 shadow-sm flex flex-col">
             <div className="text-sm font-medium">Annual</div>
-            <div className="mt-2 text-4xl font-semibold">$ / yr</div>
+            <div className="mt-2 text-4xl font-semibold">{fmt(prices?.annual?.currency, prices?.annual?.unit_amount)}<span className="text-base text-gray-600"> / yr</span></div>
             <div className="mt-1 text-sm text-gray-600">Best value</div>
             <ul className="mt-6 space-y-2 text-sm text-gray-800">
               <li>• Everything in Monthly</li>
@@ -111,7 +122,11 @@ export default function PricingPage() {
         <div className="max-w-7xl mx-auto px-4 py-8 text-sm text-gray-600">
           <div className="flex items-center justify-between">
             <div>© {new Date().getFullYear()} Prosper</div>
-            <div className="text-xs">Prosper provides general, educational information. It is not a financial adviser and does not provide financial advice.</div>
+            <div className="text-xs flex items-center gap-4">
+              <span>Prosper provides general, educational information. It is not a financial adviser and does not provide financial advice.</span>
+              <a href="/terms" className="underline">Terms</a>
+              <a href="/privacy" className="underline">Privacy</a>
+            </div>
           </div>
         </div>
       </footer>

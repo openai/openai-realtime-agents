@@ -163,6 +163,11 @@ function App() {
             window.dispatchEvent(new CustomEvent('pp:snapshot_saved', { detail: { billing: true } }));
             window.dispatchEvent(new CustomEvent('pp:billing_confirmed', { detail: { sessionId } }));
           } catch {}
+          // Add a friendly assistant message in transcript
+          try {
+            const id = uuidv4().slice(0, 32);
+            addTranscriptMessage(id, 'assistant', 'Thanks — your Prosper Premium is now active. You now have full net‑worth history, saved plans, and deeper action checklists. Would you like to review your dashboard or continue in chat?');
+          } catch {}
         } catch {}
       }
     })();

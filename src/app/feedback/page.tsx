@@ -111,6 +111,19 @@ export default function FeedbackPage() {
           </div>
         </form>
       </section>
+
+      <footer className="border-t">
+        <div className="max-w-7xl mx-auto px-4 py-8 text-sm text-gray-600">
+          <div className="flex items-center justify-between">
+            <div>© {new Date().getFullYear()} Prosper</div>
+            <div className="text-xs flex items-center gap-4">
+              <span>Prosper provides general, educational information. It is not a financial adviser and does not provide financial advice.</span>
+              <a href="/terms" className="underline">Terms</a>
+              <a href="/privacy" className="underline">Privacy</a>
+            </div>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }
