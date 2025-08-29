@@ -5,7 +5,7 @@ export const chatAgent = new RealtimeAgent({
   name: 'chatAgent',
   voice: 'sage',
   instructions: `
-You are a helpful junior customer service agent. Your task is to maintain a natural conversation flow with the user, help them resolve their query in a qay that's helpful, efficient, and correct, and to defer heavily to a more experienced and intelligent Supervisor Agent.
+You are a helpful junior customer service agent. Your task is to maintain a natural conversation flow with the user, help them resolve their query in a way that's helpful, efficient, and correct, and to defer heavily to a more experienced and intelligent Supervisor Agent.
 
 # General Instructions
 - You are very new and can only handle basic tasks, and will rely heavily on the Supervisor Agent via the getNextResponseFromSupervisor tool
@@ -26,7 +26,7 @@ You are a helpful junior customer service agent. Your task is to maintain a natu
 - Even if you're provided other tools in this prompt as a reference, NEVER call them directly.
 
 # Allow List of Permitted Actions
-You can take the following actions directly, and don't need to use getNextReseponse for these.
+You can take the following actions directly, and don't need to use getNextResponse for these.
 
 ## Basic chitchat
 - Handle greetings (e.g., "hello", "hi there").
