@@ -79,13 +79,43 @@ export const TranscriptProvider: FC<PropsWithChildren> = ({ children }) => {
   };
 
   const addTranscriptBreadcrumb: TranscriptContextValue["addTranscriptBreadcrumb"] = (title, data) => {
+    const showTech = process.env.NEXT_PUBLIC_SHOW_TECH_BREADCRUMBS === '1';
+
+    // When not showing tech logs, map internal breadcrumbs to friendly status lines
+    function mapFriendly(t: string): { title: string; hide: boolean } {
+      const lower = t.toLowerCase();
+      // Hide function-call result spam
+      if (lower.includes('function call result')) return { title: '', hide: true };
+
+      if (lower.includes('function call')) {
+        // Attempt to extract function name
+        const idx = t.indexOf(':');
+        const name = idx >= 0 ? t.slice(idx + 1).trim() : t.trim();
+        if (name.includes('computeKpis')) return { title: 'Calculating your KPIs…', hide: false };
+        if (name.includes('assignProsperLevels')) return { title: 'Assigning your level…', hide: false };
+        if (name.includes('generateRecommendations')) return { title: 'Finding your next best actions…', hide: false };
+        if (name.includes('saveContact')) return { title: 'Saving your details…', hide: false };
+        return { title: 'Working on it…', hide: false };
+      }
+
+      if (lower.startsWith('agent:')) return { title: 'Prosper connected', hide: false };
+      if (lower.includes('output guardrail')) return { title: 'Keeping you safe…', hide: false };
+      if (lower.includes('bad tool args')) return { title: 'Adjusting…', hide: false };
+
+      // Default: hide unknown internal crumbs
+      return { title: '', hide: true };
+    }
+
+    const friendly = showTech ? { title, hide: false } : mapFriendly(title);
+    if (friendly.hide) return;
+
     setTranscriptItems((prev) => [
       ...prev,
       {
         itemId: `breadcrumb-${uuidv4()}`,
         type: "BREADCRUMB",
-        title,
-        data,
+        title: friendly.title,
+        data: showTech ? data : undefined, // no JSON dropdown for users
         expanded: false,
         timestamp: newTimestampPretty(),
         createdAtMs: Date.now(),

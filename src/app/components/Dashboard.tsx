@@ -27,6 +27,7 @@ export type DashboardPayload = {
   series?: SeriesPoint[];
   entitlements?: { plan: 'free'|'premium'; subscription_status?: string; current_period_end?: string };
   usage?: { free_limit?: number; used?: number; remaining?: number };
+  household?: { email?: string; full_name?: string };
 };
 
 /** ===== Helpers ===== */
@@ -91,7 +92,8 @@ export default function Dashboard() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [householdId, setHouseholdId] = React.useState<string | null>(null);
-  const [billingInterval, setBillingInterval] = React.useState<'monthly'|'annual'>('monthly');
+  const [showUsesToast, setShowUsesToast] = React.useState(false);
+  const [showPremiumBanner, setShowPremiumBanner] = React.useState(false);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -125,6 +127,8 @@ export default function Dashboard() {
   React.useEffect(() => {
     const onSaved = () => load();
     window.addEventListener('pp:snapshot_saved', onSaved as any);
+    const onBilling = () => { setShowPremiumBanner(true); setTimeout(() => setShowPremiumBanner(false), 8000); };
+    window.addEventListener('pp:billing_confirmed', onBilling as any);
     return () => window.removeEventListener('pp:snapshot_saved', onSaved as any);
   }, [load]);
 
@@ -157,11 +161,18 @@ export default function Dashboard() {
       slots?.names?.value,
       inputs?.full_name,
       inputs?.names,
+      data?.household?.full_name,
+      data?.household?.email,
     ].filter(Boolean);
     let n: any = cand[0] ?? null;
     if (Array.isArray(n)) n = n.filter(Boolean).join(' & ');
     if (typeof n === 'string') {
       const s = n.trim();
+      // If email, display local-part capitalized
+      if (s.includes('@')) {
+        const local = s.split('@')[0] || '';
+        if (local) return local.replace(/\./g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      }
       return s.length > 0 ? s : null;
     }
     return null;
@@ -170,75 +181,68 @@ export default function Dashboard() {
   const overallLevelLabel = getProsperLevelLabel(overallLevelCode);
   const overallIdx = Number(overallLevelCode.match(/\d+/)?.[0] ?? 0);
 
+  // Show uses-left toast once when remaining <= 3 on free plan
+  React.useEffect(() => {
+    const remaining = Number((data as any)?.usage?.remaining ?? Infinity);
+    if (entitlements?.plan === 'free' && remaining <= 3) {
+      const key = 'pp_uses_toast_shown';
+      let shown = false;
+      try { shown = localStorage.getItem(key) === '1'; } catch {}
+      if (!shown) {
+        setShowUsesToast(true);
+        try { localStorage.setItem(key, '1'); } catch {}
+        const t = setTimeout(() => setShowUsesToast(false), 6000);
+        return () => clearTimeout(t);
+      }
+    }
+  }, [data, entitlements]);
+
   return (
+    <>
     <div className="w-full h-full">
+      {showPremiumBanner && (
+        <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+          Premium unlocked — thanks for supporting Prosper! Your full history and premium features are enabled.
+        </div>
+      )}
       <header className="flex items-start justify-between mb-4 gap-3">
         <div />
         <div className="flex items-center gap-2">
           {/* Free uses left nudge */}
           {data?.usage && entitlements?.plan !== 'premium' && (
-            <div className="text-xs text-gray-600 mr-2">
+            <div className={`text-xs mr-2 ${Math.max(0, Number((data?.usage as any)?.remaining ?? 0)) <= 3 ? 'text-red-600' : 'text-gray-600'}`}>
               Free uses left: <b>{Math.max(0, Number((data?.usage as any)?.remaining ?? 0))}</b>
             </div>
           )}
-          {/* Billing interval toggle */}
-          <div className="hidden md:flex items-center text-xs border rounded-lg overflow-hidden">
+          {householdId && entitlements?.plan === 'premium' && (
             <button
-              className={`px-2 py-1 ${billingInterval==='monthly' ? 'bg-gray-900 text-white' : 'bg-white'}`}
-              onClick={() => setBillingInterval('monthly')}
-              aria-pressed={billingInterval==='monthly'}
+              onClick={async () => {
+                try {
+                  const res = await fetch('/api/billing/create-portal-session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId }) });
+                  const j = await res.json();
+                  if (j?.url) window.location.href = j.url;
+                } catch {}
+              }}
+              className="h-8 px-2.5 inline-flex items-center gap-2 rounded-lg border bg-white hover:bg-gray-50 text-xs shadow-sm"
             >
-              Monthly
+              Manage plan
             </button>
-            <button
-              className={`px-2 py-1 ${billingInterval==='annual' ? 'bg-gray-900 text-white' : 'bg-white'}`}
-              onClick={() => setBillingInterval('annual')}
-              aria-pressed={billingInterval==='annual'}
-            >
-              Annual
-            </button>
-          </div>
-          {householdId && (
-            entitlements?.plan === 'premium' ? (
-              <button
-                onClick={async () => {
-                  try {
-                    const res = await fetch('/api/billing/create-portal-session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId }) });
-                    const j = await res.json();
-                    if (j?.url) window.location.href = j.url;
-                  } catch {}
-                }}
-                className="h-8 px-2.5 inline-flex items-center gap-2 rounded-lg border bg-white hover:bg-gray-50 text-xs shadow-sm"
-              >
-                Manage plan
-              </button>
-            ) : (
-              <button
-                onClick={async () => {
-                  try {
-                    const email = (latest as any)?.inputs?.slots?.email?.value || (latest as any)?.inputs?.email;
-                    const res = await fetch('/api/billing/create-checkout-session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, email, interval: billingInterval }) });
-                    const j = await res.json();
-                    if (j?.url) window.location.href = j.url;
-                  } catch {}
-                }}
-                className="h-8 px-2.5 inline-flex items-center gap-2 rounded-lg border bg-gray-900 text-white hover:bg-gray-800 text-xs shadow-sm"
-              >
-                Upgrade
-              </button>
-            )
           )}
-          <button
-            onClick={load}
-            className="h-8 px-2.5 inline-flex items-center gap-2 rounded-lg border bg-white hover:bg-gray-50 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-300"
-            title="Re-fetch from server"
-            aria-label="Refresh dashboard"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M20 12a8 8 0 1 1-2.343-5.657L20 8" stroke="#111827" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Refresh
-          </button>
+          {householdId && entitlements?.plan !== 'premium' && (
+            <button
+              onClick={async () => {
+                try {
+                  const email = (latest as any)?.inputs?.slots?.email?.value || (latest as any)?.inputs?.email || data?.household?.email;
+                  const res = await fetch('/api/billing/create-checkout-session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, email }) });
+                  const j = await res.json();
+                  if (j?.url) window.location.href = j.url;
+                } catch {}
+              }}
+              className="h-8 px-2.5 inline-flex items-center gap-2 rounded-lg border bg-gray-900 text-white hover:bg-gray-800 text-xs shadow-sm"
+            >
+              Upgrade
+            </button>
+          )}
         </div>
       </header>
 
@@ -387,7 +391,7 @@ export default function Dashboard() {
                   if (!householdId) return;
                   try {
                     const email = (latest as any)?.inputs?.slots?.email?.value || (latest as any)?.inputs?.email;
-                    const res = await fetch('/api/billing/create-checkout-session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, email, interval: billingInterval }) });
+                    const res = await fetch('/api/billing/create-checkout-session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, email }) });
                     const j = await res.json();
                     if (j?.url) window.location.href = j.url;
                   } catch {}
@@ -439,6 +443,14 @@ export default function Dashboard() {
         </div>
       )}
     </div>
+    {showUsesToast && (
+      <div className="fixed bottom-4 right-4 z-50 max-w-sm">
+        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-900 shadow-md">
+          You have only a few free uses left. Upgrade to unlock full features and keep going.
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 

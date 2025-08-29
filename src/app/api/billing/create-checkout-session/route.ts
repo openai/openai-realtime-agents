@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     const form = formEncode({
       mode: 'subscription',
-      success_url: `${appUrl}/?checkout=success`,
+      success_url: `${appUrl}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appUrl}/?checkout=cancelled`,
       allow_promotion_codes: 'true',
       billing_address_collection: 'auto',

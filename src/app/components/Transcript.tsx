@@ -148,6 +148,16 @@ function Transcript({
                   </div>
                 );
               } else if (type === "BREADCRUMB") {
+                const hasData = !!data;
+                if (!hasData) {
+                  // Friendly status line (no JSON payload for users)
+                  return (
+                    <div key={itemId} className="flex items-center text-gray-600 text-sm">
+                      <span>{title}</span>
+                    </div>
+                  );
+                }
+                // Developer breadcrumbs with expandable JSON payload
                 return (
                   <div key={itemId} className="flex flex-col justify-start items-start text-gray-500 text-sm">
                     <span className="text-xs font-mono">{timestamp}</span>

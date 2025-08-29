@@ -156,7 +156,13 @@ async function handleToolCalls(
 
     for (const toolCall of functionCalls) {
       const fName = toolCall.name as string;
-      const args = JSON.parse(toolCall.arguments || "{}");
+      let args: any = {};
+      try {
+        args = toolCall.arguments ? JSON.parse(toolCall.arguments) : {};
+      } catch (e) {
+        if (addBreadcrumb) addBreadcrumb(`[supervisorAgent] bad tool args for ${fName}`, { raw: toolCall.arguments });
+        args = {};
+      }
       let toolRes: any = {};
 
       switch (fName) {
@@ -357,9 +363,10 @@ ${JSON.stringify(lastInputs || {}, null, 2)}\n`;
             const j = await res.json();
             if (j?.url) checkoutUrl = j.url as string;
           } catch {}
+          const premiumPitch = `Premium unlocks full net‑worth history, saved plans, deeper action checklists, and weekly progress reminders.`;
           const notice = checkoutUrl
-            ? `To keep using Prosper, please upgrade to Premium. Continue here: ${checkoutUrl}`
-            : `To keep using Prosper, please upgrade to Premium using the Upgrade button on your dashboard.`;
+            ? `I can keep going, but I need you to upgrade to finish a deeper assessment. ${premiumPitch}\nUpgrade here: ${checkoutUrl}`
+            : `I can keep going, but I need you to upgrade to finish a deeper assessment. ${premiumPitch} You can upgrade via the Upgrade button on your dashboard.`;
           return notice;
         }
       }

@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 import Image from "next/image";
+import Link from "next/link";
 
 import Transcript from "./components/Transcript";
 import Dashboard from "./components/Dashboard";
@@ -148,6 +149,24 @@ function App() {
       })();
     }
   }, [selectedAgentConfigSet, selectedAgentName, sessionStatus, isReturningUser, householdId]);
+
+  // Post-checkout confirmation: if we have session_id, confirm and refresh entitlements
+  useEffect(() => {
+    const checkout = searchParams.get('checkout');
+    const sessionId = searchParams.get('session_id');
+    (async () => {
+      if (checkout === 'success' && sessionId) {
+        try {
+          await fetch(`/api/billing/confirm?session_id=${encodeURIComponent(sessionId)}`, { cache: 'no-store' });
+          // Nudge dashboard to refresh
+          try {
+            window.dispatchEvent(new CustomEvent('pp:snapshot_saved', { detail: { billing: true } }));
+            window.dispatchEvent(new CustomEvent('pp:billing_confirmed', { detail: { sessionId } }));
+          } catch {}
+        } catch {}
+      }
+    })();
+  }, [searchParams]);
 
   useEffect(() => {
     if (sessionStatus === "CONNECTED") {
@@ -326,14 +345,17 @@ function App() {
     <div className="text-base flex flex-col h-screen bg-gray-100 text-gray-800">
       {/* Header */}
       <div className="p-5 text-lg font-semibold flex justify-between items-center max-w-7xl mx-auto w-full">
-        <div className="flex items-center cursor-pointer" onClick={() => window.location.reload()}>
-          <div>
-            <Image src="2D76K394f.eps.svg" alt="Prosper Logo" width={20} height={20} className="mr-2" />
-          </div>
-          <div>
-            Prosper AI <span className="text-gray-400">your personal wealth coach</span>
-          </div>
-        </div>
+        <Link href="/home" className="flex items-center">
+          <Image src="2D76K394f.eps.svg" alt="Prosper Logo" width={20} height={20} className="mr-2" />
+          <span>Prosper AI <span className="text-gray-400">your personal wealth coach</span></span>
+        </Link>
+        <nav className="hidden md:flex items-center gap-6 text-sm">
+          <Link href="/home" className="text-gray-700 hover:text-gray-900">Home</Link>
+          <Link href="/pricing" className="text-gray-700 hover:text-gray-900">Pricing</Link>
+          <Link href="/feedback" className="text-gray-700 hover:text-gray-900">Feedback</Link>
+          <a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('chat'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-gray-700 hover:text-gray-900">Chat</a>
+          <a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('dashboard'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-gray-700 hover:text-gray-900">Dashboard</a>
+        </nav>
         <button
           className="h-9 w-9 rounded-full border bg-white flex items-center justify-center hover:bg-gray-50"
           aria-label="User profile"

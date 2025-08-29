@@ -28,17 +28,21 @@ export async function GET(req: NextRequest) {
 
   const latestSnapshot = snaps?.[0] || null;
 
-  // Household billing state (optional – table may not have these columns yet)
+  // Household billing + identity state (optional – table may not have these columns yet)
   let subscription_status: string | null = null;
   let current_period_end: string | null = null;
+  let hh_email: string | null = null;
+  let hh_full_name: string | null = null;
   try {
     const { data: hh } = await supabase
       .from('households')
-      .select('subscription_status,current_period_end')
+      .select('subscription_status,current_period_end,email,full_name')
       .eq('id', householdId)
       .maybeSingle();
     subscription_status = (hh as any)?.subscription_status ?? null;
     current_period_end = (hh as any)?.current_period_end ?? null;
+    hh_email = (hh as any)?.email ?? null;
+    hh_full_name = (hh as any)?.full_name ?? null;
   } catch {}
 
   // Net worth series (last 180 points; entitlements may further cap on server)
@@ -88,7 +92,8 @@ export async function GET(req: NextRequest) {
       subscription_status: subscription_status || undefined,
       current_period_end: current_period_end || undefined,
     },
-    usage: { free_limit: freeLimit, used, remaining: Math.max(0, freeLimit - used) }
+    usage: { free_limit: freeLimit, used, remaining: Math.max(0, freeLimit - used) },
+    household: { email: hh_email || undefined, full_name: hh_full_name || undefined }
   };
 
   if (latestSnapshot) {
