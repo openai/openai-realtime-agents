@@ -2,6 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Floating mana spend text */
+@keyframes floatFade {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-16px); }
+}
+.float-fade {
+  animation: floatFade 700ms ease-out forwards;
+  color: #3b82f6; /* tailwind blue-500 */
+  font-weight: 700;
+  pointer-events: none;
+}
+
+/* Shake for mana bar error */
+@keyframes shake {
+  0% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+  100% { transform: translateX(0); }
+}
+.shake-red {
+  animation: shake 500ms ease; 
+}
+
+/* Flash mana bar red during shake */
+@keyframes manaFlashRed {
+  0% { background-color: #ef4444; }
+  100% { background-color: #ef4444; }
+}
+.shake-red .mana-fill {
+  animation: manaFlashRed 1500ms ease;
+}
+
 :root {
   --background: #fafafa;
   --foreground: #171717;

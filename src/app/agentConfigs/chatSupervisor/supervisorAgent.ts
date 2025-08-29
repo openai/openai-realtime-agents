@@ -147,7 +147,7 @@ export const supervisorAgentTools = [
   },
 ];
 
-async function fetchResponsesMessage(body: any) {
+export async function fetchResponsesMessage(body: any) {
   const response = await fetch('/api/responses', {
     method: 'POST',
     headers: {
