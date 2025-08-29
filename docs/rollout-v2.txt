@@ -1,0 +1,7 @@
+Rollout plan (v2)
+- Enable flag in staging: NEXT_PUBLIC_PROSPER_ENGINE=v2
+- Verify /api/dev/engine-v2?validate=1&scenario=ALL
+- Backfill latest snapshots for households with sufficient data
+- Flip prod default to v2; monitor gates notes and errors
+- Freeze v1 compute; keep adapter reads for old snapshots
+- Remove v1 UI after stability window

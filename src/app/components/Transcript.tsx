@@ -68,7 +68,19 @@ function Transcript({
     <div className="flex flex-col flex-1 bg-white min-h-0 rounded-xl">
       <div className="flex flex-col flex-1 min-h-0">
         <div className="flex items-center justify-between px-6 py-3 sticky top-0 z-10 text-base border-b bg-white rounded-t-xl">
-          <span className="font-semibold">Transcript</span>
+          <span className="font-semibold flex items-center gap-2">
+  <span className="relative inline-flex items-center justify-center">
+    {canSend ? (
+      <>
+        <span className="animate-ping absolute inline-flex h-5 w-5 rounded-full bg-emerald-400 opacity-50"></span>
+        <span className="relative inline-flex rounded-full h-5 w-5 bg-emerald-500"></span>
+      </>
+    ) : (
+      <span className="relative inline-flex rounded-full h-5 w-5 bg-gray-300"></span>
+    )}
+  </span>
+  Transcript
+</span>
           <div className="flex gap-x-2">
             <button
               onClick={handleCopyTranscript}

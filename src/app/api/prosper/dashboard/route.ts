@@ -28,7 +28,20 @@ export async function GET(req: NextRequest) {
 
   const latestSnapshot = snaps?.[0] || null;
 
-  // Net worth series (last 180 points)
+  // Household billing state (optional – table may not have these columns yet)
+  let subscription_status: string | null = null;
+  let current_period_end: string | null = null;
+  try {
+    const { data: hh } = await supabase
+      .from('households')
+      .select('subscription_status,current_period_end')
+      .eq('id', householdId)
+      .maybeSingle();
+    subscription_status = (hh as any)?.subscription_status ?? null;
+    current_period_end = (hh as any)?.current_period_end ?? null;
+  } catch {}
+
+  // Net worth series (last 180 points; entitlements may further cap on server)
   const { data: series, error: nErr } = await supabase
     .from("net_worth_points")
     .select("ts, value")
@@ -41,11 +54,41 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "series_query_failed" }, { status: 500 });
   }
 
+  // Usage: count snapshots to drive metered paywall (free limit configurable)
+  let used = 0;
+  try {
+    const { count } = await supabase
+      .from('snapshots')
+      .select('id', { count: 'exact', head: true })
+      .eq('household_id', householdId);
+    used = count ?? 0;
+  } catch {}
+  const freeLimit = Number(process.env.FREE_SNAPSHOT_LIMIT || 3);
+
+  // Entitlements: premium if active/trialing and not expired
+  const now = Date.now();
+  const periodEndMs = current_period_end ? Date.parse(current_period_end) : 0;
+  const isPremium = !!subscription_status && ['active','trialing','past_due'].includes(subscription_status) && (periodEndMs === 0 || periodEndMs > now);
+
+  // If free, cap series to ~90 days worth (by date)
+  let shapedSeries = series || [];
+  if (!isPremium && shapedSeries?.length) {
+    const lastTs = Date.parse(shapedSeries[shapedSeries.length-1].ts);
+    const cutoff = lastTs - 90*24*60*60*1000;
+    shapedSeries = shapedSeries.filter(p => Date.parse(p.ts) >= cutoff);
+  }
+
   // Shape mirrors previous payload while adding convenient mirrors
   const payload: any = {
     householdId,
     latestSnapshot,
-    series,
+    series: shapedSeries,
+    entitlements: {
+      plan: isPremium ? 'premium' : 'free',
+      subscription_status: subscription_status || undefined,
+      current_period_end: current_period_end || undefined,
+    },
+    usage: { free_limit: freeLimit, used, remaining: Math.max(0, freeLimit - used) }
   };
 
   if (latestSnapshot) {

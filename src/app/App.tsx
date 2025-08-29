@@ -38,7 +38,20 @@ function App() {
   const [selectedAgentConfigSet, setSelectedAgentConfigSet] = useState<RealtimeAgent[] | null>(null);
 
   const [householdId, setHouseholdId] = useState<string>("");
+  const [isReturningUser, setIsReturningUser] = useState<boolean>(false);
   useEffect(() => { ensureHouseholdId().then(setHouseholdId); }, []);
+  useEffect(() => {
+    (async () => {
+      if (!householdId) return;
+      try {
+        const res = await fetch(`/api/prosper/dashboard?householdId=${householdId}`, { cache: 'no-store' });
+        const json = await res.json();
+        const inputs = json?.latestSnapshot?.inputs || {};
+        const hasInputs = inputs && typeof inputs === 'object' && Object.keys(inputs).length > 0;
+        setIsReturningUser(!!hasInputs);
+      } catch {}
+    })();
+  }, [householdId]);
 
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const handoffTriggeredRef = useRef(false);
@@ -114,10 +127,27 @@ function App() {
     if (sessionStatus === "CONNECTED" && selectedAgentConfigSet && selectedAgentName) {
       const currentAgent = selectedAgentConfigSet.find((a) => a.name === selectedAgentName);
       addTranscriptBreadcrumb(`Agent: ${selectedAgentName}`, currentAgent);
-      updateSession(!handoffTriggeredRef.current);
-      handoffTriggeredRef.current = false;
+      // Configure session detection, then send initial simulated message
+      updateSession(false);
+      (async () => {
+        if (isReturningUser) {
+          try {
+            const res = await fetch(`/api/prosper/dashboard?householdId=${householdId}`, { cache: 'no-store' });
+            const json = await res.json();
+            const inputs = json?.latestSnapshot?.inputs || {};
+            const tracker = { householdId, slots: inputs?.slots || {}, locale: 'en-GB', currency: inputs?.currency || 'USD' };
+            const msg = `ACTION=RECAP; RETURNING_USER=TRUE; DO_NOT_REASK_BASICS=TRUE; tracker=${JSON.stringify(tracker)}`;
+            sendSimulatedUserMessage(msg);
+          } catch {
+            sendSimulatedUserMessage('ACTION=RECAP; RETURNING_USER=TRUE; DO_NOT_REASK_BASICS=TRUE');
+          }
+        } else if (!handoffTriggeredRef.current) {
+          sendSimulatedUserMessage('hi');
+        }
+        handoffTriggeredRef.current = false;
+      })();
     }
-  }, [selectedAgentConfigSet, selectedAgentName, sessionStatus]);
+  }, [selectedAgentConfigSet, selectedAgentName, sessionStatus, isReturningUser, householdId]);
 
   useEffect(() => {
     if (sessionStatus === "CONNECTED") {
@@ -195,7 +225,7 @@ function App() {
       : { type: 'server_vad', threshold: 0.9, prefix_padding_ms: 300, silence_duration_ms: 500, create_response: true };
 
     sendEvent({ type: 'session.update', session: { turn_detection: turnDetection } });
-    if (shouldTriggerResponse) sendSimulatedUserMessage('hi');
+    // Initial message handled separately based on isReturningUser
     return;
   };
 
@@ -271,6 +301,27 @@ function App() {
     return () => { stopRecording(); };
   }, [sessionStatus]);
 
+  const [activeTab, setActiveTab] = useState('chat' as 'chat' | 'dashboard');
+
+  // Allow dashboard to request opening chat with prefilled text
+  useEffect(() => {
+    const handler = (e: any) => {
+      try {
+        const text = e?.detail?.text as string | undefined;
+        if (typeof text === 'string' && text.trim()) {
+          setActiveTab('chat');
+          setUserText(text);
+        } else {
+          setActiveTab('chat');
+        }
+      } catch {
+        setActiveTab('chat');
+      }
+    };
+    window.addEventListener('pp:open_chat', handler as any);
+    return () => window.removeEventListener('pp:open_chat', handler as any);
+  }, []);
+
   return (
     <div className="text-base flex flex-col h-screen bg-gray-100 text-gray-800">
       {/* Header */}
@@ -296,11 +347,11 @@ function App() {
       </div>
 
       {/* BODY: centered 2-col grid so the left pane sizes cleanly */}
-      <div className="flex-1 w-full">
-        <div className="max-w-7xl mx-auto px-2">
-          <div className="grid grid-cols-1 lg:grid-cols-[520px_1fr] gap-4">
+      <div className="flex-1 w-full min-h-0">
+        <div className="max-w-7xl mx-auto px-2 h-full min-h-0 pb-16 lg:pb-0">
+          <div className="hidden lg:grid grid-cols-1 lg:grid-cols-[520px_1fr] gap-4 h-full min-h-0">
             {/* Left column */}
-            <div className="min-w-0 flex flex-col gap-3">
+            <div className="min-w-0 flex flex-col gap-3 h-full min-h-0">
               <LeftPaneControls
                 sessionStatus={sessionStatus}
                 onToggleConnection={onToggleConnection}
@@ -329,6 +380,60 @@ function App() {
 
             {/* Right column: Dashboard (unchanged component) */}
             <Dashboard />
+          </div>
+
+          {/* Mobile: single view with tabs */}
+          <div className="block lg:hidden h-full min-h-0">
+            {activeTab === 'chat' ? (
+              <div className="min-w-0 flex flex-col gap-3 h-full min-h-0">
+                <LeftPaneControls
+                  sessionStatus={sessionStatus}
+                  onToggleConnection={onToggleConnection}
+                  isPTTActive={isPTTActive}
+                  setIsPTTActive={setIsPTTActive}
+                  isPTTUserSpeaking={isPTTUserSpeaking}
+                  handleTalkButtonDown={handleTalkButtonDown}
+                  handleTalkButtonUp={handleTalkButtonUp}
+                  isAudioPlaybackEnabled={isAudioPlaybackEnabled}
+                  setIsAudioPlaybackEnabled={setIsAudioPlaybackEnabled}
+                  codec={urlCodec}
+                  onCodecChange={(newCodec) => {
+                    const url = new URL(window.location.toString());
+                    url.searchParams.set("codec", newCodec);
+                    window.location.replace(url.toString());
+                  }}
+                />
+                <Transcript
+                  userText={userText}
+                  setUserText={setUserText}
+                  onSendMessage={handleSendTextMessage}
+                  downloadRecording={downloadRecording}
+                  canSend={sessionStatus === "CONNECTED"}
+                />
+              </div>
+            ) : (
+              <Dashboard />
+            )}
+          </div>
+        </div>
+
+        {/* Bottom mobile tab bar */}
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t shadow-sm z-40">
+          <div className="max-w-7xl mx-auto px-2">
+            <div className="flex justify-around py-2">
+              <button
+                className={`px-4 py-2 rounded-md text-sm ${activeTab === 'chat' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-800'}`}
+                onClick={() => setActiveTab('chat')}
+              >
+                Chat
+              </button>
+              <button
+                className={`px-4 py-2 rounded-md text-sm ${activeTab === 'dashboard' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-800'}`}
+                onClick={() => setActiveTab('dashboard')}
+              >
+                Dashboard
+              </button>
+            </div>
           </div>
         </div>
       </div>

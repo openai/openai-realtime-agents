@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "engine:test": "node scripts/engine-test.js"
   },
   "dependencies": {
     "@openai/agents": "^0.0.5",

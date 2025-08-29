@@ -2,6 +2,7 @@
 import React from "react";
 import { ensureHouseholdId } from "@/app/lib/householdLocal";
 import { getProsperLevelLabel } from "@/app/lib/prosperLevelLabels";
+import { normaliseCurrency } from "@/app/lib/validate";
 
 /** ===== Types expected from /api/prosper/dashboard ===== */
 export type SeriesPoint = { ts: string; value: number };
@@ -24,6 +25,8 @@ export type DashboardPayload = {
   levels?: any;
   recommendations?: any;
   series?: SeriesPoint[];
+  entitlements?: { plan: 'free'|'premium'; subscription_status?: string; current_period_end?: string };
+  usage?: { free_limit?: number; used?: number; remaining?: number };
 };
 
 /** ===== Helpers ===== */
@@ -88,6 +91,7 @@ export default function Dashboard() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [householdId, setHouseholdId] = React.useState<string | null>(null);
+  const [billingInterval, setBillingInterval] = React.useState<'monthly'|'annual'>('monthly');
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -117,18 +121,51 @@ export default function Dashboard() {
     };
   }, [load]);
 
+  // Auto-refresh when a snapshot is saved via chat
+  React.useEffect(() => {
+    const onSaved = () => load();
+    window.addEventListener('pp:snapshot_saved', onSaved as any);
+    return () => window.removeEventListener('pp:snapshot_saved', onSaved as any);
+  }, [load]);
+
   const series = data?.series ?? [];
   const latest = data?.latestSnapshot ?? null;
   const kpis = data?.kpis ?? latest?.kpis ?? {};
   const levels = data?.levels ?? latest?.levels ?? {};
   const recs = (data?.recommendations ?? latest?.recommendations) as any;
+  const entitlements = data?.entitlements ?? { plan: 'free' } as any;
+  const isV2 = (kpis as any)?.engine_version === 'v2' || (kpis as any)?.gates != null;
+  const gates = (kpis as any)?.gates as any | undefined;
 
   const last = series[series.length - 1]?.value;
   const prev = series.length > 1 ? series[series.length - 2]?.value : undefined;
   const delta = last != null && prev != null ? last - prev : undefined;
   const deltaPct = last != null && prev != null && prev !== 0 ? ((last - prev) / prev) * 100 : undefined;
 
-  const currency = "AUD";
+  const currency = React.useMemo(() => {
+    const cur = (latest as any)?.inputs?.currency as string | undefined;
+    if (cur) return cur;
+    const iso = (latest as any)?.inputs?.slots?.country?.value as string | undefined;
+    if (iso) return normaliseCurrency(iso).code;
+    return "AUD";
+  }, [latest]);
+  const name: string | null = React.useMemo(() => {
+    const inputs = (latest as any)?.inputs || {};
+    const slots = inputs?.slots || {};
+    const cand = [
+      slots?.full_name?.value,
+      slots?.names?.value,
+      inputs?.full_name,
+      inputs?.names,
+    ].filter(Boolean);
+    let n: any = cand[0] ?? null;
+    if (Array.isArray(n)) n = n.filter(Boolean).join(' & ');
+    if (typeof n === 'string') {
+      const s = n.trim();
+      return s.length > 0 ? s : null;
+    }
+    return null;
+  }, [latest]);
   const overallLevelCode = (levels?.overall?.level as string) || "L0";
   const overallLevelLabel = getProsperLevelLabel(overallLevelCode);
   const overallIdx = Number(overallLevelCode.match(/\d+/)?.[0] ?? 0);
@@ -136,11 +173,61 @@ export default function Dashboard() {
   return (
     <div className="w-full h-full">
       <header className="flex items-start justify-between mb-4 gap-3">
-        <div>
-          <div className="text-xs uppercase tracking-wide text-gray-500">Household</div>
-          <div className="font-mono text-xs break-all text-gray-700">{householdId ?? "—"}</div>
-        </div>
+        <div />
         <div className="flex items-center gap-2">
+          {/* Free uses left nudge */}
+          {data?.usage && entitlements?.plan !== 'premium' && (
+            <div className="text-xs text-gray-600 mr-2">
+              Free uses left: <b>{Math.max(0, Number((data?.usage as any)?.remaining ?? 0))}</b>
+            </div>
+          )}
+          {/* Billing interval toggle */}
+          <div className="hidden md:flex items-center text-xs border rounded-lg overflow-hidden">
+            <button
+              className={`px-2 py-1 ${billingInterval==='monthly' ? 'bg-gray-900 text-white' : 'bg-white'}`}
+              onClick={() => setBillingInterval('monthly')}
+              aria-pressed={billingInterval==='monthly'}
+            >
+              Monthly
+            </button>
+            <button
+              className={`px-2 py-1 ${billingInterval==='annual' ? 'bg-gray-900 text-white' : 'bg-white'}`}
+              onClick={() => setBillingInterval('annual')}
+              aria-pressed={billingInterval==='annual'}
+            >
+              Annual
+            </button>
+          </div>
+          {householdId && (
+            entitlements?.plan === 'premium' ? (
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/api/billing/create-portal-session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId }) });
+                    const j = await res.json();
+                    if (j?.url) window.location.href = j.url;
+                  } catch {}
+                }}
+                className="h-8 px-2.5 inline-flex items-center gap-2 rounded-lg border bg-white hover:bg-gray-50 text-xs shadow-sm"
+              >
+                Manage plan
+              </button>
+            ) : (
+              <button
+                onClick={async () => {
+                  try {
+                    const email = (latest as any)?.inputs?.slots?.email?.value || (latest as any)?.inputs?.email;
+                    const res = await fetch('/api/billing/create-checkout-session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, email, interval: billingInterval }) });
+                    const j = await res.json();
+                    if (j?.url) window.location.href = j.url;
+                  } catch {}
+                }}
+                className="h-8 px-2.5 inline-flex items-center gap-2 rounded-lg border bg-gray-900 text-white hover:bg-gray-800 text-xs shadow-sm"
+              >
+                Upgrade
+              </button>
+            )
+          )}
           <button
             onClick={load}
             className="h-8 px-2.5 inline-flex items-center gap-2 rounded-lg border bg-white hover:bg-gray-50 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-300"
@@ -171,39 +258,75 @@ export default function Dashboard() {
         </div>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-          {/* ===== Horizontal Progress Ladder (full width, above Net Worth) ===== */}
+          {/* ===== Hero: Status + Highlights ===== */}
           <div className="xl:col-span-5">
             <Card className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-sm text-gray-600 font-medium">Progress ladder</div>
-                <div className="text-xs text-gray-600">Current: {overallLevelCode} — {overallLevelLabel}</div>
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-gray-500">{name ? "Welcome" : "Household"}</div>
+                  <div className="text-sm font-medium text-gray-900">{name ? name : (householdId ?? "—")}</div>
+                </div>
+                <div className="text-xs text-gray-500"></div>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-10 gap-2">
-                {Array.from({ length: 10 }).map((_, i) => {
-                  const label = getProsperLevelLabel(i);
-                  const completed = i < overallIdx;
-                  const current = i === overallIdx;
-                  const stateClass = current
-                    ? "bg-emerald-100 border-emerald-300 text-emerald-900"
-                    : completed
-                    ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                    : "bg-white border-gray-200 text-gray-700";
-                  return (
-                    <div
-                      key={i}
-                      className={`rounded-md border p-2 text-center ${stateClass}`}
-                      aria-current={current ? "step" : undefined}
-                      title={`L${i} — ${label}`}
-                    >
-                      <div className="text-[11px] font-medium">L{i}</div>
-                      <div className="text-xs leading-4">{label}</div>
-                    </div>
-                  );
-                })}
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="border rounded-lg p-3 bg-white">
+                  <div className="text-xs text-gray-500">Level</div>
+                  <div className="text-2xl font-semibold leading-tight">{overallLevelCode}</div>
+                  <div className="text-xs text-gray-700">{overallLevelLabel}</div>
+                  <div className="text-[11px] text-gray-600 mt-1">{levels?.overall?.points_to_next ?? ""}</div>
+                  <div className="text-[11px] text-gray-600 mt-1">Gating: {levels?.gating_pillar ?? "—"} · ETA ~{levels?.eta_weeks ?? 8}w</div>
+                </div>
+                <UrgentKpis kpis={kpis as any} />
               </div>
             </Card>
           </div>
-          {/* Overview / header */}
+
+          {/* ===== Next Up (Actions) ===== */}
+          <div className="xl:col-span-5">
+            <Card className="p-4">
+              <div className="text-sm text-gray-600 mb-3 font-medium">Next up</div>
+              <NextActions recs={recs} />
+            </Card>
+          </div>
+          {/* ===== Gates & Data (v2 only) ===== */}
+          {isV2 && (
+            <div className="xl:col-span-5">
+              <Card className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-sm text-gray-600 font-medium">Gates & Data Readiness</div>
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
+                  <Gate status={normBool(gates?.life_cover_ok)} label="Life cover (if dependants)" />
+                  <Gate status={normBool(gates?.income_protection_ok)} label="Income continuity ≥ 6 mo" />
+                  <Gate status={normBool(gates?.home_insured_ok)} label="Home insurance adequacy" />
+                  <Gate status={normBool(gates?.current_ratio_ok)} label="Current ratio ≥ 1.0" />
+                </div>
+                {!!(gates?.notes?.length) && (
+                  <div>
+                    <div className="text-xs text-gray-600 mb-2">What to add next</div>
+                    <div className="flex flex-wrap gap-2">
+                      {(gates.notes as string[]).map((n: string, i: number) => (
+                        <button
+                          key={i}
+                          className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50"
+                          title="Open in chat"
+                          onClick={() => {
+                            const text = `Can you help me with: ${n}?`;
+                            try { window.dispatchEvent(new CustomEvent('pp:open_chat', { detail: { text } })); } catch {}
+                            try { navigator.clipboard.writeText(text); } catch {}
+                          }}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </Card>
+            </div>
+          )}
+
+          {/* ===== Net Worth ===== */}
           <div className="xl:col-span-5">
             <Card className="p-4">
               <div className="flex flex-wrap items-end justify-between gap-4">
@@ -259,119 +382,60 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Net worth sparkline */}
               <div className="mt-4 text-gray-800">
-                <Sparkline points={series} />
+                <RangeNetWorth series={series} entitlements={entitlements} onUpgrade={async () => {
+                  if (!householdId) return;
+                  try {
+                    const email = (latest as any)?.inputs?.slots?.email?.value || (latest as any)?.inputs?.email;
+                    const res = await fetch('/api/billing/create-checkout-session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, email, interval: billingInterval }) });
+                    const j = await res.json();
+                    if (j?.url) window.location.href = j.url;
+                  } catch {}
+                }} />
               </div>
             </Card>
           </div>
 
-          
-
-          {/* ===== KPIs (moved below, full width) ===== */}
+          {/* ===== KPI Grid (by pillar, sorted by urgency) ===== */}
           <div className="xl:col-span-5">
             <Card className="p-4">
-              <div className="text-sm text-gray-600 mb-3 font-medium">Key KPIs</div>
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                <KpiCard
-                  label="Savings rate (net)"
-                  value={kpiOrDash(kpis?.savings_rate_net, "pct")}
-                  hint="≥20% is a solid target"
-                  tone={numTone(kpis?.savings_rate_net, { good: 0.2, warn: 0.1 })}
-                />
-                <KpiCard
-                  label="Housing ratio"
-                  value={kpiOrDash(kpis?.housing_ratio, "pct")}
-                  hint="Aim ≤30% of net"
-                  tone={numTone(kpis?.housing_ratio, { goodBelow: 0.3, warnBelow: 0.4 })}
-                />
-                <KpiCard
-                  label="Debt-to-income (DTI)"
-                  value={kpiOrDash(kpis?.dti, "pct")}
-                  hint="Lower is better"
-                  tone={numTone(kpis?.dti, { goodBelow: 0.35, warnBelow: 0.45 })}
-                />
-                <KpiCard
-                  label="Emergency fund"
-                  value={kpiOrDash(kpis?.ef_months, "months")}
-                  hint="3–6 months recommended"
-                  tone={numTone(kpis?.ef_months, { good: 6, warn: 3 }, "higher")}
-                />
-                <KpiCard
-                  label="Retirement readiness"
-                  value={kpiOrDash(kpis?.retirement_rr, "pct")}
-                  hint="Trajectory vs. target"
-                  tone={numTone(kpis?.retirement_rr, { good: 0.7, warn: 0.5 })}
-                />
-                <KpiCard
-                  label="Investing / month"
-                  value={kpis?.investment_contrib_monthly != null ? fmtCurrency(Number(kpis.investment_contrib_monthly), currency) : "—"}
-                  hint=""
-                  tone="neutral"
-                />
-              </div>
+              <KpiGrid kpis={kpis} />
             </Card>
           </div>
 
-          {/* Pillars */}
+          {/* ===== Progress Ladder (mid‑page) ===== */}
           <div className="xl:col-span-5">
             <Card className="p-4">
-              <div className="text-sm text-gray-600 mb-3 font-medium">Pillars</div>
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
-                {(["spend", "save", "borrow", "protect", "grow"] as const).map((p) => {
-                  const item = levels?.pillars?.[p];
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm text-gray-600 font-medium">Progress ladder</div>
+                <div className="text-xs text-gray-600">Current: {overallLevelCode} — {overallLevelLabel}</div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-10 gap-2">
+                {Array.from({ length: 10 }).map((_, i) => {
+                  const label = getProsperLevelLabel(i);
+                  const completed = i < overallIdx;
+                  const current = i === overallIdx;
+                  const stateClass = current
+                    ? "bg-emerald-100 border-emerald-300 text-emerald-900"
+                    : completed
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                    : "bg-white border-gray-200 text-gray-700";
                   return (
-                    <div key={p} className="border rounded-lg p-3 flex items-center justify-between bg-white hover:bg-gray-50 transition-colors">
-                      <div>
-                        <div className="text-xs text-gray-500 capitalize">{p}</div>
-                        <div className="text-sm font-semibold">{item?.level ?? "L0"}</div>
-                      </div>
-                      <div
-                        className={`text-xs font-medium px-2 py-1 rounded ${
-                          (item?.score ?? 0) >= 60
-                            ? "bg-emerald-50 text-emerald-700"
-                            : (item?.score ?? 0) >= 40
-                            ? "bg-yellow-50 text-yellow-800"
-                            : "bg-red-50 text-red-700"
-                        }`}
-                      >
-                        {Math.round(item?.score ?? 0)}
-                      </div>
+                    <div
+                      key={i}
+                      className={`rounded-md border p-2 text-center ${stateClass}`}
+                      aria-current={current ? "step" : undefined}
+                      title={`L${i} — ${label}`}
+                    >
+                      <div className="text-[11px] font-medium">L{i}</div>
+                      <div className="text-xs leading-4">{label}</div>
                     </div>
                   );
                 })}
               </div>
             </Card>
           </div>
-
-          {/* ===== Action plan ===== */}
-          <div className="xl:col-span-5">
-            <Card className="p-4">
-              <div className="text-sm text-gray-600 mb-3 font-medium">Action plan</div>
-
-              {!recs || (Array.isArray(recs) && recs.length === 0) ? (
-                <div className="text-sm text-gray-500">No recommendations yet. Provide more info in chat to unlock your plan.</div>
-              ) : Array.isArray(recs) ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {recs.map((r: any, i: number) => (
-                    <RecommendationCard key={r?.id ?? i} rec={r} />
-                  ))}
-                </div>
-              ) : (
-                // If the tool returns an object keyed by buckets
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {Object.entries(recs).map(([bucket, arr]: any) => (
-                    <div key={bucket} className="border rounded-lg p-3 bg-white">
-                      <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">{bucket}</div>
-                      <div className="space-y-2">
-                        {(arr ?? []).map((r: any, i: number) => <RecommendationCard key={`${bucket}-${i}`} rec={r} />)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          </div>
+          {/* Remove legacy Pillars and Action plan sections per new layout */}
         </div>
       )}
     </div>
@@ -492,4 +556,297 @@ function RecommendationCard({ rec }: { rec: any }) {
 /** Small card wrapper for consistent styling */
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <div className={`bg-white border rounded-xl shadow-sm ${className}`}>{children}</div>;
+}
+
+function Gate({ status, label }: { status: boolean | undefined; label: string }) {
+  const tone = status === true ? 'pass' : status === false ? 'fail' : 'unknown';
+  const cls =
+    tone === 'pass'
+      ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+      : tone === 'fail'
+      ? 'bg-red-50 border-red-200 text-red-700'
+      : 'bg-gray-50 border-gray-200 text-gray-700';
+  const dot =
+    tone === 'pass' ? 'bg-emerald-500' : tone === 'fail' ? 'bg-red-500' : 'bg-gray-400';
+  const text = tone === 'pass' ? 'Pass' : tone === 'fail' ? 'Needs attention' : 'Unknown';
+  return (
+    <div className={`rounded-md border p-2 text-xs ${cls}`} title={`${label}: ${text}`}>
+      <div className="flex items-center gap-2">
+        <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden="true" />
+        <span className="font-medium">{label}</span>
+      </div>
+    </div>
+  );
+}
+
+function normBool(v: any): boolean | undefined {
+  if (v === true) return true;
+  if (v === false) return false;
+  return undefined;
+}
+
+function V2KpiBar({
+  label,
+  value,
+  target,
+  dir,
+  format = "pct",
+  subtitle,
+  tooltip,
+}: {
+  label: string;
+  value: number | null | undefined;
+  target: number;
+  dir: "higher" | "lower";
+  format?: "pct" | "months" | "ratio";
+  subtitle?: string;
+  tooltip?: string;
+}) {
+  const raw = Number.isFinite(value as number) ? (value as number) : null;
+  const meets = raw == null ? undefined : dir === "higher" ? raw >= target : raw <= target;
+  let progress = 0;
+  if (raw != null && target > 0) {
+    progress = dir === "higher" ? raw / target : target / Math.max(raw, 1e-9);
+    if (progress > 1) progress = 1;
+    if (progress < 0) progress = 0;
+  }
+  const tone = meets === true ? "good" : raw == null ? "unknown" : progress >= 0.7 ? "warn" : "bad";
+  const barColor = tone === "good" ? "bg-emerald-500" : tone === "warn" ? "bg-yellow-500" : tone === "unknown" ? "bg-gray-300" : "bg-red-500";
+  const fmt = (v: number | null) => {
+    if (v == null) return "—";
+    if (format === "pct") return fmtPct(v);
+    if (format === "months") return `${(Math.round(v * 10) / 10).toFixed(1)} mo`;
+    return String((Math.round(v * 100) / 100).toFixed(2));
+  };
+  const targetText = format === "pct" ? fmtPct(target) : format === "months" ? `${target} mo` : String(target);
+
+  return (
+    <div className="border rounded-lg p-3 bg-white" title={tooltip || undefined}>
+      <div className="text-xs text-gray-600">{label}</div>
+      <div className="flex items-baseline justify-between mt-0.5">
+        <div className="text-lg font-semibold">{fmt(raw)}</div>
+        <div className="text-[11px] text-gray-500">{subtitle ?? (dir === "higher" ? `Target ≥ ${targetText}` : `Target ≤ ${targetText}`)}</div>
+      </div>
+      <div className="mt-2 h-1.5 w-full rounded bg-gray-200">
+        <div className={`h-1.5 rounded ${barColor}`} style={{ width: `${Math.round(progress * 100)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+/** ===== Helpers: New mini components ===== */
+function UrgentKpis({ kpis }: { kpis: any }) {
+  // Build urgency list for v2 metrics; show compact progress bars
+  const specs = [
+    { key: 'ef_months', label: 'Emergency fund', value: kpis?.ef_months, target: 3, dir: 'higher' as const, format: 'months' as const },
+    { key: 'sr', label: 'Savings rate', value: kpis?.sr, target: 0.20, dir: 'higher' as const, format: 'pct' as const },
+    { key: 'dsr_total', label: 'Debt servicing', value: kpis?.dsr_total, target: 0.20, dir: 'lower' as const, format: 'pct' as const },
+    { key: 'hr', label: 'Housing ratio', value: kpis?.hr, target: 0.40, dir: 'lower' as const, format: 'pct' as const },
+  ];
+  const urgency = (v: number | null | undefined, t: number, dir: 'higher' | 'lower') => {
+    if (!Number.isFinite(v as number)) return -1;
+    const n = v as number;
+    return dir === 'higher' ? (n >= t ? 0 : (t - n) / Math.max(t, 1e-9)) : (n <= t ? 0 : (n - t) / Math.max(t, 1e-9));
+  };
+  const top = (specs as any[])
+    .map((s: any) => ({ ...s, u: urgency(s.value, s.target, s.dir) }))
+    .sort((a, b) => b.u - a.u)
+    .slice(0, 3);
+  const formatVal = (v: number | null | undefined, f: 'pct'|'months'|'ratio') => {
+    if (!Number.isFinite(v as number)) return '—';
+    const n = v as number;
+    if (f === 'pct') return fmtPct(n);
+    if (f === 'months') return `${(Math.round(n * 10) / 10).toFixed(1)} mo`;
+    return String(Math.round(n * 100) / 100);
+  };
+  const progressPct = (v: number | null | undefined, t: number, dir: 'higher'|'lower') => {
+    if (!Number.isFinite(v as number)) return 0;
+    const n = v as number;
+    let p = dir === 'higher' ? n / Math.max(t, 1e-9) : Math.min(1, Math.max(0, t / Math.max(n, 1e-9)));
+    if (p > 1) p = 1; if (p < 0) p = 0; return p * 100;
+  };
+  return (
+    <>
+      {top.map((s) => (
+        <div key={s.key} className="border rounded-lg p-3 bg-white">
+          <div className="flex items-baseline justify-between">
+            <div className="text-xs text-gray-600">{s.label}</div>
+            <div className="text-[11px] text-gray-500">Target {s.dir === 'higher' ? '≥' : '≤'} {s.format === 'pct' ? fmtPct(s.target) : s.format === 'months' ? `${s.target} mo` : String(s.target)}</div>
+          </div>
+          <div className="mt-0.5 text-lg font-semibold">{formatVal(s.value, s.format)}</div>
+          <div className="mt-2 h-1 w-full rounded bg-gray-200">
+            <div className="h-1 rounded bg-gray-700" style={{ width: `${Math.round(progressPct(s.value, s.target, s.dir))}%` }} />
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function NextActions({ recs }: { recs: any }) {
+  let arr: any[] = [];
+  if (Array.isArray(recs)) arr = recs;
+  else if (recs && typeof recs === 'object') arr = Object.values(recs).flat();
+  const top = (arr || []).slice(0, 2);
+  const copyText = async (text: string) => {
+    try { await navigator.clipboard.writeText(text); } catch {}
+  };
+  if (!top || top.length === 0) {
+    return <div className="text-sm text-gray-500">No recommendations yet. Provide more info in chat to unlock your plan.</div>;
+  }
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {top.map((r, i) => {
+        const title = r?.title || r?.action || r?.label || `Action ${i+1}`;
+        const why = r?.why || r?.rationale || r?.reason;
+        const how = r?.how || r?.steps || r?.next || r?.do;
+        const prompt = typeof how === 'string' ? how : Array.isArray(how) ? how.join('\n') : title;
+        const unlocks = r?.unlocks || r?.moves_to || r?.next_level || null;
+        return (
+          <div key={i} className="border rounded-lg p-3 bg-white">
+            <div className="font-medium">{title}</div>
+            {why && <div className="text-xs text-gray-600 mt-1">{why}</div>}
+            {how && (
+              <div className="text-xs text-gray-800 mt-2">
+                {Array.isArray(how) ? (
+                  <ul className="list-disc pl-4 space-y-1">{how.map((h: any, j: number) => <li key={j}>{String(h)}</li>)}</ul>
+                ) : String(how)}
+              </div>
+            )}
+            {unlocks && (
+              <div className="mt-2 text-[11px] text-gray-600">Unlocks: {String(unlocks)}</div>
+            )}
+            <div className="mt-2 flex items-center gap-2">
+              <button onClick={() => copyText(`Can you help me with: ${title}?\n${prompt}`)} className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50">Copy prompt</button>
+              <button
+                className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50"
+                onClick={() => {
+                  const text = `Can you help me with: ${title}?\n${prompt}`;
+                  try { window.dispatchEvent(new CustomEvent('pp:open_chat', { detail: { text } })); } catch {}
+                }}
+              >
+                Open in chat
+              </button>
+              <button className="text-xs px-2 py-1 rounded border bg-gray-100 text-gray-400 cursor-not-allowed" disabled>Mark done</button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SortedV2Kpis({ kpis }: { kpis: any }) {
+  const specs = [
+    { label: 'Savings rate', key: 'sr', value: kpis?.sr, target: 0.20, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 20%', tooltip: 'Shows cashflow surplus to fund goals.' },
+    { label: 'Emergency fund', key: 'ef_months', value: kpis?.ef_months, target: 3, dir: 'higher' as const, format: 'months' as const, subtitle: 'Target ≥ 3 mo (next 6 mo)', tooltip: 'Helps estimate your shock buffer.' },
+    { label: 'Housing ratio', key: 'hr', value: kpis?.hr, target: 0.40, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 40% (next 35%)', tooltip: 'Checks housing isn’t over‑stretching income.' },
+    { label: 'Debt servicing (DSR)', key: 'dsr_total', value: kpis?.dsr_total, target: 0.20, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 20%', tooltip: 'Measures total debt payment pressure.' },
+    { label: 'Non‑mortgage DSR', key: 'nmdsr', value: kpis?.nmdsr, target: 0.10, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 10%', tooltip: 'Highlights consumer‑debt pressure.' },
+    { label: 'DTI (stock)', key: 'dti_stock', value: kpis?.dti_stock, target: 0.35, dir: 'lower' as const, format: 'ratio' as const, subtitle: 'Target ≤ 0.35', tooltip: 'Debt load vs annual income.' },
+    { label: 'Debt / Asset', key: 'd_to_a', value: kpis?.d_to_a, target: 0.60, dir: 'lower' as const, format: 'ratio' as const, subtitle: 'Target ≤ 0.60', tooltip: 'Balance‑sheet solvency.' },
+    { label: 'Retirement readiness', key: 'rrr', value: kpis?.rrr, target: 0.60, dir: 'higher' as const, format: 'ratio' as const, subtitle: 'Target ≥ 0.60 (next 1.00)', tooltip: 'Are you on track for target income?' },
+    { label: 'Investable NW / NW', key: 'invnw', value: kpis?.invnw, target: 0.40, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 40%', tooltip: 'Share of wealth working toward goals.' },
+    { label: 'Pension contribution', key: 'pension_contrib_pct', value: kpis?.pension_contrib_pct, target: 0.10, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 10%', tooltip: 'Long‑horizon saving habit.' },
+  ];
+  const urgency = (v: number | null | undefined, t: number, dir: 'higher'|'lower') => {
+    if (!Number.isFinite(v as number)) return -1; // unknown -> push to end
+    const n = v as number;
+    if (dir === 'higher') return n >= t ? 0 : (t - n) / Math.max(t, 1e-9);
+    return n <= t ? 0 : (n - t) / Math.max(t, 1e-9);
+  };
+  const sorted = specs.sort((a, b) => (urgency(b.value, b.target, b.dir) - urgency(a.value, a.target, a.dir)));
+  return (
+    <>
+      {sorted.map(s => (
+        <V2KpiBar key={s.key} label={s.label} value={s.value} target={s.target} dir={s.dir} format={s.format} subtitle={s.subtitle} tooltip={s.tooltip} />
+      ))}
+    </>
+  );
+}
+
+function RangeNetWorth({ series, entitlements, onUpgrade }: { series: SeriesPoint[]; entitlements?: any; onUpgrade?: () => void }) {
+  const [range, setRange] = React.useState<'1m'|'3m'|'1y'|'all'>('3m');
+  const filtered = React.useMemo(() => {
+    if (!series?.length) return [] as SeriesPoint[];
+    if (range === 'all') return series;
+    const now = new Date(series[series.length-1].ts).getTime();
+    const delta = range === '1m' ? 30 : range === '3m' ? 90 : 365;
+    return series.filter(p => {
+      const t = new Date(p.ts).getTime();
+      return (now - t) <= delta*24*60*60*1000;
+    });
+  }, [series, range]);
+  const isPremium = entitlements?.plan === 'premium';
+  return (
+    <div>
+      <div className="flex items-center gap-2 text-xs text-gray-600 mb-2">
+        {(['1m','3m','1y','all'] as const).map(r => {
+          const gated = (r === '1y' || r === 'all') && !isPremium;
+          return (
+            <button
+              key={r}
+              onClick={() => gated ? (onUpgrade && onUpgrade()) : setRange(r)}
+              className={`px-2 py-1 rounded border ${range===r ? 'bg-gray-900 text-white border-gray-900' : 'bg-white hover:bg-gray-50'} ${gated ? 'opacity-60' : ''}`}
+              title={gated ? 'Upgrade to view full history' : undefined}
+            >
+              {r.toUpperCase()}
+            </button>
+          );
+        })}
+      </div>
+      <Sparkline points={filtered} />
+      {(!isPremium) && (
+        <div className="mt-2 text-[11px] text-gray-600">Viewing last 3 months. <button className="underline" onClick={() => onUpgrade && onUpgrade()}>Upgrade</button> to see 1y and all‑time.</div>
+      )}
+    </div>
+  );
+}
+
+/** KPI Grid with pillar filters */
+function KpiGrid({ kpis }: { kpis: any }) {
+  const [filter, setFilter] = React.useState<'all'|'spend'|'save'|'borrow'|'protect'|'grow'>('all');
+  const specs = [
+    { label: 'Savings rate', key: 'sr', value: kpis?.sr, target: 0.20, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 20%', tooltip: 'Shows cashflow surplus to fund goals.', pillar: 'save' },
+    { label: 'Emergency fund', key: 'ef_months', value: kpis?.ef_months, target: 3, dir: 'higher' as const, format: 'months' as const, subtitle: 'Target ≥ 3 mo (next 6 mo)', tooltip: 'Helps estimate your shock buffer.', pillar: 'save' },
+    { label: 'Housing ratio', key: 'hr', value: kpis?.hr, target: 0.40, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 40% (next 35%)', tooltip: 'Checks housing isn’t over‑stretching income.', pillar: 'spend' },
+    { label: 'Debt servicing (DSR)', key: 'dsr_total', value: kpis?.dsr_total, target: 0.20, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 20%', tooltip: 'Measures total debt payment pressure.', pillar: 'borrow' },
+    { label: 'Non‑mortgage DSR', key: 'nmdsr', value: kpis?.nmdsr, target: 0.10, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 10%', tooltip: 'Highlights consumer‑debt pressure.', pillar: 'borrow' },
+    { label: 'DTI (stock)', key: 'dti_stock', value: kpis?.dti_stock, target: 0.35, dir: 'lower' as const, format: 'ratio' as const, subtitle: 'Target ≤ 0.35', tooltip: 'Debt load vs annual income.', pillar: 'borrow' },
+    { label: 'Debt / Asset', key: 'd_to_a', value: kpis?.d_to_a, target: 0.60, dir: 'lower' as const, format: 'ratio' as const, subtitle: 'Target ≤ 0.60', tooltip: 'Balance‑sheet solvency.', pillar: 'borrow' },
+    { label: 'Retirement readiness', key: 'rrr', value: kpis?.rrr, target: 0.60, dir: 'higher' as const, format: 'ratio' as const, subtitle: 'Target ≥ 0.60 (next 1.00)', tooltip: 'Are you on track for target income?', pillar: 'grow' },
+    { label: 'Investable NW / NW', key: 'invnw', value: kpis?.invnw, target: 0.40, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 40%', tooltip: 'Share of wealth working toward goals.', pillar: 'grow' },
+    { label: 'Pension contribution', key: 'pension_contrib_pct', value: kpis?.pension_contrib_pct, target: 0.10, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 10%', tooltip: 'Long‑horizon saving habit.', pillar: 'grow' },
+  ];
+  const urgency = (v: number | null | undefined, t: number, dir: 'higher'|'lower') => {
+    if (!Number.isFinite(v as number)) return -1;
+    const n = v as number;
+    return dir === 'higher' ? (n >= t ? 0 : (t - n) / Math.max(t, 1e-9)) : (n <= t ? 0 : (n - t) / Math.max(t, 1e-9));
+  };
+  const sorted = specs.sort((a, b) => (urgency(b.value, b.target, b.dir) - urgency(a.value, a.target, a.dir)));
+  const filtered = filter === 'all' ? sorted : sorted.filter(s => s.pillar === filter);
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-sm text-gray-600 font-medium">KPI Grid</div>
+        <div className="text-xs text-gray-500">Sorted by urgency</div>
+      </div>
+      <div className="flex flex-wrap gap-2 mb-3 text-xs">
+        {(['all','spend','save','borrow','protect','grow'] as const).map(p => (
+          <button
+            key={p}
+            onClick={() => setFilter(p)}
+            className={`px-2 py-1 rounded border ${filter===p ? 'bg-gray-900 text-white border-gray-900' : 'bg-white hover:bg-gray-50'}`}
+          >
+            {p === 'all' ? 'All' : p.charAt(0).toUpperCase() + p.slice(1)}
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {filtered.map(s => (
+          <V2KpiBar key={s.key} label={s.label} value={s.value} target={s.target} dir={s.dir} format={s.format} subtitle={s.subtitle} tooltip={s.tooltip} />
+        ))}
+      </div>
+    </div>
+  );
 }
