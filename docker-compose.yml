@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000" # Map host port 8000 to container port 8000
+    volumes:
+      - ./backend:/app # Mount backend code for live reload
+    env_file:
+      - ./backend/.env.local # Load environment variables for the backend
+    # depends_on: # Uncomment if you add a database service like PostgreSQL or Supabase local stack
+      # - db # Example: if you had a 'db' service defined below
+    networks:
+      - agent_network
+
+  mock_a2a_server:
+    build:
+      context: ./mock_a2a_server
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001" # Map host port 8001 to container port 8001
+    volumes:
+      - ./mock_a2a_server:/app # Mount mock server code for live reload
+    # If mock_a2a_server needed its own .env file, you'd add it here:
+    # env_file:
+    #   - ./mock_a2a_server/.env.local 
+    networks:
+      - agent_network
+
+networks:
+  agent_network:
+    driver: bridge
+
+# --- Optional: Local Supabase Stack ---
+# For developers who prefer a fully local Supabase environment (more complex setup):
+# You would typically initialize a Supabase project locally using the Supabase CLI:
+#   supabase init
+#   supabase start
+# This creates its own docker-compose.yml within the `supabase/` directory.
+# To integrate with this docker-compose.yml, you could:
+# 1. Run `supabase start` separately. The `backend` service above would then need its
+#    `SUPABASE_DATABASE_URL` in `.env.local` to point to the local Supabase DB
+#    (e.g., postgresql://postgres:postgres@localhost:54322/postgres or similar, check Supabase CLI output).
+# 2. (Advanced) Try to merge the Supabase-generated docker-compose.yml with this one,
+#    ensuring network connectivity. This is generally not recommended due to potential conflicts.
+#
+# For most development targeting a cloud Supabase instance, the `backend` service's
+# `.env.local` will simply point to the cloud Supabase URL, and no local Supabase
+# service definition is needed in this file.
+```
