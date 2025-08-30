@@ -40,6 +40,7 @@ export default function HomePage() {
             <Link href="/" className="px-5 py-3 rounded-xl bg-gray-900 text-white text-base hover:bg-gray-800 shadow-sm">
               Start Chat Free
             </Link>
+            <span className="text-[11px] text-gray-600">By starting, you agree to our <a href="/terms" className="underline">Terms</a> and <a href="/privacy" className="underline">Privacy</a>.</span>
           </div>
         </div>
       </section>

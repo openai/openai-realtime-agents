@@ -326,6 +326,9 @@ function App() {
   }, [sessionStatus]);
 
   const [activeTab, setActiveTab] = useState('chat' as 'chat' | 'dashboard');
+  const [hasAccepted, setHasAccepted] = useState<boolean>(() => {
+    try { return localStorage.getItem('pp_terms_v1_accepted') === '1'; } catch { return false; }
+  });
 
   // Allow dashboard to request opening chat with prefilled text
   useEffect(() => {
@@ -401,7 +404,7 @@ function App() {
                 setUserText={setUserText}
                 onSendMessage={handleSendTextMessage}
                 downloadRecording={downloadRecording}
-                canSend={sessionStatus === "CONNECTED"}
+                canSend={sessionStatus === "CONNECTED" && hasAccepted}
               />
             </div>
 
@@ -435,7 +438,7 @@ function App() {
                   setUserText={setUserText}
                   onSendMessage={handleSendTextMessage}
                   downloadRecording={downloadRecording}
-                  canSend={sessionStatus === "CONNECTED"}
+                  canSend={sessionStatus === "CONNECTED" && hasAccepted}
                 />
               </div>
             ) : (
@@ -464,6 +467,28 @@ function App() {
           </div>
         </div>
       </div>
+      {/* Terms & Privacy consent bar */}
+      {!hasAccepted && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 border-t shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm">
+            <div className="text-gray-700">
+              By using Prosper you agree to our <a href="/terms" className="underline">Terms</a> and <a href="/privacy" className="underline">Privacy Policy</a>.
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50"
+                onClick={() => {
+                  try { localStorage.setItem('pp_terms_v1_accepted', '1'); } catch {}
+                  setHasAccepted(true);
+                  (async () => { try { const hh = await ensureHouseholdId(); await fetch('/api/legal/accept', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId: hh, terms_version: 'v1', privacy_version: 'v1' }) }); } catch {} })();
+                }}
+              >
+                I Agree
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

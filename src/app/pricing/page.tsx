@@ -94,6 +94,7 @@ export default function PricingPage() {
               {loading === 'monthly' ? 'Redirecting…' : 'Choose Monthly'}
             </button>
           </div>
+          <div className="text-[11px] text-gray-600 mt-1">By continuing, you agree to our <a href="/terms" className="underline">Terms</a> and <a href="/privacy" className="underline">Privacy</a>.</div>
 
           {/* Annual */}
           <div className="rounded-2xl border bg-white p-6 shadow-sm flex flex-col">
@@ -114,6 +115,7 @@ export default function PricingPage() {
               {loading === 'annual' ? 'Redirecting…' : 'Choose Annual'}
             </button>
           </div>
+          <div className="text-[11px] text-gray-600 mt-1">By continuing, you agree to our <a href="/terms" className="underline">Terms</a> and <a href="/privacy" className="underline">Privacy</a>.</div>
         </div>
       </section>
 
