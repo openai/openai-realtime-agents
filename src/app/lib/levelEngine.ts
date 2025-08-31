@@ -14,80 +14,54 @@ function achieved(thresh: number | null | undefined, cmp: (x: number) => boolean
 export function assignLevelsV2(k: KpisV2, g: GatesV2): LevelsV2 {
   const reasons: string[] = [];
 
-  // Base heuristic: start at 1, raise as thresholds are met
+  // Helper
+  const val = (x: number | null | undefined) => (Number.isFinite(x as number) ? (x as number) : null);
+  const sr = val(k.sr);
+  const ef = val(k.ef_months);
+  const hr = val(k.hr);
+  const dti = val(k.dti_stock);
+  const nmdsr = val(k.nmdsr);
+  const d_to_a = val(k.d_to_a);
+  const nwm = val(k.nwm);
+  const rrr = val(k.rrr);
+
+  // Start with L1 by default
   let lvl = 1;
 
-  // Levels 2–4 driven by SR, EF, HR basics
-  if (achieved(k.sr, (x) => x >= 0.01)) lvl = Math.max(lvl, 2);
-  if (achieved(k.sr, (x) => x >= 0.05)) lvl = Math.max(lvl, 3);
-  if (achieved(k.sr, (x) => x >= 0.10)) lvl = Math.max(lvl, 4);
+  // L1 Triage: SR ≤ 0 or EF < 0.5 or DTI ≥ 0.60
+  const triage = (sr != null && sr <= 0) || (ef != null && ef < 0.5) || (dti != null && dti >= 0.60);
+  if (triage) {
+    lvl = 1;
+  } else {
+    // L2 Surviving: EF ≥ 0.5 AND SR ≥ 0.01 AND DTI ≤ 0.60
+    if ((ef != null && ef >= 0.5) && (sr != null && sr >= 0.01) && (dti == null || dti <= 0.60)) lvl = 2;
 
-  // L5 buffer: EF≥3 mo, HR≤0.40, NMDSR≤10%, LANW≥15%, home insurance (if homeowner)
-  if (
-    achieved(k.ef_months, (x) => x >= 3) &&
-    achieved(k.hr, (x) => x <= 0.40) &&
-    achieved(k.nmdsr, (x) => x <= 0.10) &&
-    achieved(k.lanw, (x) => x >= 0.15) &&
-    (g.home_insured_ok == null || g.home_insured_ok === true)
-  ) {
-    lvl = Math.max(lvl, 5);
+    // L3 Steady: EF ≥ 1 AND SR ≥ 0.05 AND HR ≤ 0.50
+    if ((ef != null && ef >= 1) && (sr != null && sr >= 0.05) && (hr == null || hr <= 0.50)) lvl = 3;
+
+    // L4 Starter: EF ≥ 2 AND SR ≥ 0.10 (note: cannot detect “no new high-interest debt” reliably)
+    if ((ef != null && ef >= 2) && (sr != null && sr >= 0.10)) lvl = 4;
+
+    // L5 Buffer: EF ≥ 3 AND HR ≤ 0.40 AND SR ≥ 0.12 AND non‑mortgage DSR small (~cleared high‑interest)
+    if ((ef != null && ef >= 3) && (hr == null || hr <= 0.40) && (sr != null && sr >= 0.12) && (nmdsr == null || nmdsr <= 0.05)) lvl = 5;
+
+    // L6 Builder: EF ≥ 4 AND SR ≥ 0.15 AND nMDsr very low AND D/A ≤ 0.60
+    if ((ef != null && ef >= 4) && (sr != null && sr >= 0.15) && (nmdsr == null || nmdsr <= 0.03) && (d_to_a == null || d_to_a <= 0.60)) lvl = 6;
+
+    // L7 Resilient: (SR ≥ 0.20 AND EF ≥ 6 AND HR ≤ 0.35 AND DTI ≤ 0.35) OR NWM ≥ 1×
+    if (((sr != null && sr >= 0.20) && (ef != null && ef >= 6) && (hr == null || hr <= 0.35) && (dti == null || dti <= 0.35)) || (nwm != null && nwm >= 1)) lvl = 7;
+
+    // L8 Secure: EF ≥ 6 AND SR ≥ 0.25 AND DTI ≤ 0.30 AND NWM ≥ 5× AND RRR ≥ 0.60
+    if ((ef != null && ef >= 6) && (sr != null && sr >= 0.25) && (dti == null || dti <= 0.30) && (nwm != null && nwm >= 5) && (rrr != null && rrr >= 0.60)) lvl = 8;
+
+    // L9 Work‑Optional: NWM ≥ 25× AND RRR ≥ 1.0
+    if ((nwm != null && nwm >= 25) && (rrr != null && rrr >= 1.0)) lvl = 9;
+
+    // L10 Abundant: NWM ≥ 40× AND RRR ≥ 1.2
+    if ((nwm != null && nwm >= 40) && (rrr != null && rrr >= 1.2)) lvl = 10;
   }
 
-  // L6 builder: EF 4–6, DSR≤20%, D/A≤0.60, pension≥10%, IP pass
-  if (
-    achieved(k.ef_months, (x) => x >= 4) &&
-    achieved(k.dsr_total, (x) => x <= 0.20) &&
-    achieved(k.d_to_a, (x) => x <= 0.60) &&
-    achieved(k.pension_contrib_pct, (x) => x >= 0.10) &&
-    (g.income_protection_ok == null || g.income_protection_ok === true)
-  ) {
-    lvl = Math.max(lvl, 6);
-  }
-
-  // L7 resilient: SR≥20%, EF≥6, HR≤0.35, DTI≤0.35, LANW≥25%, INVNW≥40%, credit≥0.60, life cover≥5y
-  if (
-    achieved(k.sr, (x) => x >= 0.20) &&
-    achieved(k.ef_months, (x) => x >= 6) &&
-    achieved(k.hr, (x) => x <= 0.35) &&
-    achieved(k.dti_stock, (x) => x <= 0.35) &&
-    achieved(k.lanw, (x) => x >= 0.25) &&
-    achieved(k.invnw, (x) => x >= 0.40) &&
-    achieved(k.credit_norm, (x) => x >= 0.60) &&
-    (g.life_cover_ok == null || g.life_cover_ok === true)
-  ) {
-    lvl = Math.max(lvl, 7);
-  }
-
-  // L8 secure: RRR≥0.60, DSR≤10%, D/A≤0.40, INVNW≥50%, NWM≥5×, pension≥15%, RoNW≥+2%
-  if (
-    achieved(k.rrr, (x) => x >= 0.60) &&
-    achieved(k.dsr_total, (x) => x <= 0.10) &&
-    achieved(k.d_to_a, (x) => x <= 0.40) &&
-    achieved(k.invnw, (x) => x >= 0.50) &&
-    achieved(k.nwm, (x) => x >= 5) &&
-    achieved(k.pension_contrib_pct, (x) => x >= 0.15) &&
-    achieved(k.ronw, (x) => x >= 0.02)
-  ) {
-    lvl = Math.max(lvl, 8);
-  }
-
-  // L9 work-optional: RRR≥1.00 and NWM≥25×
-  if (
-    achieved(k.rrr, (x) => x >= 1.0) &&
-    achieved(k.nwm, (x) => x >= 25)
-  ) {
-    lvl = Math.max(lvl, 9);
-  }
-
-  // L10 abundant: RRR≥1.20 and NWM≥40×
-  if (
-    achieved(k.rrr, (x) => x >= 1.2) &&
-    achieved(k.nwm, (x) => x >= 40)
-  ) {
-    lvl = Math.max(lvl, 10);
-  }
-
-  // Enforce gates (caps) retroactively
+  // Enforce gates (caps) retroactively (unchanged)
   if ((g.life_cover_ok === false && lvl > 7)) {
     reasons.push('Life insurance coverage below 5 years for dependants');
     lvl = 7;
@@ -101,9 +75,8 @@ export function assignLevelsV2(k: KpisV2, g: GatesV2): LevelsV2 {
     lvl = 5;
   }
 
-  // Points to next (simple hint)
-  const next = Math.min(10, lvl + 1) as 1|2|3|4|5|6|7|8|9|10;
-  const points_to_next = `Focus next on the tightest metric to reach L${next}.`;
+  const next = Math.min(10, (lvl + 1)) as 1|2|3|4|5|6|7|8|9|10;
+  const points_to_next = undefined; // UI now provides human text
 
   return {
     overall: { level: (`L${lvl}` as any), points_to_next },
@@ -111,4 +84,3 @@ export function assignLevelsV2(k: KpisV2, g: GatesV2): LevelsV2 {
     gates: g,
   };
 }
-

@@ -44,6 +44,33 @@ function kpiOrDash(v: any, kind: "pct" | "num" | "months" = "num") {
   return String(v);
 }
 
+// One-word level names proposal (L1..L10 maps to indices 0..9)
+const LEVEL_SHORT_NAMES = [
+  'Triage',       // L1
+  'Surviving',    // L2
+  'Steady',       // L3
+  'Starter',      // L4
+  'Buffer',       // L5
+  'Builder',      // L6
+  'Resilient',    // L7
+  'Secure',       // L8
+  'Work-Optional',// L9
+  'Abundant',     // L10
+] as const;
+
+const LEVEL_DESCRIPTIONS = [
+  'Money is tight; stabilize bills and build a tiny safety buffer.',
+  'Current on bills with a tiny buffer—build consistency and avoid new debt.',
+  'A starter buffer and basic control over spending.',
+  'Building habits and a clear plan to knock out costly debt.',
+  'Everyday shocks are covered with a 3‑month buffer.',
+  'Savings are compounding and harmful debts are gone.',
+  'Costs are right‑sized and buffers are strong—hard to knock off course.',
+  'Secure for the medium term: low debt and retirement on track.',
+  'Investments can likely cover your lifestyle.',
+  'Beyond financial independence with room for flexibility and giving.',
+];
+
 /** Minimal sparkline (no deps) */
 function Sparkline({ points }: { points: SeriesPoint[] }) {
   const { d, areaD } = React.useMemo(() => {
@@ -94,6 +121,7 @@ export default function Dashboard() {
   const [householdId, setHouseholdId] = React.useState<string | null>(null);
   const [showUsesToast, setShowUsesToast] = React.useState(false);
   const [showPremiumBanner, setShowPremiumBanner] = React.useState(false);
+  const [showUserData, setShowUserData] = React.useState(false);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -177,9 +205,10 @@ export default function Dashboard() {
     }
     return null;
   }, [latest]);
-  const overallLevelCode = (levels?.overall?.level as string) || "L0";
+  const overallLevelCode = (levels?.overall?.level as string) || "L1";
   const overallLevelLabel = getProsperLevelLabel(overallLevelCode);
-  const overallIdx = Number(overallLevelCode.match(/\d+/)?.[0] ?? 0);
+  const levelNumber = Number(overallLevelCode.match(/\d+/)?.[0] ?? 1); // 1..10
+  const overallIdx = Math.max(1, Math.min(10, levelNumber));
 
   // Show uses-left toast once when remaining <= 3 on free plan
   React.useEffect(() => {
@@ -196,6 +225,35 @@ export default function Dashboard() {
       }
     }
   }, [data, entitlements]);
+
+  // Compute missing required inputs count for the indicator
+  const inputsAny = (latest as any)?.inputs || {};
+  const slotsAny = inputsAny?.slots || {};
+  const anyVal = (keys: string[]): any => {
+    for (const k of keys) {
+      const v = (slotsAny?.[k]?.value ?? inputsAny?.[k]);
+      if (v != null && v !== '') return v;
+    }
+    return null;
+  };
+  const missingRequired = [
+    // income: net OR gross
+    !(anyVal(['net_income_monthly_self']) != null || anyVal(['income_net_monthly']) != null || anyVal(['gross_income_annual_self']) != null || anyVal(['income_gross_monthly']) != null),
+    // essentials
+    !(anyVal(['essential_expenses_monthly']) != null || anyVal(['essentials_monthly']) != null),
+    // housing: rent OR mortgage OR housing_total
+    !(anyVal(['rent_monthly']) != null || anyVal(['mortgage_payment_monthly']) != null || anyVal(['housing_total_monthly']) != null),
+    // debt payments
+    !(anyVal(['other_debt_payments_monthly_total']) != null || anyVal(['debt_required_payments_monthly']) != null),
+    // quick cash / EF
+    !(anyVal(['cash_liquid_total']) != null || anyVal(['emergency_savings_liquid']) != null),
+  ].reduce((acc, isMissing) => acc + (isMissing ? 1 : 0), 0);
+  // Show hint only if overrides are present AND components are missing (i.e., override is actually in use)
+  const componentsAssetsPresent = (slotsAny?.home_value?.value != null) || (slotsAny?.investments_ex_home_total?.value != null) || (slotsAny?.cash_liquid_total?.value != null) || (slotsAny?.pension_balance_total?.value != null);
+  const componentsLiabsPresent = (slotsAny?.mortgage_balance?.value != null) || (slotsAny?.other_debt_balances_total?.value != null);
+  const assetsOverrideUsed = (slotsAny?.assets_total?.value != null) && !componentsAssetsPresent;
+  const debtsOverrideUsed = (slotsAny?.debts_total?.value != null) && !componentsLiabsPresent;
+  const hasNwOverrides = assetsOverrideUsed || debtsOverrideUsed;
 
   return (
     <>
@@ -214,6 +272,22 @@ export default function Dashboard() {
               Free uses left: <b>{Math.max(0, Number((data?.usage as any)?.remaining ?? 0))}</b>
             </div>
           )}
+          <button
+            onClick={() => setShowUserData(v => !v)}
+            className="h-8 px-2.5 inline-flex items-center gap-2 rounded-lg border bg-white hover:bg-gray-50 text-xs shadow-sm"
+            aria-pressed={showUserData}
+            title="Review the data used for your calculations"
+          >
+            {showUserData ? 'Hide data' : 'Review data'}
+            {missingRequired > 0 && !showUserData && (
+              <span className="inline-flex items-center justify-center h-4 min-w-[1rem] px-1 rounded-full bg-red-500 text-white">
+                {missingRequired}
+              </span>
+            )}
+            {missingRequired > 0 && !showUserData && (
+              <span className="text-red-600">• Missing items</span>
+            )}
+          </button>
           {householdId && entitlements?.plan === 'premium' && (
             <button
               onClick={async () => {
@@ -261,186 +335,120 @@ export default function Dashboard() {
           <div className="xl:col-span-5 bg-white border rounded-xl shadow-sm h-72" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-          {/* ===== Hero: Status + Highlights ===== */}
-          <div className="xl:col-span-5">
-            <Card className="p-4">
-              <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div>
-                  <div className="text-xs uppercase tracking-wide text-gray-500">{name ? "Welcome" : "Household"}</div>
-                  <div className="text-sm font-medium text-gray-900">{name ? name : (householdId ?? "—")}</div>
-                </div>
-                <div className="text-xs text-gray-500"></div>
-              </div>
-              <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="border rounded-lg p-3 bg-white">
-                  <div className="text-xs text-gray-500">Level</div>
-                  <div className="text-2xl font-semibold leading-tight">{overallLevelCode}</div>
-                  <div className="text-xs text-gray-700">{overallLevelLabel}</div>
-                  <div className="text-[11px] text-gray-600 mt-1">{levels?.overall?.points_to_next ?? ""}</div>
-                  <div className="text-[11px] text-gray-600 mt-1">Gating: {levels?.gating_pillar ?? "—"} · ETA ~{levels?.eta_weeks ?? 8}w</div>
-                </div>
-                <UrgentKpis kpis={kpis as any} />
-              </div>
-            </Card>
-          </div>
-
-          {/* ===== Next Up (Actions) ===== */}
-          <div className="xl:col-span-5">
-            <Card className="p-4">
-              <div className="text-sm text-gray-600 mb-3 font-medium">Next up</div>
-              <NextActions recs={recs} />
-            </Card>
-          </div>
-          {/* ===== Gates & Data (v2 only) ===== */}
-          {isV2 && (
+        showUserData ? (
+          <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
             <div className="xl:col-span-5">
               <Card className="p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <div className="text-sm text-gray-600 font-medium">Gates & Data Readiness</div>
+                  <div className="text-sm text-gray-600 font-medium">Your data (for calculations)</div>
+                  <div className="text-xs text-gray-500">Spot anything off? Edit via chat</div>
                 </div>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
-                  <Gate status={normBool(gates?.life_cover_ok)} label="Life cover (if dependants)" />
-                  <Gate status={normBool(gates?.income_protection_ok)} label="Income continuity ≥ 6 mo" />
-                  <Gate status={normBool(gates?.home_insured_ok)} label="Home insurance adequacy" />
-                  <Gate status={normBool(gates?.current_ratio_ok)} label="Current ratio ≥ 1.0" />
-                </div>
-                {!!(gates?.notes?.length) && (
-                  <div>
-                    <div className="text-xs text-gray-600 mb-2">What to add next</div>
-                    <div className="flex flex-wrap gap-2">
-                      {(gates.notes as string[]).map((n: string, i: number) => (
-                        <button
-                          key={i}
-                          className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50"
-                          title="Open in chat"
-                          onClick={() => {
-                            const text = `Can you help me with: ${n}?`;
-                            try { window.dispatchEvent(new CustomEvent('pp:open_chat', { detail: { text } })); } catch {}
-                            try { navigator.clipboard.writeText(text); } catch {}
-                          }}
-                        >
-                          {n}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <UserDataCard latest={latest} currency={currency} />
               </Card>
             </div>
-          )}
-
-          {/* ===== Net Worth ===== */}
+          </div>
+        ) : (
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-3">
+          {/* ===== Top row: Net Worth ===== */}
           <div className="xl:col-span-5">
-            <Card className="p-4">
-              <div className="flex flex-wrap items-end justify-between gap-4">
+            <Card className="p-3">
+              <div className="flex items-start justify-between">
                 <div>
-                  <div className="text-gray-500 text-sm">Net worth</div>
-                  <div className="text-3xl font-semibold leading-tight tracking-tight">
-                    {last != null ? fmtCurrency(last, currency) : "—"}
-                  </div>
-                  {delta != null && deltaPct != null && (
-                    <div className={`mt-1 text-xs ${delta >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                      {delta >= 0 ? "▲" : "▼"} {fmtCurrency(Math.abs(delta), currency)} ({deltaPct.toFixed(1)}%)
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-stretch gap-6">
-                  {/* Level summary */}
-                  <div className="text-sm">
-                    <div className="text-gray-500">Level</div>
+                  <div className="text-xs text-gray-600">Net worth</div>
                   <div className="text-2xl font-semibold leading-tight">
-                    {overallLevelCode}
+                    {Number.isFinite(last as number) ? fmtCurrency(last as number, currency) : '—'}
                   </div>
-                  <div className="text-xs text-gray-700">{overallLevelLabel}</div>
-                  <div className="text-xs text-gray-500">
-                    {levels?.overall?.points_to_next ?? ""}
+                  <div className="text-[11px] text-gray-600 mt-1">
+                    {series?.length ? `Updated ${new Date(series[series.length-1].ts).toLocaleString()}` : ''}
+                    {delta != null && (
+                      <>
+                        {' '}
+                        • {delta >= 0 ? '+' : ''}{fmtCurrency(Math.abs(delta as number), currency)}
+                        {deltaPct != null ? ` (${deltaPct >= 0 ? '+' : ''}${(Math.round(Math.abs(deltaPct) * 10) / 10).toFixed(1)}%)` : ''}
+                      </>
+                    )}
                   </div>
-                  </div>
-
-                  {/* Gating pillar */}
-                    <div className="text-sm min-w-[180px]">
-                      <div className="text-gray-500">Gating pillar</div>
-                      <div className="inline-flex items-center gap-2">
-                        <span className="font-medium">{levels?.gating_pillar ?? "—"}</span>
-                        {levels?.overall?.provisional && (
-                          <span className="text-[10px] uppercase bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
-                            Provisional
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-gray-500">ETA ~{levels?.eta_weeks ?? 8} weeks</div>
-                    </div>
-
-                  {/* Missing info callout */}
-                  {!!latest?.provisional_keys?.length && (
-                    <div className="text-sm">
-                      <div className="text-gray-500">Missing info</div>
-                      <div className="text-xs bg-yellow-50 border border-yellow-200 text-yellow-900 rounded px-2 py-1 max-w-[280px]">
-                        I still need:{" "}
-                        {latest.provisional_keys.join(", ").replaceAll("_", " ")}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
-
-              <div className="mt-4 text-gray-800">
-                <RangeNetWorth series={series} entitlements={entitlements} onUpgrade={async () => {
-                  if (!householdId) return;
-                  try {
-                    const email = (latest as any)?.inputs?.slots?.email?.value || (latest as any)?.inputs?.email;
-                    const res = await fetch('/api/billing/create-checkout-session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, email }) });
-                    const j = await res.json();
-                    if (j?.url) window.location.href = j.url;
-                  } catch {}
-                }} />
+              <div className="mt-3">
+                <RangeNetWorth series={series} />
               </div>
             </Card>
           </div>
 
+          {/* ===== Level (full width below net worth) ===== */}
+          <div className="xl:col-span-5">
+            <Card className="p-3">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-xs text-gray-600">Level</div>
+                  <div className="text-sm font-semibold leading-tight">Level {overallIdx} — {overallLevelLabel}</div>
+                  <div className="text-xs text-gray-600 mt-1">{LEVEL_DESCRIPTIONS[overallIdx - 1]}</div>
+                </div>
+              </div>
+              {/* Journey bar across full width with 10 steps labeled 1-10 */}
+              <div className="mt-2">
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: 10 }).map((_, i) => {
+                    const curIndex = overallIdx - 1;
+                    const completed = i < curIndex;
+                    const current = i === curIndex;
+                    const next = i === Math.min(9, curIndex + 1);
+                    const cls = current
+                      ? 'bg-emerald-500'
+                      : completed
+                      ? 'bg-emerald-200'
+                      : next
+                      ? 'bg-yellow-400'
+                      : 'bg-gray-200';
+                    return <div key={i} className={`h-2 flex-1 rounded ${cls}`} title={`Level ${i+1} — ${getProsperLevelLabel(i+1)}`} />;
+                  })}
+                </div>
+                <div className="grid grid-cols-10 gap-1 mt-1 text-[9px] leading-3 text-gray-600 text-center">
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <div key={i} className="truncate" title={`Level ${i+1} — ${getProsperLevelLabel(i+1)}`}>{LEVEL_SHORT_NAMES[i]}</div>
+                  ))}
+                </div>
+                <div className="mt-1 text-[11px] text-gray-700">
+                  Next: Level {Math.min(10, overallIdx + 1)} — {LEVEL_SHORT_NAMES[Math.min(9, overallIdx)]}. {LEVEL_DESCRIPTIONS[Math.min(9, overallIdx)]}
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* ===== Progress insights ===== */}
+          <div className="xl:col-span-5">
+            <Card className="p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm text-gray-600 font-medium">Progress insights</div>
+              </div>
+              <ProgressInsights kpis={kpis} />
+            </Card>
+          </div>
+
+          {/* ===== Action Plan (single card: uncompleted first, completed at bottom) ===== */}
+          <div className="xl:col-span-5">
+            <Card className="p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm text-gray-600 font-medium">Action plan</div>
+              </div>
+              <ActionPlan recs={recs} />
+            </Card>
+          </div>
+
+          {/* (Data review is shown exclusively when toggled) */}
+
           {/* ===== KPI Grid (by pillar, sorted by urgency) ===== */}
           <div className="xl:col-span-5">
-            <Card className="p-4">
+            <Card className="p-3">
               <KpiGrid kpis={kpis} />
             </Card>
           </div>
 
-          {/* ===== Progress Ladder (mid‑page) ===== */}
-          <div className="xl:col-span-5">
-            <Card className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-sm text-gray-600 font-medium">Progress ladder</div>
-                <div className="text-xs text-gray-600">Current: {overallLevelCode} — {overallLevelLabel}</div>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-10 gap-2">
-                {Array.from({ length: 10 }).map((_, i) => {
-                  const label = getProsperLevelLabel(i);
-                  const completed = i < overallIdx;
-                  const current = i === overallIdx;
-                  const stateClass = current
-                    ? "bg-emerald-100 border-emerald-300 text-emerald-900"
-                    : completed
-                    ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                    : "bg-white border-gray-200 text-gray-700";
-                  return (
-                    <div
-                      key={i}
-                      className={`rounded-md border p-2 text-center ${stateClass}`}
-                      aria-current={current ? "step" : undefined}
-                      title={`L${i} — ${label}`}
-                    >
-                      <div className="text-[11px] font-medium">L{i}</div>
-                      <div className="text-xs leading-4">{label}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-          </div>
+          {/* Progress ladder removed per updated design */}
           {/* Remove legacy Pillars and Action plan sections per new layout */}
         </div>
+        )
       )}
     </div>
     {showUsesToast && (
@@ -642,6 +650,17 @@ function V2KpiBar({
       <div className="mt-2 h-1.5 w-full rounded bg-gray-200">
         <div className={`h-1.5 rounded ${barColor}`} style={{ width: `${Math.round(progress * 100)}%` }} />
       </div>
+      <div className="mt-2 text-[11px]">
+        <button
+          className="underline text-gray-600 hover:text-gray-800"
+          onClick={() => {
+            const explain = `Explain my ${label.toLowerCase()}: current is ${fmt(raw)} vs target ${targetText}. Why this matters and 2 ways to improve, please.`;
+            try { window.dispatchEvent(new CustomEvent('pp:open_chat', { detail: { text: explain } })); } catch {}
+          }}
+        >
+          Explain this
+        </button>
+      </div>
     </div>
   );
 }
@@ -700,15 +719,19 @@ function NextActions({ recs }: { recs: any }) {
   if (Array.isArray(recs)) arr = recs;
   else if (recs && typeof recs === 'object') arr = Object.values(recs).flat();
   const top = (arr || []).slice(0, 2);
+  const [completed, setCompleted] = React.useState<string[]>([]);
+  const [householdId, setHouseholdId] = React.useState<string>('');
+  React.useEffect(() => { (async () => { try { const hh = await ensureHouseholdId(); setHouseholdId(hh); const r = await fetch(`/api/actions/list?householdId=${hh}`, { cache: 'no-store' }); const j = await r.json(); const titles = (j?.items||[]).map((it:any)=> (it.title||'').toString().toLowerCase()); setCompleted(titles); } catch {} })(); }, []);
+  const filtered = (top || []).filter((r: any) => { const t = (r?.title || r?.action || r?.label || '').toString().toLowerCase(); return t && !completed.includes(t); });
   const copyText = async (text: string) => {
     try { await navigator.clipboard.writeText(text); } catch {}
   };
-  if (!top || top.length === 0) {
+  if (!filtered || filtered.length === 0) {
     return <div className="text-sm text-gray-500">No recommendations yet. Provide more info in chat to unlock your plan.</div>;
   }
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-      {top.map((r, i) => {
+      {filtered.map((r, i) => {
         const title = r?.title || r?.action || r?.label || `Action ${i+1}`;
         const why = r?.why || r?.rationale || r?.reason;
         const how = r?.how || r?.steps || r?.next || r?.do;
@@ -739,11 +762,522 @@ function NextActions({ recs }: { recs: any }) {
               >
                 Open in chat
               </button>
-              <button className="text-xs px-2 py-1 rounded border bg-gray-100 text-gray-400 cursor-not-allowed" disabled>Mark done</button>
+              <button
+                className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50"
+                onClick={async () => {
+                  try {
+                    await fetch('/api/actions/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, title }) });
+                    setCompleted((prev) => [...prev, title.toString().toLowerCase()]);
+                  } catch {}
+                }}
+              >
+                Mark done
+              </button>
             </div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function CompletedActions() {
+  const [items, setItems] = React.useState<{ id: string; title?: string; completed_at?: string }[]>([]);
+  const [householdId, setHouseholdId] = React.useState<string>('');
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const hh = await ensureHouseholdId();
+        setHouseholdId(hh);
+        const r = await fetch(`/api/actions/list?householdId=${hh}`, { cache: 'no-store' });
+        const j = await r.json();
+        const arr = (j?.items || []).slice(0, 5).map((it: any) => ({ id: it.id, title: it.title, completed_at: it.completed_at }));
+        setItems(arr);
+      } catch {}
+    })();
+  }, []);
+  if (!items || items.length === 0) {
+    return <div className="text-sm text-gray-500">Nothing marked complete yet. Tackle one action to get momentum.</div>;
+  }
+  return (
+    <div className="space-y-2">
+      {items.map((it) => (
+        <div key={it.id} className="flex items-center justify-between border rounded-md p-2 bg-white">
+          <div>
+            <div className="text-sm font-medium text-gray-800">{it.title || 'Action'}</div>
+            <div className="text-[11px] text-gray-500">{it.completed_at ? new Date(it.completed_at).toLocaleString() : ''}</div>
+          </div>
+          <button
+            className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50"
+            onClick={() => {
+              const text = `I completed: ${it.title}. What should I do next?`;
+              try { window.dispatchEvent(new CustomEvent('pp:open_chat', { detail: { text } })); } catch {}
+            }}
+          >
+            Ask what’s next
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ActionPlan({ recs }: { recs: any }) {
+  const [householdId, setHouseholdId] = React.useState<string>("");
+  const [completedItems, setCompletedItems] = React.useState<{ id: string; title?: string; completed_at?: string }[]>([]);
+  const [completedTitles, setCompletedTitles] = React.useState<string[]>([]);
+  const [dismissedTitles, setDismissedTitles] = React.useState<string[]>([]);
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const hh = await ensureHouseholdId();
+        setHouseholdId(hh);
+        const r = await fetch(`/api/actions/list?householdId=${hh}`, { cache: 'no-store' });
+        const j = await r.json();
+        const arr = (j?.items || []) as { id: string; title?: string; completed_at?: string; status?: string }[];
+        setCompletedItems(arr);
+        setCompletedTitles(arr.filter(it => (it as any)?.status === 'done' || it.completed_at).map((it) => (it.title || '').toString().toLowerCase()).filter(Boolean));
+        setDismissedTitles(arr.filter(it => (it as any)?.status === 'dismissed').map(it => (it.title || '').toString().toLowerCase()).filter(Boolean));
+      } catch {}
+    })();
+  }, []);
+
+  // Build recommendations array similar to NextActions
+  let arr: any[] = [];
+  if (Array.isArray(recs)) arr = recs;
+  else if (recs && typeof recs === 'object') arr = Object.values(recs).flat();
+  const recItems = (arr || []).map((r, i) => ({
+    key: `${(r?.title || r?.action || r?.label || `Action ${i+1}`).toString()}`,
+    title: r?.title || r?.action || r?.label || `Action ${i+1}`,
+    why: r?.why || r?.rationale || r?.reason,
+    how: r?.how || r?.steps || r?.next || r?.do,
+    unlocks: r?.unlocks || r?.moves_to || r?.next_level || null,
+  }));
+  const uniqueTitles = new Set<string>();
+  const deduped = recItems.filter((it) => {
+    const t = it.title.toString().toLowerCase();
+    if (uniqueTitles.has(t)) return false;
+    uniqueTitles.add(t);
+    return true;
+  });
+  const uncompleted = deduped.filter((it) => {
+    const t = it.title.toString().toLowerCase();
+    return !completedTitles.includes(t) && !dismissedTitles.includes(t);
+  });
+  const completedFromRecs = deduped.filter((it) => {
+    const t = it.title.toString().toLowerCase();
+    return completedTitles.includes(t) && !dismissedTitles.includes(t);
+  });
+  const completedExtra = completedItems.filter((it) => {
+    const t = (it.title || '').toString().toLowerCase();
+    return t && !deduped.some((ri) => ri.title.toString().toLowerCase() === t) && !dismissedTitles.includes(t);
+  });
+
+  const markDone = async (title: string) => {
+    try {
+      await fetch('/api/actions/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, title }) });
+      // Optimistically update
+      setCompletedTitles((prev) => Array.from(new Set([...prev, title.toLowerCase()])));
+      setCompletedItems((prev) => [{ id: Math.random().toString(36).slice(2), title, completed_at: new Date().toISOString() }, ...prev]);
+    } catch {}
+  };
+
+  const dismiss = async (title: string) => {
+    try {
+      await fetch('/api/actions/dismiss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, title }) });
+      setDismissedTitles((prev) => Array.from(new Set([...prev, title.toLowerCase()])));
+    } catch {}
+  };
+
+  const Item = ({
+    title, why, how, unlocks, completed,
+  }: { title: string; why?: any; how?: any; unlocks?: any; completed?: boolean }) => (
+    <div className="border rounded-md p-2 bg-white">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-gray-800 truncate">
+            {title}
+            {completed && <span className="ml-2 text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">Completed</span>}
+          </div>
+          {why && <div className="text-[11px] text-gray-600 mt-0.5">{String(why)}</div>}
+          {how && (
+            <div className="text-[11px] text-gray-800 mt-1">
+              {Array.isArray(how) ? (
+                <ul className="list-disc pl-4 space-y-0.5">{how.map((h: any, j: number) => <li key={j}>{String(h)}</li>)}</ul>
+              ) : String(how)}
+            </div>
+          )}
+          {unlocks && (
+            <div className="mt-1 text-[11px] text-gray-600">Unlocks: {String(unlocks)}</div>
+          )}
+        </div>
+        <div className="shrink-0 flex flex-col gap-1">
+          {!completed ? (
+            <>
+              <button
+                className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50"
+                onClick={() => {
+                  const prompt = typeof how === 'string' ? how : Array.isArray(how) ? how.join('\n') : title;
+                  const text = `Can you help me with: ${title}?\n${prompt}`;
+                  try { window.dispatchEvent(new CustomEvent('pp:open_chat', { detail: { text } })); } catch {}
+                }}
+              >
+                Open in chat
+              </button>
+              <button
+                className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50"
+                onClick={() => markDone(title)}
+              >
+                Mark done
+              </button>
+              <button
+                className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50"
+                onClick={() => dismiss(title)}
+                title="Remove from plan"
+              >
+                Remove
+              </button>
+            </>
+          ) : (
+            <button
+              className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50"
+              onClick={() => {
+                const text = `I completed: ${title}. What should I do next?`;
+                try { window.dispatchEvent(new CustomEvent('pp:open_chat', { detail: { text } })); } catch {}
+              }}
+            >
+              Ask what’s next
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  if ((!uncompleted || uncompleted.length === 0) && (!completedFromRecs || completedFromRecs.length === 0) && (!completedExtra || completedExtra.length === 0)) {
+    return <div className="text-sm text-gray-500">No actions yet. Provide more info in chat to unlock your plan.</div>;
+  }
+
+  const removeAllCompleted = async () => {
+    const titles = [
+      ...completedFromRecs.map(r => r.title.toString()),
+      ...completedExtra.map(it => (it.title || '').toString()).filter(Boolean),
+    ];
+    for (const t of titles) {
+      await dismiss(t);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      {(completedFromRecs.length + completedExtra.length) > 0 && (
+        <div className="flex items-center justify-end">
+          <button className="text-xs underline text-gray-600 hover:text-gray-800" onClick={removeAllCompleted}>Remove all completed</button>
+        </div>
+      )}
+      {uncompleted.map((r) => (
+        <Item key={`u-${r.title}`} title={r.title} why={r.why} how={r.how} unlocks={r.unlocks} />
+      ))}
+      {completedFromRecs.map((r) => (
+        <Item key={`c-${r.title}`} title={r.title} why={r.why} how={r.how} unlocks={r.unlocks} completed />
+      ))}
+      {completedExtra.length > 0 && (
+        <div className="pt-1">
+          {completedExtra.map((it) => (
+            <div key={it.id} className="border rounded-md p-2 bg-white flex items-center justify-between">
+              <div>
+                <div className="text-sm font-medium text-gray-800">{it.title || 'Action'}</div>
+                <div className="text-[11px] text-gray-500">{it.completed_at ? new Date(it.completed_at).toLocaleString() : ''}</div>
+              </div>
+              <button
+                className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50"
+                onClick={() => {
+                  const text = `I completed: ${it.title}. What should I do next?`;
+                  try { window.dispatchEvent(new CustomEvent('pp:open_chat', { detail: { text } })); } catch {}
+                }}
+              >
+                Ask what’s next
+              </button>
+              <button
+                className="ml-2 text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50"
+                onClick={() => dismiss(it.title || '')}
+                title="Remove from plan"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MomentumStreak() {
+  const [count, setCount] = React.useState<number>(0);
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const hh = await ensureHouseholdId();
+        const r = await fetch(`/api/actions/list?householdId=${hh}`, { cache: 'no-store' });
+        const j = await r.json();
+        const now = Date.now();
+        const monthAgo = now - 30*24*60*60*1000;
+        const c = (j?.items || []).filter((it: any) => it?.completed_at && new Date(it.completed_at).getTime() >= monthAgo).length;
+        setCount(c);
+      } catch {}
+    })();
+  }, []);
+  return (
+    <div className="text-xs text-gray-600">Momentum: <span className="font-semibold">{count}</span> completed this month</div>
+  );
+}
+
+function ProgressInsights({ kpis }: { kpis: any }) {
+  const items: { text: string; priority: number }[] = [];
+  const add = (text: string, priority = 0) => items.push({ text, priority });
+  const safeFmt = (v: any, kind: 'pct'|'months'|'num'|'ratio' = 'num') => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return '—';
+    if (kind === 'pct') return fmtPct(n);
+    if (kind === 'months') return `${(Math.round(n * 10) / 10).toFixed(1)} months`;
+    if (kind === 'ratio') return String(Math.round(n * 100) / 100);
+    return String(Math.round(n));
+  };
+
+  const sr = Number(kpis?.sr);
+  if (Number.isFinite(sr)) {
+    if (sr >= 0.2) add(`Great saving habit: you’re saving ${safeFmt(sr, 'pct')} of income (target ≥ 20%).`, 1);
+    else add(`You’re saving ${safeFmt(sr, 'pct')} of income. Aim for ≥ 20% by automating a payday transfer or trimming one recurring expense.`, 3);
+  }
+
+  const ef = Number(kpis?.ef_months);
+  if (Number.isFinite(ef)) {
+    if (ef >= 3) add(`Emergency buffer looks solid: about ${safeFmt(ef, 'months')}.`, 1);
+    else add(`Emergency buffer is about ${safeFmt(ef, 'months')}. Build toward 3 months by parking cash in a high‑interest account.`, 3);
+  }
+
+  const hr = Number(kpis?.hr);
+  if (Number.isFinite(hr)) {
+    if (hr <= 0.4) add(`Housing costs look reasonable at ${safeFmt(hr, 'pct')} of income.`, 1);
+    else add(`Housing takes about ${safeFmt(hr, 'pct')} of income. Try lowering utilities/insurance or refinancing to reduce this toward 40%.`, 2);
+  }
+
+  const dsr = Number(kpis?.dsr_total);
+  if (Number.isFinite(dsr)) {
+    if (dsr <= 0.2) add(`Debt payments are manageable at ${safeFmt(dsr, 'pct')} of income.`, 1);
+    else add(`Debt payments are about ${safeFmt(dsr, 'pct')} of income. Consider a payoff plan or consolidation to get under 20%.`, 3);
+  }
+
+  const dti = Number(kpis?.dti_stock);
+  if (Number.isFinite(dti)) {
+    if (dti <= 0.35) add(`Overall debt level (vs income) is healthy.`, 1);
+    else add(`Debt vs income is a bit high. Avoid new debt and focus extra cash on balances.`, 2);
+  }
+
+  const rrr = Number(kpis?.rrr);
+  if (Number.isFinite(rrr)) {
+    if (rrr >= 0.6) add(`Retirement track is on course — keep contributions steady.`, 1);
+    else add(`Retirement track needs a boost. Increase contributions slightly or capture employer match.`, 2);
+  }
+
+  const invnw = Number(kpis?.invnw);
+  if (Number.isFinite(invnw)) {
+    if (invnw >= 0.4) add(`Good share of wealth is invested toward goals.`, 1);
+    else add(`Consider moving idle cash (beyond emergency fund) into long‑term investments to grow faster.`, 2);
+  }
+
+  const pensionPct = Number(kpis?.pension_contrib_pct);
+  if (Number.isFinite(pensionPct)) {
+    if (pensionPct >= 0.1) add(`Retirement contributions are healthy at ${safeFmt(pensionPct, 'pct')}.`, 1);
+    else add(`Retirement contributions are ${safeFmt(pensionPct, 'pct')}. Try nudging toward 10% over time.`, 2);
+  }
+
+  const d_to_a = Number(kpis?.d_to_a);
+  if (Number.isFinite(d_to_a)) {
+    if (d_to_a <= 0.6) add(`Balance sheet looks stable: debt vs assets is in a safe range.`, 1);
+    else add(`Debt vs assets is a bit high. Reducing balances or increasing savings will improve resilience.`, 2);
+  }
+
+  const top = items
+    .sort((a, b) => b.priority - a.priority)
+    .slice(0, 6);
+
+  return (
+    <ul className="list-disc pl-5 text-sm text-gray-700 space-y-1">
+      {top.length === 0 ? (
+        <li className="text-gray-500">We’ll summarize insights here as your data grows.</li>
+      ) : (
+        top.map((it, i) => <li key={i}>{it.text}</li>)
+      )}
+    </ul>
+  );
+}
+
+function UserDataCard({ latest, currency }: { latest: Snapshot | null; currency: string }) {
+  const inputs = (latest as any)?.inputs || {};
+  const slots = inputs?.slots || {};
+  const has = (key: string) => slots?.[key]?.value != null || inputs?.[key] != null;
+  const val = (key: string) => slots?.[key]?.value ?? inputs?.[key] ?? null;
+  const groups: { title: string; items: { key: string; label: string; kind: 'money'|'percent'|'number'|'text'|'bool'; required?: boolean }[] }[] = [
+    {
+      title: 'Personal Details',
+      items: [
+        { key: 'dependants_count', label: 'Dependants', kind: 'number' },
+        { key: 'birth_year', label: 'Birth year', kind: 'number' },
+        { key: 'housing_status', label: 'Housing status', kind: 'text' },
+      ],
+    },
+    {
+      title: 'Spend (income & expenses)',
+      items: [
+        { key: 'net_income_monthly_self', label: 'Net income (you) / mo', kind: 'money', required: true },
+        { key: 'net_income_monthly_partner', label: 'Net income (partner) / mo', kind: 'money' },
+        { key: 'gross_income_annual_self', label: 'Gross income (you) / yr', kind: 'money', required: true },
+        { key: 'gross_income_annual_partner', label: 'Gross income (partner) / yr', kind: 'money' },
+        { key: 'essential_expenses_monthly', label: 'Essentials / mo', kind: 'money', required: true },
+        { key: 'total_expenses_monthly', label: 'Total expenses / mo', kind: 'money' },
+        { key: 'rent_monthly', label: 'Rent / mo', kind: 'money', required: true },
+        { key: 'mortgage_payment_monthly', label: 'Mortgage payment / mo', kind: 'money', required: true },
+        { key: 'housing_running_costs_monthly', label: 'Housing running costs / mo', kind: 'money' },
+      ],
+    },
+    {
+      title: 'Save (cash & deposits)',
+      items: [
+        { key: 'cash_liquid_total', label: 'Quick‑access cash', kind: 'money', required: true },
+        { key: 'term_deposits_le_3m', label: 'Term deposits (≤ 3m)', kind: 'money' },
+      ],
+    },
+    {
+      title: 'Borrow (debts & credit)',
+      items: [
+        { key: 'other_debt_payments_monthly_total', label: 'Debt payments / mo', kind: 'money', required: true },
+        { key: 'other_debt_balances_total', label: 'Other debt balances (total)', kind: 'money' },
+        { key: 'short_term_liabilities_12m', label: 'Short‑term liabilities (≤12m)', kind: 'money' },
+        { key: 'mortgage_balance', label: 'Mortgage balance', kind: 'money' },
+        { key: 'debts_total', label: 'Total liabilities (override)', kind: 'money' },
+        { key: 'credit_score_normalised_0_1', label: 'Credit score (0–1)', kind: 'number' },
+      ],
+    },
+    {
+      title: 'Protect (insurances)',
+      items: [
+        { key: 'home_insured_ok', label: 'Home insured adequately', kind: 'bool' },
+        { key: 'life_insurance_sum', label: 'Life insurance sum', kind: 'money' },
+        { key: 'income_protection_has', label: 'Income protection in place', kind: 'bool' },
+        { key: 'ip_monthly_benefit', label: 'Income protection monthly benefit', kind: 'money' },
+        { key: 'sick_pay_months_full', label: 'Sick pay (full months)', kind: 'number' },
+        { key: 'sick_pay_months_half', label: 'Sick pay (half months)', kind: 'number' },
+      ],
+    },
+    {
+      title: 'Grow (investments & retirement)',
+      items: [
+        { key: 'investments_ex_home_total', label: 'Investments (ex‑home)', kind: 'money' },
+        { key: 'home_value', label: 'Home value', kind: 'money' },
+        { key: 'assets_total', label: 'Total assets (override)', kind: 'money' },
+        { key: 'pension_balance_total', label: 'Pension balance', kind: 'money' },
+        { key: 'pension_contrib_pct', label: 'Pension contribution %', kind: 'percent' },
+        { key: 'retire_age', label: 'Planned retire age', kind: 'number' },
+        { key: 'retire_target_income_annual', label: 'Target retirement income / yr', kind: 'money' },
+        { key: 'state_pension_est_annual', label: 'State pension estimate / yr', kind: 'money' },
+      ],
+    },
+  ];
+  // Also map common MQS fallbacks for “Required” items
+  const mqsFallbackMap: Record<string, string> = {
+    net_income_monthly_self: 'income_net_monthly',
+    gross_income_annual_self: 'income_gross_monthly', // will be monthly; still useful
+    essential_expenses_monthly: 'essentials_monthly',
+    other_debt_payments_monthly_total: 'debt_required_payments_monthly',
+    cash_liquid_total: 'emergency_savings_liquid',
+    rent_monthly: 'housing_total_monthly',
+  };
+  const displayVal = (itemKey: string) => {
+    // Prefer slot; then inputs; then MQS fallback
+    const primary = val(itemKey);
+    if (primary != null) return primary;
+    const fbKey = mqsFallbackMap[itemKey];
+    if (fbKey) return inputs?.[fbKey] ?? null;
+    return null;
+  };
+  const fmtAny = (kind: string, value: any) => {
+    if (value == null) return '—';
+    if (kind === 'percent') return fmtPct(Number(value));
+    if (kind === 'money') return fmtCurrency(Number(value), currency);
+    if (kind === 'bool') return value === true ? 'Yes' : value === false ? 'No' : 'Unknown';
+    return String(value);
+  };
+  const [editing, setEditing] = React.useState<{ key: string; label: string; kind: string; value: string } | null>(null);
+  const [savingKey, setSavingKey] = React.useState<string | null>(null);
+  const startEdit = (label: string, key: string, kind: string, current: any) => {
+    const initial = current != null ? String(current) : '';
+    setEditing({ key, label, kind, value: initial });
+  };
+  const saveEdit = async () => {
+    if (!editing) return;
+    setSavingKey(editing.key);
+    try {
+      const res = await fetch('/api/prosper/update-input', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: editing.key, value: editing.value, kind: editing.kind })
+      });
+      await res.json();
+      try { window.dispatchEvent(new CustomEvent('pp:snapshot_saved', { detail: { update: editing.key } })); } catch {}
+      setEditing(null);
+    } catch {}
+    setSavingKey(null);
+  };
+  return (
+    <div className="space-y-3">
+      {groups.map((group) => (
+        <div key={group.title}>
+          <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">{group.title}</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+      {group.items.map((it) => {
+        const v = displayVal(it.key);
+        const isMissing = v == null || v === '' || Number.isNaN(Number(v)) && it.kind !== 'text' && it.kind !== 'bool';
+        const labelExtra = it.required && isMissing ? (
+          <span className="ml-2 text-[10px] uppercase bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded">Required</span>
+        ) : null;
+        return (
+          <div key={it.key} className={`flex items-center justify-between border rounded-md p-2 ${isMissing ? 'bg-gray-50' : 'bg-white'}`}>
+            <div>
+              <div className="text-xs text-gray-600">
+                {it.label}
+                {labelExtra}
+              </div>
+              <div className={`text-sm font-medium ${isMissing ? 'text-gray-400' : 'text-gray-800'}`}>{fmtAny(it.kind, v)}</div>
+            </div>
+            <button className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50" onClick={() => startEdit(it.label, it.key, it.kind, v)}>
+              {isMissing ? 'Add' : 'Edit'}
+            </button>
+          </div>
+        );
+      })}
+          </div>
+        </div>
+      ))}
+      {editing && (
+        <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg border shadow-lg w-full max-w-sm p-4">
+            <div className="text-sm font-medium text-gray-900">{editing.label}</div>
+            <div className="text-xs text-gray-600 mb-2">Enter a new value{editing.kind === 'percent' ? ' (e.g., 10%)' : editing.kind === 'money' ? ' (e.g., 2,500)' : ''}.</div>
+            <input
+              className="w-full border rounded px-3 py-2 text-sm"
+              value={editing.value}
+              onChange={(e) => setEditing(s => s ? { ...s, value: e.target.value } : s)}
+              placeholder={editing.kind === 'percent' ? 'e.g., 10%' : 'Enter value'}
+              autoFocus
+            />
+            <div className="mt-3 flex justify-end gap-2">
+              <button className="text-xs px-3 py-1.5 rounded border bg-white hover:bg-gray-50" onClick={() => setEditing(null)}>Cancel</button>
+              <button className="text-xs px-3 py-1.5 rounded border bg-gray-900 text-white hover:bg-gray-800" onClick={saveEdit} disabled={savingKey === editing.key}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -771,14 +1305,25 @@ function SortedV2Kpis({ kpis }: { kpis: any }) {
   return (
     <>
       {sorted.map(s => (
-        <V2KpiBar key={s.key} label={s.label} value={s.value} target={s.target} dir={s.dir} format={s.format} subtitle={s.subtitle} tooltip={s.tooltip} />
+        <div id={`kpi-${s.key}`} key={s.key} className="rounded-md">
+          <V2KpiBar label={s.label} value={s.value} target={s.target} dir={s.dir} format={s.format} subtitle={s.subtitle} tooltip={s.tooltip} />
+        </div>
       ))}
     </>
   );
 }
 
-function RangeNetWorth({ series, entitlements, onUpgrade }: { series: SeriesPoint[]; entitlements?: any; onUpgrade?: () => void }) {
+function RangeNetWorth({ series }: { series: SeriesPoint[] }) {
   const [range, setRange] = React.useState<'1m'|'3m'|'1y'|'all'>('3m');
+  const trajectory = React.useMemo(() => {
+    if (!series?.length) return 'flat';
+    const last = series[series.length-1]?.value ?? 0;
+    const prev = series.length > 1 ? series[series.length-2]?.value ?? 0 : 0;
+    if (!Number.isFinite(last) || !Number.isFinite(prev)) return 'flat';
+    if (last > prev) return 'up';
+    if (last < prev) return 'down';
+    return 'flat';
+  }, [series]);
   const filtered = React.useMemo(() => {
     if (!series?.length) return [] as SeriesPoint[];
     if (range === 'all') return series;
@@ -789,28 +1334,23 @@ function RangeNetWorth({ series, entitlements, onUpgrade }: { series: SeriesPoin
       return (now - t) <= delta*24*60*60*1000;
     });
   }, [series, range]);
-  const isPremium = entitlements?.plan === 'premium';
   return (
     <div>
+      <div className="text-[11px] text-gray-600 mb-1">
+        Trajectory: {trajectory === 'up' ? <span className="text-emerald-600">Up ▲</span> : trajectory === 'down' ? <span className="text-red-600">Down ▼</span> : 'Flat'}
+      </div>
       <div className="flex items-center gap-2 text-xs text-gray-600 mb-2">
-        {(['1m','3m','1y','all'] as const).map(r => {
-          const gated = (r === '1y' || r === 'all') && !isPremium;
-          return (
-            <button
-              key={r}
-              onClick={() => gated ? (onUpgrade && onUpgrade()) : setRange(r)}
-              className={`px-2 py-1 rounded border ${range===r ? 'bg-gray-900 text-white border-gray-900' : 'bg-white hover:bg-gray-50'} ${gated ? 'opacity-60' : ''}`}
-              title={gated ? 'Upgrade to view full history' : undefined}
-            >
-              {r.toUpperCase()}
-            </button>
-          );
-        })}
+        {(['1m','3m','1y','all'] as const).map(r => (
+          <button
+            key={r}
+            onClick={() => setRange(r)}
+            className={`px-2 py-1 rounded border ${range===r ? 'bg-gray-900 text-white border-gray-900' : 'bg-white hover:bg-gray-50'}`}
+          >
+            {r.toUpperCase()}
+          </button>
+        ))}
       </div>
       <Sparkline points={filtered} />
-      {(!isPremium) && (
-        <div className="mt-2 text-[11px] text-gray-600">Viewing last 3 months. <button className="underline" onClick={() => onUpgrade && onUpgrade()}>Upgrade</button> to see 1y and all‑time.</div>
-      )}
     </div>
   );
 }
@@ -856,7 +1396,9 @@ function KpiGrid({ kpis }: { kpis: any }) {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {filtered.map(s => (
-          <V2KpiBar key={s.key} label={s.label} value={s.value} target={s.target} dir={s.dir} format={s.format} subtitle={s.subtitle} tooltip={s.tooltip} />
+          <div id={`kpi-${s.key}`} key={s.key}>
+            <V2KpiBar label={s.label} value={s.value} target={s.target} dir={s.dir} format={s.format} subtitle={s.subtitle} tooltip={s.tooltip} />
+          </div>
         ))}
       </div>
     </div>

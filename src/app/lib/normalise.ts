@@ -71,20 +71,25 @@ export function normaliseSlots(slots: Slots): Normalized {
   const home_value = n(slots.home_value?.value);
   const propValues = (props as InvestmentProperty[]).reduce((acc, p) => acc + (p.value || 0), 0);
   const otherInvestables = investables + (liquid_assets || 0);
-  let total_assets = (home_value || 0) + propValues + otherInvestables;
+  const component_assets = (home_value || 0) + propValues + otherInvestables;
+  let total_assets = component_assets;
 
   const mortgageBalance = n(slots.mortgage_balance?.value) || 0;
   const otherDebtBalances = n(slots.other_debt_balances_total?.value) || 0;
   const propDebt = (props as InvestmentProperty[]).reduce((acc, p) => acc + (p.mortgage_balance || 0), 0);
-  let total_liabilities = mortgageBalance + otherDebtBalances + propDebt;
+  const component_liabilities = mortgageBalance + otherDebtBalances + propDebt;
+  let total_liabilities = component_liabilities;
   const total_debt_balance = total_liabilities;
   let net_worth = total_assets - total_liabilities;
 
   // Allow overrides if user supplied holistic totals
   const assetsTotalOverride = n((slots as any)?.assets_total?.value);
   const debtsTotalOverride = n((slots as any)?.debts_total?.value);
-  if (Number.isFinite(assetsTotalOverride as number)) total_assets = assetsTotalOverride as number;
-  if (Number.isFinite(debtsTotalOverride as number)) {
+  // Use overrides only when component totals are not provided (to avoid confusion)
+  if (Number.isFinite(assetsTotalOverride as number) && (!component_assets || component_assets === 0)) {
+    total_assets = assetsTotalOverride as number;
+  }
+  if (Number.isFinite(debtsTotalOverride as number) && (!component_liabilities || component_liabilities === 0)) {
     total_liabilities = debtsTotalOverride as number;
   }
   net_worth = total_assets - total_liabilities;

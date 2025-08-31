@@ -258,6 +258,23 @@ async function handleToolCalls(
           break;
         }
 
+        case "completeAction": {
+          const title = (args?.title || '').toString().trim();
+          const action_id = (args?.action_id || '').toString().trim() || undefined;
+          const notes = (args?.notes || '').toString().trim() || undefined;
+          try {
+            const hh = await getHouseholdIdClient();
+            await fetch('/api/actions/complete', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ householdId: hh, title, action_id, notes })
+            });
+            toolRes = { ok: true };
+          } catch (e: any) {
+            toolRes = { ok: false, error: e?.message || 'failed' };
+          }
+          break;
+        }
+
         default:
           toolRes = { ok: true };
       }
@@ -299,25 +316,22 @@ export const getNextResponseFromSupervisor = tool({
     const history: RealtimeItem[] = (details?.context?.history ?? []) as RealtimeItem[];
     const filteredLogs = history.filter((log) => log.type === "message");
 
-    // Include known inputs so the model *always* sends the merged map
-    // Rehydrate once from server so returning users don't start from scratch
+    // Always rehydrate from the latest snapshot so we consider ALL current data
     try {
-      if (!lastInputs) {
-        const hh = await getHouseholdIdClient();
-        if (hh) {
-          const r = await fetch(`/api/prosper/dashboard?householdId=${encodeURIComponent(hh)}`, { cache: 'no-store' });
-          if (r.ok) {
-            const d = await r.json();
-            const snap = d?.latestSnapshot || null;
-            if (snap) {
-              lastInputs = snap.inputs || {};
-              lastKpis = snap.kpis || null;
-              lastLevels = snap.levels || null;
-              if ((lastInputs as any)?.slots) lastSlots = (lastInputs as any).slots as Slots;
-            }
-            lastEntitlements = d?.entitlements || null;
-            lastUsage = d?.usage || null;
+      const hh = await getHouseholdIdClient();
+      if (hh) {
+        const r = await fetch(`/api/prosper/dashboard?householdId=${encodeURIComponent(hh)}`, { cache: 'no-store' });
+        if (r.ok) {
+          const d = await r.json();
+          const snap = d?.latestSnapshot || null;
+          if (snap) {
+            lastInputs = snap.inputs || {};
+            lastKpis = snap.kpis || null;
+            lastLevels = snap.levels || null;
+            if ((lastInputs as any)?.slots) lastSlots = (lastInputs as any).slots as Slots;
           }
+          lastEntitlements = d?.entitlements || null;
+          lastUsage = d?.usage || null;
         }
       }
     } catch {}
