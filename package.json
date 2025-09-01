@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "engine:test": "node scripts/engine-test.js"
+    "engine:test": "node scripts/engine-test.js",
+    "seed:scenarios": "node scripts/seed-scenarios.mjs"
   },
   "dependencies": {
     "@openai/agents": "^0.0.5",

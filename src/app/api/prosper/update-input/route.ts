@@ -38,6 +38,22 @@ export async function POST(req: NextRequest) {
     const householdId = body.householdId || cookieId;
     if (!householdId) return NextResponse.json({ error: 'household_id_required' }, { status: 400 });
 
+    // Ensure household row exists (FK on snapshots)
+    try {
+      const { data: hh, error: hhErr } = await supabase
+        .from('households')
+        .select('id')
+        .eq('id', householdId)
+        .maybeSingle();
+      if (hhErr) throw hhErr;
+      if (!hh) {
+        const { error: insErr } = await supabase.from('households').insert({ id: householdId });
+        if (insErr) throw insErr;
+      }
+    } catch (e) {
+      return NextResponse.json({ error: 'household_insert_failed', detail: (e as any)?.message || 'failed' }, { status: 500 });
+    }
+
     const key = body.key;
     if (!key) return NextResponse.json({ error: 'key_required' }, { status: 400 });
     const val = parseValue(body.value, body.kind);
