@@ -37,6 +37,7 @@ const sdkScenarioMap: Record<string, RealtimeAgent[]> = {
 
 import useAudioDownload from "./hooks/useAudioDownload";
 import { useHandleSessionHistory } from "./hooks/useHandleSessionHistory";
+import useAudioDevices from "./hooks/useAudioDevices";
 
 function App() {
   const searchParams = useSearchParams()!;
@@ -52,6 +53,7 @@ function App() {
   // before the offer/answer negotiation.
   // ---------------------------------------------------------------------
   const urlCodec = searchParams.get("codec") || "opus";
+  const paramMic = searchParams.get("mic") || "";
 
   // Agents SDK doesn't currently support codec selection so it is now forced 
   // via global codecPatch at module load 
@@ -61,6 +63,16 @@ function App() {
     addTranscriptBreadcrumb,
   } = useTranscript();
   const { logClientEvent, logServerEvent } = useEvent();
+
+  // Audio devices (microphone) state - session-scoped (no persistence)
+  const { microphones, selectedMicId, setSelectedMicId } = useAudioDevices();
+
+  // Apply ?mic param only if it matches an enumerated device (no persistence beyond URL).
+  useEffect(() => {
+    if (!paramMic) return;
+    const exists = microphones.some((m) => m.deviceId === paramMic);
+    if (exists) setSelectedMicId(paramMic);
+  }, [paramMic, microphones, setSelectedMicId]);
 
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
   const [selectedAgentConfigSet, setSelectedAgentConfigSet] = useState<
@@ -221,6 +233,7 @@ function App() {
           getEphemeralKey: async () => EPHEMERAL_KEY,
           initialAgents: reorderedAgents,
           audioElement: sdkAudioElement,
+          selectedMicId,
           outputGuardrails: [guardrail],
           extraContext: {
             addTranscriptBreadcrumb,
@@ -347,6 +360,13 @@ function App() {
   const handleCodecChange = (newCodec: string) => {
     const url = new URL(window.location.toString());
     url.searchParams.set("codec", newCodec);
+    window.location.replace(url.toString());
+  };
+
+  // Reload to apply microphone device selection (like codec)
+  const handleMicChange = (deviceId: string) => {
+    const url = new URL(window.location.toString());
+    url.searchParams.set("mic", deviceId);
     window.location.replace(url.toString());
   };
 
@@ -541,6 +561,9 @@ function App() {
         setIsEventsPaneExpanded={setIsEventsPaneExpanded}
         isAudioPlaybackEnabled={isAudioPlaybackEnabled}
         setIsAudioPlaybackEnabled={setIsAudioPlaybackEnabled}
+        microphones={microphones}
+        selectedMicId={selectedMicId}
+        onMicChange={handleMicChange}
         codec={urlCodec}
         onCodecChange={handleCodecChange}
       />
