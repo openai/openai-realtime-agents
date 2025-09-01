@@ -4,6 +4,7 @@ import { ensureHouseholdId } from "@/app/lib/householdLocal";
 import { getProsperLevelLabel } from "@/app/lib/prosperLevelLabels";
 import { normaliseCurrency } from "@/app/lib/validate";
 import { normaliseSlots } from "@/app/lib/normalise";
+import BenchmarksCard from "@/app/components/BenchmarksCard";
 
 /** ===== Types expected from /api/prosper/dashboard ===== */
 export type SeriesPoint = { ts: string; value: number };
@@ -171,6 +172,8 @@ export default function Dashboard() {
     window.addEventListener('pp:snapshot_saved', onSaved as any);
     const onBilling = () => { setShowPremiumBanner(true); setTimeout(() => setShowPremiumBanner(false), 8000); };
     window.addEventListener('pp:billing_confirmed', onBilling as any);
+    const onOpenUserData = () => setShowUserData(true);
+    window.addEventListener('pp:open_user_data', onOpenUserData as any);
     return () => window.removeEventListener('pp:snapshot_saved', onSaved as any);
   }, [load]);
 
@@ -364,7 +367,7 @@ export default function Dashboard() {
           </div>
         ) : (
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-3">
-          {/* ===== Top row: Net Worth ===== */}
+          {/* ===== Net Worth (full width) ===== */}
           <div className="xl:col-span-5">
             <Card className="p-3">
               <div className="flex items-start justify-between">
@@ -374,7 +377,14 @@ export default function Dashboard() {
                     {Number.isFinite(last as number) ? fmtCurrency(last as number, currency) : '—'}
                   </div>
                   <div className="text-[11px] text-gray-600 mt-1">
-                    {series?.length ? `Updated ${fmtShortDateTime(series[series.length-1].ts)}` : ''}
+                    {series?.length ? (
+                      <>
+                        Updated{' '}
+                        <time suppressHydrationWarning dateTime={series[series.length-1].ts}>
+                          {fmtShortDateTime(series[series.length-1].ts)}
+                        </time>
+                      </>
+                    ) : ''}
                     {delta != null && (
                       <>
                         {' '}
@@ -389,6 +399,11 @@ export default function Dashboard() {
                 <RangeNetWorth series={series} latest={latest} currency={currency} />
               </div>
             </Card>
+          </div>
+
+          {/* ===== People like you (benchmarks, full width below net worth) ===== */}
+          <div className="xl:col-span-5">
+            <BenchmarksCard latest={latest} kpis={kpis} />
           </div>
 
           {/* ===== Level (full width below net worth) ===== */}
@@ -440,6 +455,8 @@ export default function Dashboard() {
               <ProgressInsights kpis={kpis} />
             </Card>
           </div>
+
+          
 
           {/* ===== Action Plan (single card: uncompleted first, completed at bottom) ===== */}
           <div className="xl:col-span-5">
@@ -820,7 +837,11 @@ function CompletedActions() {
         <div key={it.id} className="flex items-center justify-between border rounded-md p-2 bg-white">
           <div>
             <div className="text-sm font-medium text-gray-800">{it.title || 'Action'}</div>
-            <div className="text-[11px] text-gray-500">{it.completed_at ? new Date(it.completed_at).toLocaleString() : ''}</div>
+            <div className="text-[11px] text-gray-500">{it.completed_at ? (
+              <time suppressHydrationWarning dateTime={it.completed_at}>
+                {new Date(it.completed_at).toLocaleString()}
+              </time>
+            ) : ''}</div>
           </div>
           <button
             className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50"
@@ -1002,7 +1023,11 @@ function ActionPlan({ recs }: { recs: any }) {
             <div key={it.id} className="border rounded-md p-2 bg-white flex items-center justify-between">
               <div>
                 <div className="text-sm font-medium text-gray-800">{it.title || 'Action'}</div>
-                <div className="text-[11px] text-gray-500">{it.completed_at ? new Date(it.completed_at).toLocaleString() : ''}</div>
+                <div className="text-[11px] text-gray-500">{it.completed_at ? (
+                  <time suppressHydrationWarning dateTime={it.completed_at}>
+                    {new Date(it.completed_at).toLocaleString()}
+                  </time>
+                ) : ''}</div>
               </div>
               <button
                 className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50"

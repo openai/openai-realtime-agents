@@ -40,6 +40,8 @@ function App() {
 
   const [householdId, setHouseholdId] = useState<string>("");
   const [isReturningUser, setIsReturningUser] = useState<boolean>(false);
+  const [entitlements, setEntitlements] = useState<{ plan: 'free'|'premium'; subscription_status?: string; current_period_end?: string } | null>(null);
+  const [householdInfo, setHouseholdInfo] = useState<{ email?: string; full_name?: string } | null>(null);
   useEffect(() => { ensureHouseholdId().then(setHouseholdId); }, []);
   useEffect(() => {
     (async () => {
@@ -50,6 +52,8 @@ function App() {
         const inputs = json?.latestSnapshot?.inputs || {};
         const hasInputs = inputs && typeof inputs === 'object' && Object.keys(inputs).length > 0;
         setIsReturningUser(!!hasInputs);
+        setEntitlements(json?.entitlements || null);
+        setHouseholdInfo(json?.household || null);
       } catch {}
     })();
   }, [householdId]);
@@ -357,7 +361,7 @@ function App() {
   return (
     <div className="text-base flex flex-col h-screen bg-gray-100 text-gray-800">
       {/* Header */}
-      <div className="p-5 text-lg font-semibold flex justify-between items-center max-w-7xl mx-auto w-full">
+      <div className="p-5 text-lg font-semibold flex justify-between items-center max-w-7xl mx-auto w-full relative">
         <Link href="/home" className="flex items-center">
           <Image src="2D76K394f.eps.svg" alt="Prosper Logo" width={20} height={20} className="mr-2" />
           <span>Prosper AI <span className="text-gray-400">your personal wealth coach</span></span>
@@ -369,16 +373,11 @@ function App() {
           <a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('chat'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-gray-700 hover:text-gray-900">Chat</a>
           <a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('dashboard'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-gray-700 hover:text-gray-900">Dashboard</a>
         </nav>
-        <button
-          className="h-9 w-9 rounded-full border bg-white flex items-center justify-center hover:bg-gray-50"
-          aria-label="User profile"
-          title="Profile"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="8" r="4" stroke="#111827" />
-            <path d="M4 20c0-4 4-6 8-6s8 2 8 6" stroke="#111827" />
-          </svg>
-        </button>
+        <ProfileMenu
+          householdId={householdId}
+          entitlements={entitlements}
+          household={householdInfo}
+        />
       </div>
 
       {/* BODY: centered 2-col grid so the left pane sizes cleanly */}
@@ -512,3 +511,102 @@ function App() {
 }
 
 export default App;
+
+function ProfileMenu({ householdId, entitlements, household }: { householdId: string; entitlements: { plan: 'free'|'premium'; subscription_status?: string; current_period_end?: string } | null; household: { email?: string; full_name?: string } | null }) {
+  const [open, setOpen] = React.useState(false);
+  const [showEdit, setShowEdit] = React.useState(false);
+  const [fullName, setFullName] = React.useState(household?.full_name || '');
+  const [email, setEmail] = React.useState(household?.email || '');
+  React.useEffect(() => { setFullName(household?.full_name || ''); setEmail(household?.email || ''); }, [household?.full_name, household?.email]);
+  React.useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('#pp_profile_menu')) setOpen(false);
+    };
+    document.addEventListener('click', onDoc);
+    return () => document.removeEventListener('click', onDoc);
+  }, []);
+
+  const plan = entitlements?.plan || 'free';
+  const managePlan = async () => {
+    try {
+      const res = await fetch('/api/billing/create-portal-session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId }) });
+      const j = await res.json();
+      if (j?.url) window.location.href = j.url;
+    } catch {}
+  };
+  const upgrade = async () => {
+    try {
+      const res = await fetch('/api/billing/create-checkout-session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, email }) });
+      const j = await res.json();
+      if (j?.url) window.location.href = j.url;
+    } catch {}
+  };
+  const openUserData = () => { try { window.dispatchEvent(new CustomEvent('pp:open_user_data')); } catch {} setOpen(false); };
+  const copyHouseholdId = async () => { try { await navigator.clipboard.writeText(householdId); alert('Household ID copied'); } catch {} };
+  const saveProfile = async () => {
+    try {
+      await fetch('/api/household/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, email, full_name: fullName }) });
+      setShowEdit(false);
+    } catch {}
+  };
+
+  return (
+    <div id="pp_profile_menu" className="relative">
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
+        className="h-9 w-9 rounded-full border bg-white flex items-center justify-center hover:bg-gray-50"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="User profile"
+        title="Profile"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="8" r="4" stroke="#111827" />
+          <path d="M4 20c0-4 4-6 8-6s8 2 8 6" stroke="#111827" />
+        </svg>
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 mt-2 w-64 bg-white border rounded-lg shadow-lg z-50">
+          <div className="px-3 py-2 border-b">
+            <div className="text-sm font-medium text-gray-900 truncate">{fullName || 'Guest'}</div>
+            <div className="text-xs text-gray-600 truncate">{email || 'No email'}</div>
+            <div className="text-[11px] text-gray-500 mt-1">Plan: <b className={plan === 'premium' ? 'text-emerald-600' : 'text-gray-700'}>{plan}</b></div>
+          </div>
+          <div className="py-1 text-sm">
+            <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={() => { setShowEdit(true); setOpen(false); }}>Edit profile</button>
+            <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={openUserData}>Review data</button>
+            {plan === 'premium' ? (
+              <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={managePlan}>Manage plan</button>
+            ) : (
+              <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={upgrade}>Upgrade to Premium</button>
+            )}
+            <a className="block px-3 py-2 hover:bg-gray-50" href="/feedback">Send feedback</a>
+            <a className="block px-3 py-2 hover:bg-gray-50" href="/terms" target="_blank" rel="noreferrer">Terms</a>
+            <a className="block px-3 py-2 hover:bg-gray-50" href="/privacy" target="_blank" rel="noreferrer">Privacy</a>
+          </div>
+          <div className="px-3 py-2 border-t flex items-center justify-between">
+            <div className="text-[11px] text-gray-500 truncate">ID: {householdId?.slice(0, 6)}…</div>
+            <button className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50" onClick={copyHouseholdId}>Copy</button>
+          </div>
+        </div>
+      )}
+
+      {showEdit && (
+        <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4" onClick={() => setShowEdit(false)}>
+          <div className="bg-white rounded-lg border shadow-lg w-full max-w-sm p-4" onClick={(e) => e.stopPropagation()}>
+            <div className="text-sm font-medium text-gray-900 mb-2">Edit profile</div>
+            <label className="block text-xs text-gray-600">Full name</label>
+            <input className="w-full border rounded px-3 py-2 text-sm mb-2" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your name" />
+            <label className="block text-xs text-gray-600">Email</label>
+            <input className="w-full border rounded px-3 py-2 text-sm" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" />
+            <div className="mt-3 flex justify-end gap-2">
+              <button className="text-xs px-3 py-1.5 rounded border bg-white hover:bg-gray-50" onClick={() => setShowEdit(false)}>Cancel</button>
+              <button className="text-xs px-3 py-1.5 rounded border bg-gray-900 text-white hover:bg-gray-800" onClick={saveProfile}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
