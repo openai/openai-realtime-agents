@@ -551,20 +551,30 @@ function ProfileMenu({ householdId, entitlements, household }: { householdId: st
     } catch {}
   };
 
+  // Compute initials for avatar
+  const initials = React.useMemo(() => {
+    const name = (fullName || '').trim();
+    if (name) {
+      const parts = name.split(/\s+/).filter(Boolean);
+      if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    const mail = (email || '').trim();
+    if (mail && mail.includes('@')) return mail[0].toUpperCase();
+    return 'U';
+  }, [fullName, email]);
+
   return (
     <div id="pp_profile_menu" className="relative">
       <button
         onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
-        className="h-9 w-9 rounded-full border bg-white flex items-center justify-center hover:bg-gray-50"
+        className="h-9 w-9 rounded-full border bg-gray-900 text-white flex items-center justify-center hover:opacity-90"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="User profile"
-        title="Profile"
+        aria-label={fullName ? `Profile: ${fullName}` : (email ? `Profile: ${email}` : 'Profile')}
+        title={fullName || email || 'Profile'}
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="8" r="4" stroke="#111827" />
-          <path d="M4 20c0-4 4-6 8-6s8 2 8 6" stroke="#111827" />
-        </svg>
+        <span className="text-[11px] font-semibold">{initials}</span>
       </button>
       {open && (
         <div role="menu" className="absolute right-0 mt-2 w-64 bg-white border rounded-lg shadow-lg z-50">
