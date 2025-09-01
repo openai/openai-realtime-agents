@@ -13,6 +13,9 @@ interface BottomToolbarProps {
   setIsEventsPaneExpanded: (val: boolean) => void;
   isAudioPlaybackEnabled: boolean;
   setIsAudioPlaybackEnabled: (val: boolean) => void;
+  microphones: { deviceId: string; label: string }[];
+  selectedMicId: string;
+  onMicChange: (deviceId: string) => void;
   codec: string;
   onCodecChange: (newCodec: string) => void;
 }
@@ -29,6 +32,9 @@ function BottomToolbar({
   setIsEventsPaneExpanded,
   isAudioPlaybackEnabled,
   setIsAudioPlaybackEnabled,
+  microphones,
+  selectedMicId,
+  onMicChange,
   codec,
   onCodecChange,
 }: BottomToolbarProps) {
@@ -38,6 +44,10 @@ function BottomToolbar({
   const handleCodecChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newCodec = e.target.value;
     onCodecChange(newCodec);
+  };
+
+  const handleMicChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    onMicChange(e.target.value);
   };
 
   function getConnectionButtonLabel() {
@@ -127,6 +137,23 @@ function BottomToolbar({
         <label htmlFor="logs" className="flex items-center cursor-pointer">
           Logs
         </label>
+      </div>
+
+      <div className="flex flex-row items-center gap-2">
+        <div>Microphone:</div>
+        <select
+          id="mic-select"
+          value={selectedMicId}
+          onChange={handleMicChange}
+          className="border border-gray-300 rounded-md px-2 py-1 focus:outline-none cursor-pointer"
+          disabled={isConnecting}
+        >
+          {microphones.map((m) => (
+            <option key={m.deviceId} value={m.deviceId}>
+              {m.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="flex flex-row items-center gap-2">

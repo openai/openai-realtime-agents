@@ -19,6 +19,7 @@ export interface ConnectOptions {
   getEphemeralKey: () => Promise<string>;
   initialAgents: RealtimeAgent[];
   audioElement?: HTMLAudioElement;
+  selectedMicId?: string;
   extraContext?: Record<string, any>;
   outputGuardrails?: any[];
 }
@@ -78,6 +79,10 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
     [],
   );
 
+  // Holds a reference to the currently injected local microphone track
+  // so we can stop it on disconnect to avoid resource leaks.
+  const micTrackRef = useRef<MediaStreamTrack | null>(null);
+
   const handleAgentHandoff = (item: any) => {
     const history = item.context.history;
     const lastMessage = history[history.length - 1];
@@ -113,6 +118,7 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
       getEphemeralKey,
       initialAgents,
       audioElement,
+      selectedMicId,
       extraContext,
       outputGuardrails,
     }: ConnectOptions) => {
@@ -133,7 +139,41 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
           audioElement,
           // Set preferred codec before offer creation
           changePeerConnection: async (pc: RTCPeerConnection) => {
+            // Apply codec preferences before offer creation
             applyCodec(pc);
+
+            // Always inject/replace the local audio track so input is guaranteed.
+            // Use the selected microphone when provided, otherwise use the browser default.
+            if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+              try {
+                // Stop previous track if any to avoid leaks.
+                if (micTrackRef.current) {
+                  try { micTrackRef.current.stop(); } catch {}
+                  micTrackRef.current = null;
+                }
+
+                const constraints: MediaStreamConstraints =
+                  selectedMicId && selectedMicId !== 'default'
+                    ? { audio: { deviceId: { exact: selectedMicId } } as MediaTrackConstraints }
+                    : { audio: true };
+
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                const track = stream.getAudioTracks()[0];
+                micTrackRef.current = track;
+
+                const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'audio');
+                if (sender) {
+                  await sender.replaceTrack(track);
+                  console.log('[Mic] Replaced audio track with', track.label, 'deviceId:', selectedMicId ?? 'default');
+                } else {
+                  pc.addTrack(track);
+                  console.log('[Mic] Added audio track', track.label, 'deviceId:', selectedMicId ?? 'default');
+                }
+              } catch (err) {
+                console.warn('[Mic] Failed to set microphone; defaulting to SDK behavior:', err);
+              }
+            }
+
             return pc;
           },
         }),
@@ -156,6 +196,11 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
   );
 
   const disconnect = useCallback(() => {
+    // Stop local microphone track if we created one.
+    if (micTrackRef.current) {
+      try { micTrackRef.current.stop(); } catch {}
+      micTrackRef.current = null;
+    }
     sessionRef.current?.close();
     sessionRef.current = null;
     updateStatus('DISCONNECTED');
