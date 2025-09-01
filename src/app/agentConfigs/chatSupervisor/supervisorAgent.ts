@@ -73,6 +73,26 @@ function missingForSufficiencyV2(inputs: Record<string, any>, slots?: any): stri
   return m;
 }
 
+// Prefer collecting a richer "Core-Plus" set for the first snapshot for higher-quality KPIs and actions.
+function preferredForFirstSnapshotV2(slots?: any): string[] {
+  const m: string[] = [];
+  const s = slots || {};
+  const has = (k: string) => s?.[k]?.value != null && Number.isFinite(s?.[k]?.value) ? true : (typeof s?.[k]?.value === 'boolean' || typeof s?.[k]?.value === 'string');
+  // Context & status
+  if (!has('employment_status')) m.push('employment_status');
+  if (!has('housing_status')) m.push('housing_status');
+  // Balance sheet core
+  if (!has('cash_liquid_total')) m.push('cash_liquid_total');
+  if (!has('other_debt_balances_total') && !has('mortgage_balance')) m.push('other_debt_balances_total or mortgage_balance');
+  if (!has('investments_ex_home_total')) m.push('investments_ex_home_total');
+  if (!has('pension_balance_total')) m.push('pension_balance_total');
+  // Habits & goals (lightweight)
+  if (!has('pension_contrib_pct')) m.push('pension_contrib_pct');
+  // Insurance hygiene
+  if (!has('home_insured_ok')) m.push('home_insured_ok');
+  return m;
+}
+
 function inputsToSlotsFallback(inputs: Record<string, any>): Slots {
   // Best-effort mapping from MQS-style inputs to v2 slot schema
   const grossAnnual = Number.isFinite(inputs?.income_gross_monthly) ? inputs.income_gross_monthly * 12 : undefined;
@@ -181,20 +201,37 @@ async function handleToolCalls(
           // Prefer slots from tracker; fallback to mapping from lastInputs
           const slotsForCompute: Slots = lastSlots || inputsToSlotsFallback(lastInputs);
           const missing = missingForSufficiencyV2(lastInputs || {}, slotsForCompute);
-            if (missing.length > 0) {
-              toolRes = { skipped: true, reason: "insufficient_fields", missing };
-              if (addBreadcrumb) addBreadcrumb("[supervisorAgent] v2 compute skipped: insufficient", { missing });
+          if (missing.length > 0) {
+            toolRes = { skipped: true, reason: "insufficient_fields", missing };
+            if (addBreadcrumb) addBreadcrumb("[supervisorAgent] v2 compute skipped: insufficient", { missing });
+            break;
+          }
+          // If this is the first compute in-session, prefer collecting a richer core set.
+          if (!lastKpis) {
+            const preferred = preferredForFirstSnapshotV2(slotsForCompute);
+            // Ask for a couple of the most important gaps
+            const shortlist = preferred.slice(0, 3);
+            if (shortlist.length > 0) {
+              toolRes = { skipped: true, reason: "insufficient_fields", missing: shortlist };
+              if (addBreadcrumb) addBreadcrumb("[supervisorAgent] v2 compute deferred: prefer more inputs on first snapshot", { missing: shortlist });
               break;
             }
+          }
             // ensure slots get persisted inside inputs for traceability
             lastInputs = { ...(lastInputs || {}), slots: slotsForCompute };
           const { kpis, gates, normalized, provisional } = computeKpisV2(slotsForCompute);
           lastKpis = { ...kpis, gates, engine_version: 'v2' };
           lastProvisional = provisional || [];
-          const cur = normaliseCurrency((slotsForCompute as any)?.country?.value ?? null);
-          (lastInputs as any).currency = cur.code;
+          // Determine currency: prefer an explicit user preference when provided;
+          // otherwise infer from country. Treat default 'USD' as fallback only.
+          const countryVal = (slotsForCompute as any)?.country?.value ?? null;
+          const fromCountry = normaliseCurrency(countryVal);
+          const existingRaw = ((lastInputs as any)?.currency ?? '').toString().trim();
+          const fromExisting = existingRaw ? normaliseCurrency(existingRaw) : null;
+          const finalCur = fromExisting && fromExisting.code !== 'USD' ? fromExisting : fromCountry;
+          (lastInputs as any).currency = finalCur.code;
           const conflicts = conflictCheck(slotsForCompute);
-          toolRes = { kpis: lastKpis, provisional: lastProvisional, slots: slotsForCompute, currency: cur, conflicts };
+          toolRes = { kpis: lastKpis, provisional: lastProvisional, slots: slotsForCompute, currency: finalCur, conflicts };
           const nw = (normalized as any)?.net_worth;
           const extra = Number.isFinite(nw) ? { net_worth_point: { value: nw } } : {};
           await persistSnapshot(extra);

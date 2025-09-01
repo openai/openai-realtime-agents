@@ -89,6 +89,9 @@ function App() {
     const stored = localStorage.getItem('audioPlaybackEnabled');
     return stored ? stored === 'true' : true;
   });
+  const [hasAccepted, setHasAccepted] = useState<boolean>(() => {
+    try { return localStorage.getItem('pp_terms_v1_accepted') === '1'; } catch { return false; }
+  });
 
   const { startRecording, stopRecording, downloadRecording } = useAudioDownload();
 
@@ -119,10 +122,10 @@ function App() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (selectedAgentName && sessionStatus === "DISCONNECTED") {
+    if (selectedAgentName && sessionStatus === "DISCONNECTED" && hasAccepted) {
       connectToRealtime();
     }
-  }, [selectedAgentName]);
+  }, [selectedAgentName, hasAccepted]);
 
   useEffect(() => {
     if (sessionStatus === "CONNECTED" && selectedAgentConfigSet && selectedAgentName) {
@@ -279,6 +282,11 @@ function App() {
   };
 
   const onToggleConnection = () => {
+    if (!hasAccepted) {
+      // Block connecting until terms are accepted
+      try { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); } catch {}
+      return;
+    }
     if (sessionStatus === "CONNECTED" || sessionStatus === "CONNECTING") {
       disconnectFromRealtime();
       setSessionStatus("DISCONNECTED");
@@ -326,9 +334,6 @@ function App() {
   }, [sessionStatus]);
 
   const [activeTab, setActiveTab] = useState('chat' as 'chat' | 'dashboard');
-  const [hasAccepted, setHasAccepted] = useState<boolean>(() => {
-    try { return localStorage.getItem('pp_terms_v1_accepted') === '1'; } catch { return false; }
-  });
 
   // Allow dashboard to request opening chat with prefilled text
   useEffect(() => {
@@ -403,7 +408,6 @@ function App() {
                 userText={userText}
                 setUserText={setUserText}
                 onSendMessage={handleSendTextMessage}
-                downloadRecording={downloadRecording}
                 canSend={sessionStatus === "CONNECTED" && hasAccepted}
               />
             </div>
@@ -437,7 +441,6 @@ function App() {
                   userText={userText}
                   setUserText={setUserText}
                   onSendMessage={handleSendTextMessage}
-                  downloadRecording={downloadRecording}
                   canSend={sessionStatus === "CONNECTED" && hasAccepted}
                 />
               </div>
@@ -469,22 +472,37 @@ function App() {
       </div>
       {/* Terms & Privacy consent bar */}
       {!hasAccepted && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 border-t shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm">
-            <div className="text-gray-700">
-              By using Prosper you agree to our <a href="/terms" className="underline">Terms</a> and <a href="/privacy" className="underline">Privacy Policy</a>.
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50"
-                onClick={() => {
-                  try { localStorage.setItem('pp_terms_v1_accepted', '1'); } catch {}
-                  setHasAccepted(true);
-                  (async () => { try { const hh = await ensureHouseholdId(); await fetch('/api/legal/accept', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId: hh, terms_version: 'v1', privacy_version: 'v1' }) }); } catch {} })();
-                }}
-              >
-                I Agree
-              </button>
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg border shadow-xl w-full max-w-lg p-5">
+            <div className="flex items-start gap-3">
+              <div className="h-6 w-6 rounded-full bg-yellow-100 border border-yellow-300 flex items-center justify-center shrink-0" aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 8v5" stroke="#a16207" strokeWidth="2"/><circle cx="12" cy="17" r="1" fill="#a16207"/></svg>
+              </div>
+              <div className="flex-1">
+                <div className="text-base font-semibold text-gray-900">Please accept our Terms to continue</div>
+                <div className="text-sm text-gray-700 mt-1">To use Prosper, you need to accept our Terms and Privacy Policy.</div>
+                <div className="text-sm text-gray-600 mt-2">
+                  By continuing you agree to our <a href="/terms" target="_blank" className="underline">Terms</a> and <a href="/privacy" target="_blank" className="underline">Privacy Policy</a>.
+                </div>
+                <div className="mt-3 flex items-center justify-end gap-2">
+                  <a className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-sm" href="/terms" target="_blank" rel="noreferrer">View Terms</a>
+                  <a className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-sm" href="/privacy" target="_blank" rel="noreferrer">View Privacy</a>
+                  <button
+                    className="px-3 py-1.5 rounded-md border bg-gray-900 text-white hover:bg-gray-800 text-sm"
+                    onClick={() => {
+                      try { localStorage.setItem('pp_terms_v1_accepted', '1'); } catch {}
+                      setHasAccepted(true);
+                      (async () => { try { const hh = await ensureHouseholdId(); await fetch('/api/legal/accept', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId: hh, terms_version: 'v1', privacy_version: 'v1' }) }); } catch {} })();
+                      // After accepting, auto-connect if agent is ready
+                      if (selectedAgentName && sessionStatus === 'DISCONNECTED') {
+                        try { connectToRealtime(); } catch {}
+                      }
+                    }}
+                  >
+                    I Agree
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

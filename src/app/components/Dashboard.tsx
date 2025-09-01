@@ -3,6 +3,7 @@ import React from "react";
 import { ensureHouseholdId } from "@/app/lib/householdLocal";
 import { getProsperLevelLabel } from "@/app/lib/prosperLevelLabels";
 import { normaliseCurrency } from "@/app/lib/validate";
+import { normaliseSlots } from "@/app/lib/normalise";
 
 /** ===== Types expected from /api/prosper/dashboard ===== */
 export type SeriesPoint = { ts: string; value: number };
@@ -44,6 +45,19 @@ function kpiOrDash(v: any, kind: "pct" | "num" | "months" = "num") {
   return String(v);
 }
 
+// Short, friendly timestamp like "31 Aug, 14:30" (locale-aware)
+function fmtShortDateTime(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const day = d.toLocaleString(undefined, { day: '2-digit' });
+    const mon = d.toLocaleString(undefined, { month: 'short' });
+    const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    return `${day} ${mon}, ${time}`;
+  } catch {
+    return new Date(iso).toLocaleString();
+  }
+}
+
 // One-word level names proposal (L1..L10 maps to indices 0..9)
 const LEVEL_SHORT_NAMES = [
   'Triage',       // L1
@@ -73,14 +87,14 @@ const LEVEL_DESCRIPTIONS = [
 
 /** Minimal sparkline (no deps) */
 function Sparkline({ points }: { points: SeriesPoint[] }) {
+  const w = 600; // wider internal coordinate space for better scaling
+  const h = 120; // taller internal height
   const { d, areaD } = React.useMemo(() => {
     if (!points || points.length === 0) return { d: "", areaD: "" };
     const vals = points.map((p) => Number(p.value || 0));
     const min = Math.min(...vals);
     const max = Math.max(...vals);
     const norm = (v: number) => (max === min ? 0.5 : (v - min) / (max - min));
-    const w = 260;
-    const h = 72;
     const step = vals.length > 1 ? w / (vals.length - 1) : w;
     const coords = vals.map((v, i) => [i * step, h - norm(v) * h] as const);
     const path = coords.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x},${y}`).join(" ");
@@ -100,7 +114,7 @@ function Sparkline({ points }: { points: SeriesPoint[] }) {
   }
 
   return (
-    <svg viewBox="0 0 260 72" className="h-20 w-full" role="img" aria-label="Net worth trend">
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-28 md:h-36" role="img" aria-label="Net worth trend">
       <defs>
         <linearGradient id="slope" x1="0" x2="0" y1="0" y2="1">
           <stop offset="0%" stopColor="currentColor" stopOpacity="0.25" />
@@ -265,28 +279,29 @@ export default function Dashboard() {
       )}
       <header className="flex items-start justify-between mb-4 gap-3">
         <div />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 gap-y-1 flex-wrap justify-end">
           {/* Free uses left nudge */}
           {data?.usage && entitlements?.plan !== 'premium' && (
-            <div className={`text-xs mr-2 ${Math.max(0, Number((data?.usage as any)?.remaining ?? 0)) <= 3 ? 'text-red-600' : 'text-gray-600'}`}>
+            <div className={`text-xs shrink-0 ${Math.max(0, Number((data?.usage as any)?.remaining ?? 0)) <= 3 ? 'text-red-600' : 'text-gray-600'}`}>
               Free uses left: <b>{Math.max(0, Number((data?.usage as any)?.remaining ?? 0))}</b>
+            </div>
+          )}
+          {/* Missing data indicator (always visible when applicable) */}
+          {missingRequired > 0 && (
+            <div className="text-xs shrink-0 text-red-600 inline-flex items-center gap-1" title="Some required items are missing">
+              <span className="inline-flex items-center justify-center h-4 min-w-[1rem] px-1 rounded-full bg-red-500 text-white">
+                {missingRequired}
+              </span>
+              <span>Missing items</span>
             </div>
           )}
           <button
             onClick={() => setShowUserData(v => !v)}
-            className="h-8 px-2.5 inline-flex items-center gap-2 rounded-lg border bg-white hover:bg-gray-50 text-xs shadow-sm"
+            className="h-8 px-2.5 inline-flex items-center gap-2 rounded-lg border bg-white hover:bg-gray-50 text-xs shadow-sm shrink-0"
             aria-pressed={showUserData}
             title="Review the data used for your calculations"
           >
             {showUserData ? 'Hide data' : 'Review data'}
-            {missingRequired > 0 && !showUserData && (
-              <span className="inline-flex items-center justify-center h-4 min-w-[1rem] px-1 rounded-full bg-red-500 text-white">
-                {missingRequired}
-              </span>
-            )}
-            {missingRequired > 0 && !showUserData && (
-              <span className="text-red-600">• Missing items</span>
-            )}
           </button>
           {householdId && entitlements?.plan === 'premium' && (
             <button
@@ -359,7 +374,7 @@ export default function Dashboard() {
                     {Number.isFinite(last as number) ? fmtCurrency(last as number, currency) : '—'}
                   </div>
                   <div className="text-[11px] text-gray-600 mt-1">
-                    {series?.length ? `Updated ${new Date(series[series.length-1].ts).toLocaleString()}` : ''}
+                    {series?.length ? `Updated ${fmtShortDateTime(series[series.length-1].ts)}` : ''}
                     {delta != null && (
                       <>
                         {' '}
@@ -371,7 +386,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="mt-3">
-                <RangeNetWorth series={series} />
+                <RangeNetWorth series={series} latest={latest} currency={currency} />
               </div>
             </Card>
           </div>
@@ -1119,12 +1134,75 @@ function UserDataCard({ latest, currency }: { latest: Snapshot | null; currency:
   const slots = inputs?.slots || {};
   const has = (key: string) => slots?.[key]?.value != null || inputs?.[key] != null;
   const val = (key: string) => slots?.[key]?.value ?? inputs?.[key] ?? null;
+  // Dropdown options for non-numerical fields to improve data quality
+  const OPTIONS: Record<string, { value: any; label: string }[]> = {
+    employment_status: [
+      { value: 'employed', label: 'Employed' },
+      { value: 'self_employed', label: 'Self‑employed' },
+      { value: 'contractor', label: 'Contractor' },
+      { value: 'unemployed', label: 'Unemployed' },
+      { value: 'retired', label: 'Retired' },
+      { value: 'other', label: 'Other' },
+    ],
+    housing_status: [
+      { value: 'own', label: 'Own' },
+      { value: 'rent', label: 'Rent' },
+      { value: 'other', label: 'Other' },
+    ],
+    home_insured_ok: [
+      { value: true, label: 'Yes' },
+      { value: false, label: 'No' },
+    ],
+    income_protection_has: [
+      { value: true, label: 'Yes' },
+      { value: false, label: 'No' },
+    ],
+  };
+
+  // Short help tooltips for each field
+  const HELP: Record<string, string> = {
+    dependants_count: 'People financially dependent on you (children or others).',
+    birth_year: 'Your birth year (YYYY).',
+    employment_status: 'Your current work status helps personalize recommendations.',
+    housing_status: 'Whether you own or rent your home.',
+    net_income_monthly_self: 'Your monthly take‑home pay after tax.',
+    net_income_monthly_partner: 'Partner’s monthly take‑home pay after tax.',
+    gross_income_annual_self: 'Your yearly income before tax.',
+    gross_income_annual_partner: 'Partner’s yearly income before tax.',
+    essential_expenses_monthly: 'Monthly essentials (food, utilities, transport).',
+    total_expenses_monthly: 'All monthly expenses including essentials, housing and debt.',
+    rent_monthly: 'Monthly rent, if you rent.',
+    mortgage_payment_monthly: 'Monthly mortgage payment (principal + interest).',
+    cash_liquid_total: 'Cash you can access quickly (transaction/savings).',
+    term_deposits_le_3m: 'Term deposits or fixed savings maturing within 3 months.',
+    other_debt_payments_monthly_total: 'Required monthly payments on loans/credit cards (ex‑mortgage).',
+    other_debt_balances_total: 'Total balance across loans/credit cards (ex‑mortgage).',
+    short_term_liabilities_12m: 'Bills/obligations due within 12 months.',
+    mortgage_balance: 'Outstanding balance on your mortgage.',
+    debts_total: 'If you prefer, enter total liabilities instead of itemizing.',
+    credit_score_normalised_0_1: 'Credit score normalized 0–1. Leave blank if unsure.',
+    home_insured_ok: 'Is your home insured for a reasonable rebuild cost?',
+    life_insurance_sum: 'Total life insurance sum insured for your household.',
+    income_protection_has: 'Do you have income protection insurance in place?',
+    ip_monthly_benefit: 'Monthly income protection benefit amount, if applicable.',
+    sick_pay_months_full: 'Months your employer pays full salary if off sick.',
+    sick_pay_months_half: 'Months your employer pays half salary after full pay ends.',
+    investments_ex_home_total: 'Investments excluding your home (shares, funds, etc.).',
+    home_value: 'Approximate current market value of your home.',
+    assets_total: 'If you prefer, enter total assets instead of itemizing.',
+    pension_balance_total: 'Total balances in retirement/pension accounts.',
+    pension_contrib_pct: 'Your contribution to retirement as % of gross pay.',
+    retire_age: 'Age you plan to retire.',
+    retire_target_income_annual: 'Target yearly income in retirement before tax.',
+    state_pension_est_annual: 'Estimated yearly state pension at retirement.',
+  };
   const groups: { title: string; items: { key: string; label: string; kind: 'money'|'percent'|'number'|'text'|'bool'; required?: boolean }[] }[] = [
     {
       title: 'Personal Details',
       items: [
         { key: 'dependants_count', label: 'Dependants', kind: 'number' },
         { key: 'birth_year', label: 'Birth year', kind: 'number' },
+        { key: 'employment_status', label: 'Employment status', kind: 'text' },
         { key: 'housing_status', label: 'Housing status', kind: 'text' },
       ],
     },
@@ -1137,9 +1215,8 @@ function UserDataCard({ latest, currency }: { latest: Snapshot | null; currency:
         { key: 'gross_income_annual_partner', label: 'Gross income (partner) / yr', kind: 'money' },
         { key: 'essential_expenses_monthly', label: 'Essentials / mo', kind: 'money', required: true },
         { key: 'total_expenses_monthly', label: 'Total expenses / mo', kind: 'money' },
-        { key: 'rent_monthly', label: 'Rent / mo', kind: 'money', required: true },
-        { key: 'mortgage_payment_monthly', label: 'Mortgage payment / mo', kind: 'money', required: true },
-        { key: 'housing_running_costs_monthly', label: 'Housing running costs / mo', kind: 'money' },
+        { key: 'rent_monthly', label: 'Rent / mo', kind: 'money' },
+        { key: 'mortgage_payment_monthly', label: 'Mortgage payment / mo', kind: 'money' },
       ],
     },
     {
@@ -1211,6 +1288,7 @@ function UserDataCard({ latest, currency }: { latest: Snapshot | null; currency:
   };
   const [editing, setEditing] = React.useState<{ key: string; label: string; kind: string; value: string } | null>(null);
   const [savingKey, setSavingKey] = React.useState<string | null>(null);
+  const [openHelpKey, setOpenHelpKey] = React.useState<string | null>(null);
   const startEdit = (label: string, key: string, kind: string, current: any) => {
     const initial = current != null ? String(current) : '';
     setEditing({ key, label, kind, value: initial });
@@ -1230,7 +1308,8 @@ function UserDataCard({ latest, currency }: { latest: Snapshot | null; currency:
     setSavingKey(null);
   };
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" onClick={() => setOpenHelpKey(null)}>
+      <div className="text-[11px] text-gray-500">Fields marked <span className="text-red-600 font-semibold">*</span> are required for best results.</div>
       {groups.map((group) => (
         <div key={group.title}>
           <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">{group.title}</div>
@@ -1239,20 +1318,38 @@ function UserDataCard({ latest, currency }: { latest: Snapshot | null; currency:
         const v = displayVal(it.key);
         const isMissing = v == null || v === '' || Number.isNaN(Number(v)) && it.kind !== 'text' && it.kind !== 'bool';
         const labelExtra = it.required && isMissing ? (
-          <span className="ml-2 text-[10px] uppercase bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded">Required</span>
+          <span className="ml-1 text-[10px] uppercase bg-red-100 text-red-800 px-1 py-0.5 rounded">Required</span>
         ) : null;
         return (
-          <div key={it.key} className={`flex items-center justify-between border rounded-md p-2 ${isMissing ? 'bg-gray-50' : 'bg-white'}`}>
-            <div>
-              <div className="text-xs text-gray-600">
-                {it.label}
-                {labelExtra}
-              </div>
-              <div className={`text-sm font-medium ${isMissing ? 'text-gray-400' : 'text-gray-800'}`}>{fmtAny(it.kind, v)}</div>
-            </div>
-            <button className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50" onClick={() => startEdit(it.label, it.key, it.kind, v)}>
-              {isMissing ? 'Add' : 'Edit'}
+          <div key={it.key} className={`relative border rounded-md p-2 ${isMissing ? 'bg-gray-50' : 'bg-white'}`}>
+            {/* Help icon: fixed top-right position */}
+            <button
+              type="button"
+              className="absolute top-1.5 right-1.5 h-4 w-4 inline-flex items-center justify-center rounded-full border text-gray-500 hover:bg-gray-50 text-[10px] leading-none"
+              aria-label={`Help: ${it.label}`}
+              aria-expanded={openHelpKey === it.key}
+              onClick={(e) => { e.stopPropagation(); setOpenHelpKey(k => k === it.key ? null : it.key); }}
+            >
+              ?
             </button>
+            {/* Popover tooltip */}
+            {openHelpKey === it.key && (
+              <div className="absolute top-7 right-2 z-20 w-64 bg-white border rounded-md shadow-md p-2 text-xs text-gray-700" onClick={(e) => e.stopPropagation()}>
+                {(HELP as any)?.[it.key] || 'Help'}
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-2 pr-7">
+              <div>
+                <div className="text-xs text-gray-600 flex items-center gap-1">
+                  <span>{it.label}{it.required ? <span className="text-red-600 text-sm font-semibold ml-0.5" aria-hidden="true">*</span> : null}</span>
+                  {labelExtra}
+                </div>
+                <div className={`text-sm font-medium ${isMissing ? 'text-gray-400' : 'text-gray-800'}`}>{fmtAny(it.kind, v)}</div>
+              </div>
+              <button className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50 shrink-0" onClick={(e) => { e.stopPropagation(); startEdit(it.label, it.key, it.kind, v); }}>
+                {isMissing ? 'Add' : 'Edit'}
+              </button>
+            </div>
           </div>
         );
       })}
@@ -1263,14 +1360,39 @@ function UserDataCard({ latest, currency }: { latest: Snapshot | null; currency:
         <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg border shadow-lg w-full max-w-sm p-4">
             <div className="text-sm font-medium text-gray-900">{editing.label}</div>
-            <div className="text-xs text-gray-600 mb-2">Enter a new value{editing.kind === 'percent' ? ' (e.g., 10%)' : editing.kind === 'money' ? ' (e.g., 2,500)' : ''}.</div>
-            <input
-              className="w-full border rounded px-3 py-2 text-sm"
-              value={editing.value}
-              onChange={(e) => setEditing(s => s ? { ...s, value: e.target.value } : s)}
-              placeholder={editing.kind === 'percent' ? 'e.g., 10%' : 'Enter value'}
-              autoFocus
-            />
+            <div className="text-xs text-gray-600 mb-2">{(HELP as any)?.[editing.key] || 'Enter a value.'}</div>
+            {(OPTIONS as any)?.[editing.key] ? (
+              <select
+                className="w-full border rounded px-3 py-2 text-sm"
+                value={editing.value}
+                onChange={(e) => setEditing(s => s ? { ...s, value: e.target.value } : s)}
+                autoFocus
+              >
+                <option value="">Select…</option>
+                {(OPTIONS as any)[editing.key].map((opt: any) => (
+                  <option key={String(opt.value)} value={String(opt.value)}>{opt.label}</option>
+                ))}
+              </select>
+            ) : editing.kind === 'bool' ? (
+              <select
+                className="w-full border rounded px-3 py-2 text-sm"
+                value={editing.value}
+                onChange={(e) => setEditing(s => s ? { ...s, value: e.target.value } : s)}
+                autoFocus
+              >
+                <option value="">Select…</option>
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </select>
+            ) : (
+              <input
+                className="w-full border rounded px-3 py-2 text-sm"
+                value={editing.value}
+                onChange={(e) => setEditing(s => s ? { ...s, value: e.target.value } : s)}
+                placeholder={editing.kind === 'percent' ? 'e.g., 10%' : 'Enter value'}
+                autoFocus
+              />
+            )}
             <div className="mt-3 flex justify-end gap-2">
               <button className="text-xs px-3 py-1.5 rounded border bg-white hover:bg-gray-50" onClick={() => setEditing(null)}>Cancel</button>
               <button className="text-xs px-3 py-1.5 rounded border bg-gray-900 text-white hover:bg-gray-800" onClick={saveEdit} disabled={savingKey === editing.key}>Save</button>
@@ -1284,16 +1406,16 @@ function UserDataCard({ latest, currency }: { latest: Snapshot | null; currency:
 
 function SortedV2Kpis({ kpis }: { kpis: any }) {
   const specs = [
-    { label: 'Savings rate', key: 'sr', value: kpis?.sr, target: 0.20, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 20%', tooltip: 'Shows cashflow surplus to fund goals.' },
-    { label: 'Emergency fund', key: 'ef_months', value: kpis?.ef_months, target: 3, dir: 'higher' as const, format: 'months' as const, subtitle: 'Target ≥ 3 mo (next 6 mo)', tooltip: 'Helps estimate your shock buffer.' },
-    { label: 'Housing ratio', key: 'hr', value: kpis?.hr, target: 0.40, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 40% (next 35%)', tooltip: 'Checks housing isn’t over‑stretching income.' },
-    { label: 'Debt servicing (DSR)', key: 'dsr_total', value: kpis?.dsr_total, target: 0.20, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 20%', tooltip: 'Measures total debt payment pressure.' },
-    { label: 'Non‑mortgage DSR', key: 'nmdsr', value: kpis?.nmdsr, target: 0.10, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 10%', tooltip: 'Highlights consumer‑debt pressure.' },
-    { label: 'DTI (stock)', key: 'dti_stock', value: kpis?.dti_stock, target: 0.35, dir: 'lower' as const, format: 'ratio' as const, subtitle: 'Target ≤ 0.35', tooltip: 'Debt load vs annual income.' },
-    { label: 'Debt / Asset', key: 'd_to_a', value: kpis?.d_to_a, target: 0.60, dir: 'lower' as const, format: 'ratio' as const, subtitle: 'Target ≤ 0.60', tooltip: 'Balance‑sheet solvency.' },
-    { label: 'Retirement readiness', key: 'rrr', value: kpis?.rrr, target: 0.60, dir: 'higher' as const, format: 'ratio' as const, subtitle: 'Target ≥ 0.60 (next 1.00)', tooltip: 'Are you on track for target income?' },
-    { label: 'Investable NW / NW', key: 'invnw', value: kpis?.invnw, target: 0.40, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 40%', tooltip: 'Share of wealth working toward goals.' },
-    { label: 'Pension contribution', key: 'pension_contrib_pct', value: kpis?.pension_contrib_pct, target: 0.10, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 10%', tooltip: 'Long‑horizon saving habit.' },
+    { label: 'Savings rate', key: 'sr', value: kpis?.sr, target: 0.20, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 20%', tooltip: 'Shows cash left after expenses to fund goals.' },
+    { label: 'Emergency buffer', key: 'ef_months', value: kpis?.ef_months, target: 3, dir: 'higher' as const, format: 'months' as const, subtitle: 'Target ≥ 3 months (aim 6)', tooltip: 'Months your essentials are covered by cash.' },
+    { label: 'Housing costs (of income)', key: 'hr', value: kpis?.hr, target: 0.40, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 40% (aim 35%)', tooltip: 'Checks housing isn’t over‑stretching income.' },
+    { label: 'Debt payments (of income)', key: 'dsr_total', value: kpis?.dsr_total, target: 0.20, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 20%', tooltip: 'Total debt payment pressure.' },
+    { label: 'Non‑mortgage debt payments', key: 'nmdsr', value: kpis?.nmdsr, target: 0.10, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 10%', tooltip: 'Focus on credit cards and loans (not mortgage).' },
+    { label: 'Total debt vs income', key: 'dti_stock', value: kpis?.dti_stock, target: 0.35, dir: 'lower' as const, format: 'ratio' as const, subtitle: 'Target ≤ 0.35', tooltip: 'Total debt compared to annual income.' },
+    { label: 'Debts vs assets', key: 'd_to_a', value: kpis?.d_to_a, target: 0.60, dir: 'lower' as const, format: 'ratio' as const, subtitle: 'Target ≤ 0.60', tooltip: 'How your debts compare to your assets.' },
+    { label: 'Retirement readiness', key: 'rrr', value: kpis?.rrr, target: 0.60, dir: 'higher' as const, format: 'ratio' as const, subtitle: 'Target ≥ 0.60 (aim 1.00)', tooltip: 'Are you on track for your target retirement income?' },
+    { label: 'Investable share of net worth', key: 'invnw', value: kpis?.invnw, target: 0.40, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 40%', tooltip: 'Share of wealth working toward long‑term goals.' },
+    { label: 'Retirement contributions', key: 'pension_contrib_pct', value: kpis?.pension_contrib_pct, target: 0.10, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 10%', tooltip: 'Your regular saving toward retirement.' },
   ];
   const urgency = (v: number | null | undefined, t: number, dir: 'higher'|'lower') => {
     if (!Number.isFinite(v as number)) return -1; // unknown -> push to end
@@ -1313,7 +1435,7 @@ function SortedV2Kpis({ kpis }: { kpis: any }) {
   );
 }
 
-function RangeNetWorth({ series }: { series: SeriesPoint[] }) {
+function RangeNetWorth({ series, latest, currency }: { series: SeriesPoint[]; latest: Snapshot | null; currency: string }) {
   const [range, setRange] = React.useState<'1m'|'3m'|'1y'|'all'>('3m');
   const trajectory = React.useMemo(() => {
     if (!series?.length) return 'flat';
@@ -1334,6 +1456,22 @@ function RangeNetWorth({ series }: { series: SeriesPoint[] }) {
       return (now - t) <= delta*24*60*60*1000;
     });
   }, [series, range]);
+
+  // Compute a simple assets vs liabilities breakdown from the latest inputs
+  const breakdown = React.useMemo(() => {
+    try {
+      const slots = (latest as any)?.inputs?.slots;
+      if (!slots) return null;
+      const norm = normaliseSlots(slots as any);
+      const assets = typeof norm.total_assets === 'number' ? norm.total_assets : null;
+      const debts = typeof norm.total_liabilities === 'number' ? norm.total_liabilities : null;
+      const nw = typeof norm.net_worth === 'number' ? norm.net_worth : (assets != null && debts != null ? assets - debts : null);
+      return { assets, debts, nw } as { assets: number | null; debts: number | null; nw: number | null };
+    } catch {
+      return null;
+    }
+  }, [latest]);
+
   return (
     <div>
       <div className="text-[11px] text-gray-600 mb-1">
@@ -1351,6 +1489,36 @@ function RangeNetWorth({ series }: { series: SeriesPoint[] }) {
         ))}
       </div>
       <Sparkline points={filtered} />
+
+      {breakdown && (breakdown.assets != null || breakdown.debts != null) && (
+        <div className="mt-3">
+          <div className="text-[11px] text-gray-600 mb-1">Assets vs liabilities</div>
+          {/* Stacked bar: red portion shows liabilities as a share of assets; green is equity portion. */}
+          {typeof breakdown.assets === 'number' && breakdown.assets > 0 ? (
+            <div className="w-full h-4 rounded bg-gray-200 overflow-hidden" aria-label="Assets and liabilities breakdown">
+              {(() => {
+                const assets = breakdown.assets as number;
+                const debts = Math.max(0, (breakdown.debts as number) || 0);
+                const debtPct = Math.min(1, debts / Math.max(assets, 1e-9));
+                const equityPct = Math.max(0, 1 - debtPct);
+                return (
+                  <div className="w-full h-full flex">
+                    <div className="h-full" style={{ width: `${Math.round(debtPct * 100)}%`, backgroundColor: '#ef4444' }} title={`Liabilities: ${fmtCurrency(debts, currency)}`} />
+                    <div className="h-full" style={{ width: `${Math.round(equityPct * 100)}%`, backgroundColor: '#10b981' }} title={`Equity: ${fmtCurrency(Math.max(assets - debts, 0), currency)}`} />
+                  </div>
+                );
+              })()}
+            </div>
+          ) : (
+            <div className="text-[11px] text-gray-500">Add assets and debts to see a breakdown.</div>
+          )}
+          <div className="mt-1 text-[11px] text-gray-700 flex items-center gap-3">
+            <span>Assets: <b>{typeof breakdown.assets === 'number' ? fmtCurrency(breakdown.assets, currency) : '—'}</b></span>
+            <span>• Liabilities: <b>{typeof breakdown.debts === 'number' ? fmtCurrency(Math.max(breakdown.debts, 0), currency) : '—'}</b></span>
+            <span>• Net worth: <b>{typeof breakdown.nw === 'number' ? fmtCurrency(breakdown.nw, currency) : '—'}</b></span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1359,16 +1527,16 @@ function RangeNetWorth({ series }: { series: SeriesPoint[] }) {
 function KpiGrid({ kpis }: { kpis: any }) {
   const [filter, setFilter] = React.useState<'all'|'spend'|'save'|'borrow'|'protect'|'grow'>('all');
   const specs = [
-    { label: 'Savings rate', key: 'sr', value: kpis?.sr, target: 0.20, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 20%', tooltip: 'Shows cashflow surplus to fund goals.', pillar: 'save' },
-    { label: 'Emergency fund', key: 'ef_months', value: kpis?.ef_months, target: 3, dir: 'higher' as const, format: 'months' as const, subtitle: 'Target ≥ 3 mo (next 6 mo)', tooltip: 'Helps estimate your shock buffer.', pillar: 'save' },
-    { label: 'Housing ratio', key: 'hr', value: kpis?.hr, target: 0.40, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 40% (next 35%)', tooltip: 'Checks housing isn’t over‑stretching income.', pillar: 'spend' },
-    { label: 'Debt servicing (DSR)', key: 'dsr_total', value: kpis?.dsr_total, target: 0.20, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 20%', tooltip: 'Measures total debt payment pressure.', pillar: 'borrow' },
-    { label: 'Non‑mortgage DSR', key: 'nmdsr', value: kpis?.nmdsr, target: 0.10, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 10%', tooltip: 'Highlights consumer‑debt pressure.', pillar: 'borrow' },
-    { label: 'DTI (stock)', key: 'dti_stock', value: kpis?.dti_stock, target: 0.35, dir: 'lower' as const, format: 'ratio' as const, subtitle: 'Target ≤ 0.35', tooltip: 'Debt load vs annual income.', pillar: 'borrow' },
-    { label: 'Debt / Asset', key: 'd_to_a', value: kpis?.d_to_a, target: 0.60, dir: 'lower' as const, format: 'ratio' as const, subtitle: 'Target ≤ 0.60', tooltip: 'Balance‑sheet solvency.', pillar: 'borrow' },
-    { label: 'Retirement readiness', key: 'rrr', value: kpis?.rrr, target: 0.60, dir: 'higher' as const, format: 'ratio' as const, subtitle: 'Target ≥ 0.60 (next 1.00)', tooltip: 'Are you on track for target income?', pillar: 'grow' },
-    { label: 'Investable NW / NW', key: 'invnw', value: kpis?.invnw, target: 0.40, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 40%', tooltip: 'Share of wealth working toward goals.', pillar: 'grow' },
-    { label: 'Pension contribution', key: 'pension_contrib_pct', value: kpis?.pension_contrib_pct, target: 0.10, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 10%', tooltip: 'Long‑horizon saving habit.', pillar: 'grow' },
+    { label: 'Savings rate', key: 'sr', value: kpis?.sr, target: 0.20, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 20%', tooltip: 'Shows cash left after expenses to fund goals.', pillar: 'save' },
+    { label: 'Emergency buffer', key: 'ef_months', value: kpis?.ef_months, target: 3, dir: 'higher' as const, format: 'months' as const, subtitle: 'Target ≥ 3 months (aim 6)', tooltip: 'Months your essentials are covered by cash.', pillar: 'save' },
+    { label: 'Housing costs (of income)', key: 'hr', value: kpis?.hr, target: 0.40, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 40% (aim 35%)', tooltip: 'Checks housing isn’t over‑stretching income.', pillar: 'spend' },
+    { label: 'Debt payments (of income)', key: 'dsr_total', value: kpis?.dsr_total, target: 0.20, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 20%', tooltip: 'Total debt payment pressure.', pillar: 'borrow' },
+    { label: 'Non‑mortgage debt payments', key: 'nmdsr', value: kpis?.nmdsr, target: 0.10, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 10%', tooltip: 'Focus on credit cards and loans (not mortgage).', pillar: 'borrow' },
+    { label: 'Total debt vs income', key: 'dti_stock', value: kpis?.dti_stock, target: 0.35, dir: 'lower' as const, format: 'ratio' as const, subtitle: 'Target ≤ 0.35', tooltip: 'Total debt compared to annual income.', pillar: 'borrow' },
+    { label: 'Debts vs assets', key: 'd_to_a', value: kpis?.d_to_a, target: 0.60, dir: 'lower' as const, format: 'ratio' as const, subtitle: 'Target ≤ 0.60', tooltip: 'How your debts compare to your assets.', pillar: 'borrow' },
+    { label: 'Retirement readiness', key: 'rrr', value: kpis?.rrr, target: 0.60, dir: 'higher' as const, format: 'ratio' as const, subtitle: 'Target ≥ 0.60 (aim 1.00)', tooltip: 'Are you on track for your target retirement income?', pillar: 'grow' },
+    { label: 'Investable share of net worth', key: 'invnw', value: kpis?.invnw, target: 0.40, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 40%', tooltip: 'Share of wealth working toward long‑term goals.', pillar: 'grow' },
+    { label: 'Retirement contributions', key: 'pension_contrib_pct', value: kpis?.pension_contrib_pct, target: 0.10, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 10%', tooltip: 'Your regular saving toward retirement.', pillar: 'grow' },
   ];
   const urgency = (v: number | null | undefined, t: number, dir: 'higher'|'lower') => {
     if (!Number.isFinite(v as number)) return -1;
@@ -1380,7 +1548,7 @@ function KpiGrid({ kpis }: { kpis: any }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <div className="text-sm text-gray-600 font-medium">KPI Grid</div>
+        <div className="text-sm text-gray-600 font-medium">Key metrics</div>
         <div className="text-xs text-gray-500">Sorted by urgency</div>
       </div>
       <div className="flex flex-wrap gap-2 mb-3 text-xs">

@@ -5,7 +5,6 @@ import ReactMarkdown from "react-markdown";
 import { TranscriptItem } from "@/app/types";
 import Image from "next/image";
 import { useTranscript } from "@/app/contexts/TranscriptContext";
-import { DownloadIcon, ClipboardCopyIcon } from "@radix-ui/react-icons";
 import { GuardrailChip } from "./GuardrailChip";
 
 export interface TranscriptProps {
@@ -13,7 +12,6 @@ export interface TranscriptProps {
   setUserText: (val: string) => void;
   onSendMessage: () => void;
   canSend: boolean;
-  downloadRecording: () => void;
 }
 
 function Transcript({
@@ -21,12 +19,10 @@ function Transcript({
   setUserText,
   onSendMessage,
   canSend,
-  downloadRecording,
 }: TranscriptProps) {
   const { transcriptItems, toggleTranscriptItemExpand } = useTranscript();
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const [prevLogs, setPrevLogs] = useState<TranscriptItem[]>([]);
-  const [justCopied, setJustCopied] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   function scrollToBottom() {
@@ -53,21 +49,10 @@ function Transcript({
     if (canSend && inputRef.current) inputRef.current.focus();
   }, [canSend]);
 
-  const handleCopyTranscript = async () => {
-    if (!transcriptRef.current) return;
-    try {
-      await navigator.clipboard.writeText(transcriptRef.current.innerText);
-      setJustCopied(true);
-      setTimeout(() => setJustCopied(false), 1500);
-    } catch (error) {
-      console.error("Failed to copy transcript:", error);
-    }
-  };
-
   return (
     <div className="flex flex-col flex-1 bg-white min-h-0 rounded-xl">
       <div className="flex flex-col flex-1 min-h-0">
-        <div className="flex items-center justify-between px-6 py-3 sticky top-0 z-10 text-base border-b bg-white rounded-t-xl">
+        <div className="flex items-center justify-between px-4 py-2 sticky top-0 z-10 text-base border-b bg-white rounded-t-xl">
           <span className="font-semibold flex items-center gap-2">
   <span className="relative inline-flex items-center justify-center">
     {canSend ? (
@@ -81,29 +66,14 @@ function Transcript({
   </span>
   Transcript
 </span>
-          <div className="flex gap-x-2">
-            <button
-              onClick={handleCopyTranscript}
-              className="w-24 text-sm px-3 py-1 rounded-md bg-gray-200 hover:bg-gray-300 flex items-center justify-center gap-x-1"
-            >
-              <ClipboardCopyIcon />
-              {justCopied ? "Copied!" : "Copy"}
-            </button>
-            <button
-              onClick={downloadRecording}
-              className="w-40 text-sm px-3 py-1 rounded-md bg-gray-200 hover:bg-gray-300 flex items-center justify-center gap-x-1"
-            >
-              <DownloadIcon />
-              <span>Download Audio</span>
-            </button>
-          </div>
+          <div />
         </div>
 
         {/* Scrollable transcript content */}
         <div
           ref={transcriptRef}
           data-test-transcript-frame
-          className="overflow-auto p-4 flex flex-col gap-y-4 h-full"
+          className="flex-1 min-h-0 overflow-auto p-4 flex flex-col gap-y-4"
         >
           {[...transcriptItems]
             .sort((a, b) => a.createdAtMs - b.createdAtMs)
