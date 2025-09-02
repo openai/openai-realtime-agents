@@ -593,6 +593,7 @@ function ProfileMenu({ householdId, entitlements, household }: { householdId: st
               <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={upgrade}>Upgrade to Premium</button>
             )}
             <a className="block px-3 py-2 hover:bg-gray-50" href="/feedback">Send feedback</a>
+            <a className="block px-3 py-2 hover:bg-gray-50" href="/contact">Contact us</a>
             <a className="block px-3 py-2 hover:bg-gray-50" href="/terms" target="_blank" rel="noreferrer">Terms</a>
             <a className="block px-3 py-2 hover:bg-gray-50" href="/privacy" target="_blank" rel="noreferrer">Privacy</a>
           </div>

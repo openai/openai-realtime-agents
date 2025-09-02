@@ -1,6 +1,11 @@
+import Link from "next/link";
+
 export default function TermsPage() {
   return (
     <main className="max-w-3xl mx-auto px-4 py-12 text-gray-800">
+      <Link href="/" className="text-sm text-blue-600 hover:underline mb-4 block">
+        &larr; Return
+      </Link>
       <h1 className="text-3xl font-semibold mb-4">Terms of Use</h1>
       <p className="text-sm mb-3">These Terms govern your use of Prosper. By using the service, you agree to these Terms.</p>
       <p className="text-sm mb-3">Prosper provides general, educational information and planning tools. Prosper is not a financial adviser and does not provide financial advice. Consider your objectives and circumstances, and seek professional advice where appropriate.</p>
