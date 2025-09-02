@@ -138,5 +138,5 @@ export function generateTwoBestActions(k: KpisV2, g: GatesV2): Array<{ title: st
     .map(a => ({ ...a, score: a.score ?? 0.5 }))
     .sort((a, b) => (b.score! - a.score!));
 
-  return ranked.slice(0, 2).map(({ score, ...rest }) => rest);
+  return ranked.slice(0, 2).map((a) => { const { score: _omit, ...rest } = a; return rest; });
 }

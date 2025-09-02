@@ -15,7 +15,7 @@ export default function PricingPage() {
   const fmt = (c?: string, cents?: number) => {
     if (!c || typeof cents !== 'number') return '$';
     const n = (cents || 0) / 100;
-    try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: c }).format(n); } catch { return `$${n}`; }
+    try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: c }).format(n); } catch { return `$${n}`; }
   };
   const startCheckout = async (interval: 'monthly'|'annual') => {
     try {
@@ -123,7 +123,7 @@ export default function PricingPage() {
       <footer className="border-t">
         <div className="max-w-7xl mx-auto px-4 py-8 text-sm text-gray-600">
           <div className="flex items-center justify-between">
-            <div>© {new Date().getFullYear()} Prosper</div>
+            <div>© {new Date().getUTCFullYear()} Prosper</div>
             <div className="text-xs flex items-center gap-4">
               <span>Prosper provides general, educational information. It is not a financial adviser and does not provide financial advice.</span>
               <a href="/terms" className="underline">Terms</a>

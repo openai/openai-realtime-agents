@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import supabase from "@/app/lib/supabaseServer";
 
-function formEncode(obj: Record<string, any>): string {
-  return Object.entries(obj)
-    .filter(([, v]) => v != null)
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
-    .join('&');
-}
-
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
@@ -57,4 +50,3 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'bad_request', detail: e?.message || 'failed' }, { status: 400 });
   }
 }
-

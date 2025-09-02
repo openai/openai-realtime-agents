@@ -133,7 +133,7 @@ export function assignProsperLevels(kpis: KPIs) {
 }
 
 /** Produce a small, prioritised action plan from KPIs & levels. */
-export function generateRecommendations(kpis: KPIs, levels: any, preferences: Record<string, any> = {}) {
+export function generateRecommendations(kpis: KPIs, levels: any, _preferences: Record<string, any> = {}) {
   const recs: any[] = [];
   const gating = levels?.gating_pillar ?? "spend";
 

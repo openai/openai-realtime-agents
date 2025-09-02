@@ -34,28 +34,20 @@ export type DashboardPayload = {
 
 /** ===== Helpers ===== */
 const fmtCurrency = (n: number, currency = "AUD") =>
-  new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat('en-US', { style: "currency", currency, maximumFractionDigits: 0 }).format(n);
 
-const fmtPct = (n: number) =>
-  `${(Number.isFinite(n) ? Math.round(n * 1000) / 10 : 0).toFixed(1)}%`;
-
-function kpiOrDash(v: any, kind: "pct" | "num" | "months" = "num") {
-  if (v == null || Number.isNaN(Number(v))) return "—";
-  if (kind === "pct") return fmtPct(Number(v));
-  if (kind === "months") return `${(Math.round(Number(v) * 10) / 10).toFixed(1)} mo`;
-  return String(v);
-}
+const fmtPct = (n: number) => `${(Number.isFinite(n) ? Math.round(n * 1000) / 10 : 0).toFixed(1)}%`;
 
 // Short, friendly timestamp like "31 Aug, 14:30" (locale-aware)
 function fmtShortDateTime(iso: string): string {
   try {
     const d = new Date(iso);
-    const day = d.toLocaleString(undefined, { day: '2-digit' });
-    const mon = d.toLocaleString(undefined, { month: 'short' });
-    const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    const day = d.toLocaleString('en-US', { day: '2-digit', timeZone: 'UTC' });
+    const mon = d.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+    const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
     return `${day} ${mon}, ${time}`;
   } catch {
-    return new Date(iso).toLocaleString();
+    return new Date(iso).toLocaleString('en-US', { timeZone: 'UTC' });
   }
 }
 
@@ -183,8 +175,7 @@ export default function Dashboard() {
   const levels = data?.levels ?? latest?.levels ?? {};
   const recs = (data?.recommendations ?? latest?.recommendations) as any;
   const entitlements = data?.entitlements ?? { plan: 'free' } as any;
-  const isV2 = (kpis as any)?.engine_version === 'v2' || (kpis as any)?.gates != null;
-  const gates = (kpis as any)?.gates as any | undefined;
+  // v2 markers available via kpis.gates when present
 
   const last = series[series.length - 1]?.value;
   const prev = series.length > 1 ? series[series.length - 2]?.value : undefined;
@@ -198,7 +189,8 @@ export default function Dashboard() {
     if (iso) return normaliseCurrency(iso).code;
     return "AUD";
   }, [latest]);
-  const name: string | null = React.useMemo(() => {
+  // Friendly name if needed in future (unused in current UI)
+  /* const name: string | null = React.useMemo(() => {
     const inputs = (latest as any)?.inputs || {};
     const slots = inputs?.slots || {};
     const cand = [
@@ -221,7 +213,7 @@ export default function Dashboard() {
       return s.length > 0 ? s : null;
     }
     return null;
-  }, [latest]);
+  }, [latest]); */
   const overallLevelCode = (levels?.overall?.level as string) || "L1";
   const overallLevelLabel = getProsperLevelLabel(overallLevelCode);
   const levelNumber = Number(overallLevelCode.match(/\d+/)?.[0] ?? 1); // 1..10
@@ -270,7 +262,7 @@ export default function Dashboard() {
   const componentsLiabsPresent = (slotsAny?.mortgage_balance?.value != null) || (slotsAny?.other_debt_balances_total?.value != null);
   const assetsOverrideUsed = (slotsAny?.assets_total?.value != null) && !componentsAssetsPresent;
   const debtsOverrideUsed = (slotsAny?.debts_total?.value != null) && !componentsLiabsPresent;
-  const hasNwOverrides = assetsOverrideUsed || debtsOverrideUsed;
+  // const hasNwOverrides = assetsOverrideUsed || debtsOverrideUsed; // presently unused
 
   return (
     <>
@@ -496,145 +488,9 @@ export default function Dashboard() {
 
 /** ===== Small presentational components ===== */
 
-function KpiCard({
-  label,
-  value,
-  hint,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string | number;
-  hint?: string;
-  tone?: "good" | "warn" | "bad" | "neutral";
-}) {
-  const toneClass =
-    tone === "good"
-      ? "border-emerald-200"
-      : tone === "warn"
-      ? "border-yellow-200"
-      : tone === "bad"
-      ? "border-red-200"
-      : "border-gray-200";
-  const accentClass =
-    tone === "good"
-      ? "bg-emerald-500"
-      : tone === "warn"
-      ? "bg-yellow-500"
-      : tone === "bad"
-      ? "bg-red-500"
-      : "bg-gray-200";
-
-  return (
-    <div className={`rounded-lg border bg-white p-3 shadow-sm ${toneClass}`}>
-      <div className="flex items-start gap-3">
-        <div className={`h-8 w-1.5 rounded-sm ${accentClass}`} aria-hidden="true" />
-        <div className="flex-1 min-w-0">
-          <div className="text-xs text-gray-600 truncate">{label}</div>
-          <div className="text-lg font-semibold leading-tight">{value}</div>
-          {hint ? <div className="text-[11px] text-gray-500 mt-1">{hint}</div> : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function numTone(
-  v: any,
-  thresholds: { good?: number; warn?: number; goodBelow?: number; warnBelow?: number },
-  direction: "higher" | "lower" = "higher"
-): "good" | "warn" | "bad" | "neutral" {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return "neutral";
-
-  if (thresholds.goodBelow != null || thresholds.warnBelow != null) {
-    // lower is better
-    if (n <= (thresholds.goodBelow ?? -Infinity)) return "good";
-    if (n <= (thresholds.warnBelow ?? -Infinity)) return "warn";
-    return "bad";
-  }
-
-  // higher is better
-  if (n >= (thresholds.good ?? Infinity)) return "good";
-  if (n >= (thresholds.warn ?? Infinity)) return "warn";
-  return "bad";
-}
-
-function RecommendationCard({ rec }: { rec: any }) {
-  // Support either a string or a structured object
-  if (typeof rec === "string") {
-    return (
-      <div className="border rounded-lg p-3 bg-white shadow-sm">
-        <div className="text-sm">{rec}</div>
-      </div>
-    );
-  }
-
-  const title = rec?.title || rec?.action || rec?.label || "Recommendation";
-  const why = rec?.why || rec?.rationale || rec?.reason;
-  const how = rec?.how || rec?.steps || rec?.next || rec?.do;
-  const impact = rec?.impact ?? rec?.score ?? rec?.benefit;
-  const effort = rec?.effort ?? rec?.cost ?? rec?.lift;
-  const badge =
-    rec?.pillar || rec?.kpi || rec?.category || (rec?.priority ? `P${rec.priority}` : null);
-
-  return (
-    <div className="border rounded-lg p-3 bg-white shadow-sm hover:bg-gray-50 transition-colors">
-      <div className="flex items-start justify-between gap-3">
-        <div className="font-medium leading-5">{title}</div>
-        {badge && <div className="text-[10px] px-2 py-0.5 rounded bg-gray-100 text-gray-700">{String(badge)}</div>}
-      </div>
-      {why && <div className="text-xs text-gray-600 mt-1">{why}</div>}
-      {how && (
-        <div className="text-xs text-gray-800 mt-2">
-          {Array.isArray(how) ? (
-            <ul className="list-disc pl-4 space-y-1">
-              {how.map((h, i) => <li key={i}>{String(h)}</li>)}
-            </ul>
-          ) : (
-            String(how)
-          )}
-        </div>
-      )}
-      {(impact != null || effort != null) && (
-        <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-600">
-          {impact != null && <span>Impact: <b>{impact}</b></span>}
-          {effort != null && <span>• Effort: <b>{effort}</b></span>}
-        </div>
-      )}
-    </div>
-  );
-}
-
 /** Small card wrapper for consistent styling */
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <div className={`bg-white border rounded-xl shadow-sm ${className}`}>{children}</div>;
-}
-
-function Gate({ status, label }: { status: boolean | undefined; label: string }) {
-  const tone = status === true ? 'pass' : status === false ? 'fail' : 'unknown';
-  const cls =
-    tone === 'pass'
-      ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-      : tone === 'fail'
-      ? 'bg-red-50 border-red-200 text-red-700'
-      : 'bg-gray-50 border-gray-200 text-gray-700';
-  const dot =
-    tone === 'pass' ? 'bg-emerald-500' : tone === 'fail' ? 'bg-red-500' : 'bg-gray-400';
-  const text = tone === 'pass' ? 'Pass' : tone === 'fail' ? 'Needs attention' : 'Unknown';
-  return (
-    <div className={`rounded-md border p-2 text-xs ${cls}`} title={`${label}: ${text}`}>
-      <div className="flex items-center gap-2">
-        <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden="true" />
-        <span className="font-medium">{label}</span>
-      </div>
-    </div>
-  );
-}
-
-function normBool(v: any): boolean | undefined {
-  if (v === true) return true;
-  if (v === false) return false;
-  return undefined;
 }
 
 function V2KpiBar({
@@ -698,165 +554,10 @@ function V2KpiBar({
 }
 
 /** ===== Helpers: New mini components ===== */
-function UrgentKpis({ kpis }: { kpis: any }) {
-  // Build urgency list for v2 metrics; show compact progress bars
-  const specs = [
-    { key: 'ef_months', label: 'Emergency fund', value: kpis?.ef_months, target: 3, dir: 'higher' as const, format: 'months' as const },
-    { key: 'sr', label: 'Savings rate', value: kpis?.sr, target: 0.20, dir: 'higher' as const, format: 'pct' as const },
-    { key: 'dsr_total', label: 'Debt servicing', value: kpis?.dsr_total, target: 0.20, dir: 'lower' as const, format: 'pct' as const },
-    { key: 'hr', label: 'Housing ratio', value: kpis?.hr, target: 0.40, dir: 'lower' as const, format: 'pct' as const },
-  ];
-  const urgency = (v: number | null | undefined, t: number, dir: 'higher' | 'lower') => {
-    if (!Number.isFinite(v as number)) return -1;
-    const n = v as number;
-    return dir === 'higher' ? (n >= t ? 0 : (t - n) / Math.max(t, 1e-9)) : (n <= t ? 0 : (n - t) / Math.max(t, 1e-9));
-  };
-  const top = (specs as any[])
-    .map((s: any) => ({ ...s, u: urgency(s.value, s.target, s.dir) }))
-    .sort((a, b) => b.u - a.u)
-    .slice(0, 3);
-  const formatVal = (v: number | null | undefined, f: 'pct'|'months'|'ratio') => {
-    if (!Number.isFinite(v as number)) return '—';
-    const n = v as number;
-    if (f === 'pct') return fmtPct(n);
-    if (f === 'months') return `${(Math.round(n * 10) / 10).toFixed(1)} mo`;
-    return String(Math.round(n * 100) / 100);
-  };
-  const progressPct = (v: number | null | undefined, t: number, dir: 'higher'|'lower') => {
-    if (!Number.isFinite(v as number)) return 0;
-    const n = v as number;
-    let p = dir === 'higher' ? n / Math.max(t, 1e-9) : Math.min(1, Math.max(0, t / Math.max(n, 1e-9)));
-    if (p > 1) p = 1; if (p < 0) p = 0; return p * 100;
-  };
-  return (
-    <>
-      {top.map((s) => (
-        <div key={s.key} className="border rounded-lg p-3 bg-white">
-          <div className="flex items-baseline justify-between">
-            <div className="text-xs text-gray-600">{s.label}</div>
-            <div className="text-[11px] text-gray-500">Target {s.dir === 'higher' ? '≥' : '≤'} {s.format === 'pct' ? fmtPct(s.target) : s.format === 'months' ? `${s.target} mo` : String(s.target)}</div>
-          </div>
-          <div className="mt-0.5 text-lg font-semibold">{formatVal(s.value, s.format)}</div>
-          <div className="mt-2 h-1 w-full rounded bg-gray-200">
-            <div className="h-1 rounded bg-gray-700" style={{ width: `${Math.round(progressPct(s.value, s.target, s.dir))}%` }} />
-          </div>
-        </div>
-      ))}
-    </>
-  );
-}
+// Removed unused UrgentKpis component
 
-function NextActions({ recs }: { recs: any }) {
-  let arr: any[] = [];
-  if (Array.isArray(recs)) arr = recs;
-  else if (recs && typeof recs === 'object') arr = Object.values(recs).flat();
-  const top = (arr || []).slice(0, 2);
-  const [completed, setCompleted] = React.useState<string[]>([]);
-  const [householdId, setHouseholdId] = React.useState<string>('');
-  React.useEffect(() => { (async () => { try { const hh = await ensureHouseholdId(); setHouseholdId(hh); const r = await fetch(`/api/actions/list?householdId=${hh}`, { cache: 'no-store' }); const j = await r.json(); const titles = (j?.items||[]).map((it:any)=> (it.title||'').toString().toLowerCase()); setCompleted(titles); } catch {} })(); }, []);
-  const filtered = (top || []).filter((r: any) => { const t = (r?.title || r?.action || r?.label || '').toString().toLowerCase(); return t && !completed.includes(t); });
-  const copyText = async (text: string) => {
-    try { await navigator.clipboard.writeText(text); } catch {}
-  };
-  if (!filtered || filtered.length === 0) {
-    return <div className="text-sm text-gray-500">No recommendations yet. Provide more info in chat to unlock your plan.</div>;
-  }
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-      {filtered.map((r, i) => {
-        const title = r?.title || r?.action || r?.label || `Action ${i+1}`;
-        const why = r?.why || r?.rationale || r?.reason;
-        const how = r?.how || r?.steps || r?.next || r?.do;
-        const prompt = typeof how === 'string' ? how : Array.isArray(how) ? how.join('\n') : title;
-        const unlocks = r?.unlocks || r?.moves_to || r?.next_level || null;
-        return (
-          <div key={i} className="border rounded-lg p-3 bg-white">
-            <div className="font-medium">{title}</div>
-            {why && <div className="text-xs text-gray-600 mt-1">{why}</div>}
-            {how && (
-              <div className="text-xs text-gray-800 mt-2">
-                {Array.isArray(how) ? (
-                  <ul className="list-disc pl-4 space-y-1">{how.map((h: any, j: number) => <li key={j}>{String(h)}</li>)}</ul>
-                ) : String(how)}
-              </div>
-            )}
-            {unlocks && (
-              <div className="mt-2 text-[11px] text-gray-600">Unlocks: {String(unlocks)}</div>
-            )}
-            <div className="mt-2 flex items-center gap-2">
-              <button onClick={() => copyText(`Can you help me with: ${title}?\n${prompt}`)} className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50">Copy prompt</button>
-              <button
-                className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50"
-                onClick={() => {
-                  const text = `Can you help me with: ${title}?\n${prompt}`;
-                  try { window.dispatchEvent(new CustomEvent('pp:open_chat', { detail: { text } })); } catch {}
-                }}
-              >
-                Open in chat
-              </button>
-              <button
-                className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50"
-                onClick={async () => {
-                  try {
-                    await fetch('/api/actions/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, title }) });
-                    setCompleted((prev) => [...prev, title.toString().toLowerCase()]);
-                  } catch {}
-                }}
-              >
-                Mark done
-              </button>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+// Removed unused NextActions component
 
-function CompletedActions() {
-  const [items, setItems] = React.useState<{ id: string; title?: string; completed_at?: string }[]>([]);
-  const [householdId, setHouseholdId] = React.useState<string>('');
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const hh = await ensureHouseholdId();
-        setHouseholdId(hh);
-        const r = await fetch(`/api/actions/list?householdId=${hh}`, { cache: 'no-store' });
-        const j = await r.json();
-        const arr = (j?.items || []).slice(0, 5).map((it: any) => ({ id: it.id, title: it.title, completed_at: it.completed_at }));
-        setItems(arr);
-      } catch {}
-    })();
-  }, []);
-  if (!items || items.length === 0) {
-    return <div className="text-sm text-gray-500">Nothing marked complete yet. Tackle one action to get momentum.</div>;
-  }
-  return (
-    <div className="space-y-2">
-      {items.map((it) => (
-        <div key={it.id} className="flex items-center justify-between border rounded-md p-2 bg-white">
-          <div>
-            <div className="text-sm font-medium text-gray-800">{it.title || 'Action'}</div>
-            <div className="text-[11px] text-gray-500">{it.completed_at ? (
-              <time suppressHydrationWarning dateTime={it.completed_at}>
-                {new Date(it.completed_at).toLocaleString()}
-              </time>
-            ) : ''}</div>
-          </div>
-          <button
-            className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50"
-            onClick={() => {
-              const text = `I completed: ${it.title}. What should I do next?`;
-              try { window.dispatchEvent(new CustomEvent('pp:open_chat', { detail: { text } })); } catch {}
-            }}
-          >
-            Ask what’s next
-          </button>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 function ActionPlan({ recs }: { recs: any }) {
   const [householdId, setHouseholdId] = React.useState<string>("");
@@ -1025,7 +726,7 @@ function ActionPlan({ recs }: { recs: any }) {
                 <div className="text-sm font-medium text-gray-800">{it.title || 'Action'}</div>
                 <div className="text-[11px] text-gray-500">{it.completed_at ? (
                   <time suppressHydrationWarning dateTime={it.completed_at}>
-                    {new Date(it.completed_at).toLocaleString()}
+                    {new Date(it.completed_at).toLocaleString('en-US', { timeZone: 'UTC' })}
                   </time>
                 ) : ''}</div>
               </div>
@@ -1053,25 +754,6 @@ function ActionPlan({ recs }: { recs: any }) {
   );
 }
 
-function MomentumStreak() {
-  const [count, setCount] = React.useState<number>(0);
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const hh = await ensureHouseholdId();
-        const r = await fetch(`/api/actions/list?householdId=${hh}`, { cache: 'no-store' });
-        const j = await r.json();
-        const now = Date.now();
-        const monthAgo = now - 30*24*60*60*1000;
-        const c = (j?.items || []).filter((it: any) => it?.completed_at && new Date(it.completed_at).getTime() >= monthAgo).length;
-        setCount(c);
-      } catch {}
-    })();
-  }, []);
-  return (
-    <div className="text-xs text-gray-600">Momentum: <span className="font-semibold">{count}</span> completed this month</div>
-  );
-}
 
 function ProgressInsights({ kpis }: { kpis: any }) {
   const items: { text: string; priority: number }[] = [];
@@ -1157,7 +839,6 @@ function ProgressInsights({ kpis }: { kpis: any }) {
 function UserDataCard({ latest, currency }: { latest: Snapshot | null; currency: string }) {
   const inputs = (latest as any)?.inputs || {};
   const slots = inputs?.slots || {};
-  const has = (key: string) => slots?.[key]?.value != null || inputs?.[key] != null;
   const val = (key: string) => slots?.[key]?.value ?? inputs?.[key] ?? null;
   // Dropdown options for non-numerical fields to improve data quality
   const OPTIONS: Record<string, { value: any; label: string }[]> = {
@@ -1429,36 +1110,7 @@ function UserDataCard({ latest, currency }: { latest: Snapshot | null; currency:
   );
 }
 
-function SortedV2Kpis({ kpis }: { kpis: any }) {
-  const specs = [
-    { label: 'Savings rate', key: 'sr', value: kpis?.sr, target: 0.20, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 20%', tooltip: 'Shows cash left after expenses to fund goals.' },
-    { label: 'Emergency buffer', key: 'ef_months', value: kpis?.ef_months, target: 3, dir: 'higher' as const, format: 'months' as const, subtitle: 'Target ≥ 3 months (aim 6)', tooltip: 'Months your essentials are covered by cash.' },
-    { label: 'Housing costs (of income)', key: 'hr', value: kpis?.hr, target: 0.40, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 40% (aim 35%)', tooltip: 'Checks housing isn’t over‑stretching income.' },
-    { label: 'Debt payments (of income)', key: 'dsr_total', value: kpis?.dsr_total, target: 0.20, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 20%', tooltip: 'Total debt payment pressure.' },
-    { label: 'Non‑mortgage debt payments', key: 'nmdsr', value: kpis?.nmdsr, target: 0.10, dir: 'lower' as const, format: 'pct' as const, subtitle: 'Target ≤ 10%', tooltip: 'Focus on credit cards and loans (not mortgage).' },
-    { label: 'Total debt vs income', key: 'dti_stock', value: kpis?.dti_stock, target: 0.35, dir: 'lower' as const, format: 'ratio' as const, subtitle: 'Target ≤ 0.35', tooltip: 'Total debt compared to annual income.' },
-    { label: 'Debts vs assets', key: 'd_to_a', value: kpis?.d_to_a, target: 0.60, dir: 'lower' as const, format: 'ratio' as const, subtitle: 'Target ≤ 0.60', tooltip: 'How your debts compare to your assets.' },
-    { label: 'Retirement readiness', key: 'rrr', value: kpis?.rrr, target: 0.60, dir: 'higher' as const, format: 'ratio' as const, subtitle: 'Target ≥ 0.60 (aim 1.00)', tooltip: 'Are you on track for your target retirement income?' },
-    { label: 'Investable share of net worth', key: 'invnw', value: kpis?.invnw, target: 0.40, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 40%', tooltip: 'Share of wealth working toward long‑term goals.' },
-    { label: 'Retirement contributions', key: 'pension_contrib_pct', value: kpis?.pension_contrib_pct, target: 0.10, dir: 'higher' as const, format: 'pct' as const, subtitle: 'Target ≥ 10%', tooltip: 'Your regular saving toward retirement.' },
-  ];
-  const urgency = (v: number | null | undefined, t: number, dir: 'higher'|'lower') => {
-    if (!Number.isFinite(v as number)) return -1; // unknown -> push to end
-    const n = v as number;
-    if (dir === 'higher') return n >= t ? 0 : (t - n) / Math.max(t, 1e-9);
-    return n <= t ? 0 : (n - t) / Math.max(t, 1e-9);
-  };
-  const sorted = specs.sort((a, b) => (urgency(b.value, b.target, b.dir) - urgency(a.value, a.target, a.dir)));
-  return (
-    <>
-      {sorted.map(s => (
-        <div id={`kpi-${s.key}`} key={s.key} className="rounded-md">
-          <V2KpiBar label={s.label} value={s.value} target={s.target} dir={s.dir} format={s.format} subtitle={s.subtitle} tooltip={s.tooltip} />
-        </div>
-      ))}
-    </>
-  );
-}
+// Removed unused components: CompletedActions, MomentumStreak, SortedV2Kpis
 
 function RangeNetWorth({ series, latest, currency }: { series: SeriesPoint[]; latest: Snapshot | null; currency: string }) {
   const [range, setRange] = React.useState<'1m'|'3m'|'1y'|'all'>('3m');

@@ -16,7 +16,7 @@ export function BenchmarksCard({ latest, kpis }: { latest: any; kpis: any }) {
     const slots = latest?.inputs?.slots || {};
     const country = (latest?.inputs?.slots?.country?.value || latest?.inputs?.country || 'UK').toString();
     const birth = Number(slots?.birth_year?.value);
-    const age = Number.isFinite(birth) ? (new Date().getFullYear() - birth) : null;
+    const age = Number.isFinite(birth) ? (new Date().getUTCFullYear() - birth) : null;
     const home = (slots?.housing_status?.value || '').toString();
     // Estimate household income band
     const giSelf = Number(slots?.gross_income_annual_self?.value);
@@ -45,7 +45,6 @@ export function BenchmarksCard({ latest, kpis }: { latest: any; kpis: any }) {
       income: cohortParams.income || '',
       dependants: cohortParams.dependants || '',
     });
-    let timer: any;
     let aborted = false;
     const load = async () => {
       setLoading(true); setError(null);
@@ -66,8 +65,8 @@ export function BenchmarksCard({ latest, kpis }: { latest: any; kpis: any }) {
       } catch (e: any) { if (!aborted) setError(e?.message || 'Failed to load'); }
       finally { if (!aborted) setLoading(false); }
     };
-    timer = setTimeout(load, 200); // debounce a touch
-    return () => { aborted = true; if (timer) clearTimeout(timer); };
+    const timer = setTimeout(() => { if (!aborted) void load(); }, 200); // debounce a touch
+    return () => { aborted = true; clearTimeout(timer); };
   }, [cohortParams.country, cohortParams.age, cohortParams.home, cohortParams.income, cohortParams.dependants]);
 
   const dir: Record<MetricKey, 'higher'|'lower'> = {

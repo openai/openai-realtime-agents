@@ -97,7 +97,7 @@ function App() {
     try { return localStorage.getItem('pp_terms_v1_accepted') === '1'; } catch { return false; }
   });
 
-  const { startRecording, stopRecording, downloadRecording } = useAudioDownload();
+  const { startRecording, stopRecording } = useAudioDownload();
 
   const sendClientEvent = (eventObj: any, eventNameSuffix = "") => {
     try {
@@ -250,7 +250,7 @@ function App() {
     sendClientEvent({ type: 'response.create' }, '(simulated user text message)');
   };
 
-  const updateSession = (shouldTriggerResponse: boolean = false) => {
+  const updateSession = () => {
     const turnDetection = isPTTActive
       ? null
       : { type: 'server_vad', threshold: 0.9, prefix_padding_ms: 300, silence_duration_ms: 500, create_response: true };
@@ -487,6 +487,7 @@ function App() {
                   <a className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-sm" href="/terms" target="_blank" rel="noreferrer">View Terms</a>
                   <a className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-sm" href="/privacy" target="_blank" rel="noreferrer">View Privacy</a>
                   <button
+                    type="button"
                     className="px-3 py-1.5 rounded-md border bg-gray-900 text-white hover:bg-gray-800 text-sm"
                     onClick={() => {
                       try { localStorage.setItem('pp_terms_v1_accepted', '1'); } catch {}

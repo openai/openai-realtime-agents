@@ -11,7 +11,7 @@ export function parseMoney(input: string): { value: number | null; confidence: C
     const a = parseFloat(rangeMatch[1].replace(/[,]/g, ''));
     const b = parseFloat(rangeMatch[2].replace(/[,]/g, ''));
     const unit = rangeMatch[3]?.toLowerCase();
-    let mul = unit === 'm' ? 1_000_000 : unit === 'k' ? 1_000 : 1;
+    const mul = unit === 'm' ? 1_000_000 : unit === 'k' ? 1_000 : 1;
     const mid = ((a + b) / 2) * mul;
     return { value: Number.isFinite(mid) ? mid : null, confidence: 'low' };
   }
@@ -44,4 +44,3 @@ export function validateEmail(input: string): boolean {
   if (!input) return false;
   return /.+@.+\..+/.test(input);
 }
-

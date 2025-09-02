@@ -101,6 +101,20 @@ export default function LeftPaneControls({
             />
             <span>Audio playback</span>
           </label>
+
+          {/* Codec selector */}
+          <div className="ml-auto inline-flex items-center gap-2 text-sm">
+            <label htmlFor="codec-select" className="text-gray-600">Codec</label>
+            <select
+              id="codec-select"
+              className="h-9 rounded-lg border bg-white px-2 text-sm"
+              value={codec}
+              onChange={(e) => onCodecChange(e.target.value)}
+            >
+              <option value="opus">Opus</option>
+              <option value="pcm">PCM</option>
+            </select>
+          </div>
         </div>
       </div>
     </div>

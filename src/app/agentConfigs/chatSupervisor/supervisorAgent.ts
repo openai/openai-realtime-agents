@@ -4,7 +4,7 @@
 "use client";
 
 import { RealtimeItem, tool } from "@openai/agents/realtime";
-import { computeKpis, assignProsperLevels, generateRecommendations } from "@/app/lib/prosperTools";
+import { generateRecommendations } from "@/app/lib/prosperTools";
 import type { Slots } from "@/app/lib/schema/slots";
 import { computeKpisV2 } from "@/app/lib/kpiEngine";
 import { assignLevelsV2 } from "@/app/lib/levelEngine";
@@ -179,7 +179,7 @@ async function handleToolCalls(
       let args: any = {};
       try {
         args = toolCall.arguments ? JSON.parse(toolCall.arguments) : {};
-      } catch (e) {
+      } catch (_e) {
         if (addBreadcrumb) addBreadcrumb(`[supervisorAgent] bad tool args for ${fName}`, { raw: toolCall.arguments });
         args = {};
       }

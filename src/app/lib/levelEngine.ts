@@ -6,11 +6,6 @@ export type LevelsV2 = {
   gates?: GatesV2;
 };
 
-function achieved(thresh: number | null | undefined, cmp: (x: number) => boolean): boolean | null {
-  if (thresh == null || !Number.isFinite(thresh)) return null;
-  return cmp(thresh);
-}
-
 export function assignLevelsV2(k: KpisV2, g: GatesV2): LevelsV2 {
   const reasons: string[] = [];
 
@@ -75,7 +70,6 @@ export function assignLevelsV2(k: KpisV2, g: GatesV2): LevelsV2 {
     lvl = 5;
   }
 
-  const next = Math.min(10, (lvl + 1)) as 1|2|3|4|5|6|7|8|9|10;
   const points_to_next = undefined; // UI now provides human text
 
   return {
