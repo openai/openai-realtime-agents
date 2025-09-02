@@ -136,7 +136,7 @@ function App() {
       const currentAgent = selectedAgentConfigSet.find((a) => a.name === selectedAgentName);
       addTranscriptBreadcrumb(`Agent: ${selectedAgentName}`, currentAgent);
       // Configure session detection, then send initial simulated message
-      updateSession(false);
+      updateSession();
       (async () => {
         if (isReturningUser) {
           try {
