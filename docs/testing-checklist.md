@@ -1,4 +1,4 @@
-# Prosper App Testing Checklist
+why# Prosper App Testing Checklist
 
 This checklist is designed for manual verification of core flows. Use a clean browser profile (or incognito) and run the app locally (`npm run dev`). Where relevant, verify on desktop and a mobile viewport.
 

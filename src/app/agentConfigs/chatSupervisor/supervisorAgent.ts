@@ -49,6 +49,9 @@ let lastProvisional: string[] = [];
 let lastSlots: Slots | null = null;
 let lastEntitlements: any = null;
 let lastUsage: { free_limit?: number; used?: number; remaining?: number } | null = null;
+// Prevent repeated “ask for extras first” deferrals
+let askedPreferredOnce = false;
+let insufficientAskCount = 0;
 
 // ------- v2 helpers: sufficiency + inputs→slots fallback -------
 function missingForSufficiencyV2(inputs: Record<string, any>, slots?: any): string[] {
@@ -204,16 +207,17 @@ async function handleToolCalls(
           if (missing.length > 0) {
             toolRes = { skipped: true, reason: "insufficient_fields", missing };
             if (addBreadcrumb) addBreadcrumb("[supervisorAgent] v2 compute skipped: insufficient", { missing });
+            // We'll ask for these explicitly below
             break;
           }
-          // If this is the first compute in-session, prefer collecting a richer core set.
-          if (!lastKpis) {
+          // If this is the first compute in-session, optionally request a richer core set ONCE
+          if (!lastKpis && !askedPreferredOnce) {
             const preferred = preferredForFirstSnapshotV2(slotsForCompute);
-            // Ask for a couple of the most important gaps
             const shortlist = preferred.slice(0, 3);
             if (shortlist.length > 0) {
-              toolRes = { skipped: true, reason: "insufficient_fields", missing: shortlist };
-              if (addBreadcrumb) addBreadcrumb("[supervisorAgent] v2 compute deferred: prefer more inputs on first snapshot", { missing: shortlist });
+              toolRes = { skipped: true, reason: "insufficient_fields", missing: shortlist, preferred: true };
+              askedPreferredOnce = true;
+              if (addBreadcrumb) addBreadcrumb("[supervisorAgent] v2 compute deferred once: prefer more inputs on first snapshot", { missing: shortlist });
               break;
             }
           }
@@ -222,6 +226,7 @@ async function handleToolCalls(
           const { kpis, gates, normalized, provisional } = computeKpisV2(slotsForCompute);
           lastKpis = { ...kpis, gates, engine_version: 'v2' };
           lastProvisional = provisional || [];
+          insufficientAskCount = 0;
           // Determine currency: prefer an explicit user preference when provided;
           // otherwise infer from country. Treat default 'USD' as fallback only.
           const countryVal = (slotsForCompute as any)?.country?.value ?? null;
@@ -316,13 +321,47 @@ async function handleToolCalls(
           toolRes = { ok: true };
       }
 
-      if (addBreadcrumb) addBreadcrumb(`[supervisorAgent] function call: ${fName}`, args);
+      // Only show friendly "Calculating…" crumb when compute actually ran (not skipped)
+      if (fName !== 'computeKpis' || !toolRes?.skipped) {
+        if (addBreadcrumb) addBreadcrumb(`[supervisorAgent] function call: ${fName}`, args);
+      }
       if (addBreadcrumb) addBreadcrumb(`[supervisorAgent] function call result: ${fName}`, toolRes);
 
       body.input.push(
         { type: "function_call", call_id: toolCall.call_id, name: toolCall.name, arguments: toolCall.arguments },
         { type: "function_call_output", call_id: toolCall.call_id, output: JSON.stringify(toolRes) }
       );
+
+      // If insufficient fields, generate a structured, specific ask right away to avoid loops
+      if (fName === 'computeKpis' && toolRes?.skipped && Array.isArray(toolRes?.missing) && toolRes.missing.length > 0) {
+        insufficientAskCount += 1;
+        const toAsk = insufficientAskCount >= 2 ? (toolRes.missing as string[]) : (toolRes.missing.slice(0, 2) as string[]);
+        const q = (k: string): { prompt: string; why: string } => {
+          switch (k) {
+            case 'income_net_monthly':
+              return { prompt: 'What is your take‑home pay per month? If you prefer, share just yours for now.', why: 'This sets your savings rate.' };
+            case 'income_gross_monthly':
+              return { prompt: 'What is your gross (pre‑tax) income per month?', why: 'Helps sanity‑check ratios.' };
+            case 'essential_expenses_monthly':
+              return { prompt: 'About how much do essentials cost per month (food, transport, utilities)?', why: 'This lets me estimate your emergency buffer.' };
+            case 'housing_total_monthly':
+              return { prompt: 'What is your monthly housing cost (rent or mortgage payment)?', why: 'Checks housing isn’t over‑stretching income.' };
+            case 'debt_required_payments_monthly':
+              return { prompt: 'About how much are your monthly required debt payments (credit/loans, excluding mortgage)?', why: 'Improves accuracy of debt‑stress.' };
+            case 'emergency_savings_liquid':
+              return { prompt: 'How much quick‑access cash do you have (savings/offset)? A ballpark is fine.', why: 'Shows how many months you could cover in a pinch.' };
+            default:
+              return { prompt: `Could you share ${k.replaceAll('_',' ')}?`, why: 'This improves the calculation.' };
+          }
+        };
+        const parts = toAsk.map(k => q(k));
+        const lines = parts.map(p => `• ${p.prompt}\n  Why this helps: ${p.why}`);
+        const askLead = insufficientAskCount >= 2
+          ? `I need a few quick numbers to calculate properly. A ballpark is fine.`
+          : `I need a couple of quick numbers to calculate properly. A ballpark is fine.`;
+        const ask = `${askLead}\n${lines.join('\n')}\n`;
+        return ask;
+      }
     }
 
     currentResponse = await fetchResponsesMessage(body);
