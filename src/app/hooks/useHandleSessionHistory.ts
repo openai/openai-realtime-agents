@@ -33,7 +33,7 @@ export function useHandleSessionHistory() {
 
   const extractFunctionCallByName = (name: string, content: any[] = []): any => {
     if (!Array.isArray(content)) return undefined;
-    return content.find((c: any) => c.type === 'function_call' && c.name === name);
+    return content.findLast((c: any) => c.type === 'function_call' && c.name === name);
   };
 
   const maybeParseJson = (val: any) => {
