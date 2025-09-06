@@ -188,6 +188,49 @@ export const apply_delta_and_persist = tool({
   },
 });
 
+export const apply_slot_deltas = tool({
+  name: "apply_slot_deltas",
+  description: "Apply additive deltas to multiple slots in one transaction (e.g., move 500 from cash to investments = cash:-500, investments:+500). Persists and returns the snapshot.",
+  parameters: {
+    type: "object",
+    properties: {
+      deltas: {
+        type: "object",
+        additionalProperties: { type: "number" },
+      },
+      confidences: {
+        type: "object",
+        additionalProperties: { type: "string" },
+      },
+    },
+    required: ["deltas"],
+    additionalProperties: false,
+  },
+  execute: async (input: any, details?: any) => {
+    const addBreadcrumb = details?.context?.addTranscriptBreadcrumb as undefined | ((t: string, d?: any) => void);
+    try {
+      const res = await fetch('/api/prosper/delta', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deltas: input?.deltas || {}, confidences: input?.confidences || {} }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j?.snapshot) return { ok: false, error: j?.error || 'delta_failed' };
+      const snap = j.snapshot as any;
+      lastInputs = snap.inputs || {};
+      lastSlots = (lastInputs as any)?.slots || null;
+      lastKpis = snap.kpis || null;
+      lastLevels = snap.levels || null;
+      lastRecommendations = snap.recommendations || null;
+      lastPersistFingerprint = JSON.stringify({ i: lastInputs, k: lastKpis, l: lastLevels, a: lastRecommendations });
+      try { window.dispatchEvent(new CustomEvent('pp:snapshot_saved', { detail: { via: 'delta' } })); } catch {}
+      if (addBreadcrumb) addBreadcrumb('Saving your details…');
+      return { ok: true, snapshot: snap };
+    } catch {
+      return { ok: false, error: 'network_error' };
+    }
+  },
+});
+
 export const compute_kpis = tool({
   name: "compute_kpis",
   description: "Compute Prosper KPIs, gates and normalised ledger from provided profile JSON (prefers slots).",
@@ -539,7 +582,15 @@ Rephrase Supervisor: When get_thinker_response returns text, start with “Thank
 Update policy:
 - When the user supplies a new number or change (e.g., “I was gifted £1,000 cash”, “rent is now 1050”, “I’m contributing 8%”), call apply_delta_and_persist with the specific slot(s). Read numbers back from the snapshot it returns. Example:
   • apply_delta_and_persist({ slots: { cash_liquid_total: { value: 1800, confidence: 'med' } } })
-- Prefer apply_delta_and_persist for real updates (it saves and refreshes the dashboard). Only use update_profile for temporary, in-session notes.
+- For transfers between categories, use apply_slot_deltas with additive changes so both sides move together. Examples:
+  • “I invested £500” → apply_slot_deltas({ deltas: { cash_liquid_total: -500, investments_ex_home_total: +500 } })
+  • “Moved £300 into a term deposit” → apply_slot_deltas({ deltas: { cash_liquid_total: -300, term_deposits_le_3m: +300 } })
+  • “Paid £200 off my credit card” → apply_slot_deltas({ deltas: { cash_liquid_total: -200, other_debt_balances_total: -200 } })
+- Personal details examples:
+  • “I was born in 1989” → apply_delta_and_persist({ slots: { birth_year: { value: 1989 } } })
+  • “We’re renting now” → apply_delta_and_persist({ slots: { housing_status: { value: 'rent' } } })
+  • “I live in the UK” → apply_delta_and_persist({ slots: { country: { value: 'UK' } } })
+- Prefer apply_delta_and_persist / apply_slot_deltas for real updates (they save and refresh the dashboard). Only use update_profile for temporary, in-session notes.
 `;
 
 export const realtimeOnlyAgent = new RealtimeAgent({
@@ -554,6 +605,7 @@ export const realtimeOnlyAgent = new RealtimeAgent({
     // Update profile values before computing
     update_profile,
     apply_delta_and_persist,
+    apply_slot_deltas,
     compute_kpis,
     assign_levels,
     map_triggers,
