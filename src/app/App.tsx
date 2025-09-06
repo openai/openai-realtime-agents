@@ -18,15 +18,13 @@ import { useRealtimeSession } from "./hooks/useRealtimeSession";
 import { createModerationGuardrail } from "@/app/agentConfigs/guardrails";
 
 import { allAgentSets, defaultAgentSetKey } from "@/app/agentConfigs";
-import { chatSupervisorScenario, chatSupervisorCompanyName } from "@/app/agentConfigs/chatSupervisor";
+import { realtimeOnlyCompanyName } from "@/app/agentConfigs/realtimeOnly";
 
 import useAudioDownload from "./hooks/useAudioDownload";
 import { useHandleSessionHistory } from "./hooks/useHandleSessionHistory";
 import { ensureHouseholdId } from "@/app/lib/householdLocal";
 
-const sdkScenarioMap: Record<string, RealtimeAgent[]> = {
-  chatSupervisor: chatSupervisorScenario,
-};
+const sdkScenarioMap: Record<string, RealtimeAgent[]> = allAgentSets;
 
 function App() {
   const searchParams = useSearchParams()!;
@@ -186,7 +184,7 @@ function App() {
     }
   }, [isPTTActive]);
 
-  const fetchEphemeralKey = async (): Promise<string | null> => {
+  const fetchEphemeralKey = async (): Promise<{ key: string; model?: string } | null> => {
     logClientEvent({ url: "/session" }, "fetch_session_token_request");
     const tokenResponse = await fetch("/api/session");
     const data = await tokenResponse.json();
@@ -197,17 +195,17 @@ function App() {
       setSessionStatus("DISCONNECTED");
       return null;
     }
-    return data.client_secret.value;
+    return { key: data.client_secret.value as string, model: (data.model as string | undefined) };
   };
 
   const connectToRealtime = async () => {
-    const agentSetKey = searchParams.get("agentConfig") || "chatSupervisor";
+    const agentSetKey = searchParams.get("agentConfig") || defaultAgentSetKey;
     if (sdkScenarioMap[agentSetKey]) {
       if (sessionStatus !== "DISCONNECTED") return;
       setSessionStatus("CONNECTING");
       try {
-        const EPHEMERAL_KEY = await fetchEphemeralKey();
-        if (!EPHEMERAL_KEY) return;
+        const EK = await fetchEphemeralKey();
+        if (!EK) return;
 
         const reorderedAgents = [...sdkScenarioMap[agentSetKey]];
         const idx = reorderedAgents.findIndex((a) => a.name === selectedAgentName);
@@ -216,11 +214,11 @@ function App() {
           reorderedAgents.unshift(agent);
         }
 
-        const companyName = chatSupervisorCompanyName;
+        const companyName = realtimeOnlyCompanyName;
         const guardrail = createModerationGuardrail(companyName);
 
         await connect({
-          getEphemeralKey: async () => EPHEMERAL_KEY,
+          getEphemeralKey: async () => EK,
           initialAgents: reorderedAgents,
           audioElement: sdkAudioElement,
           outputGuardrails: [guardrail],

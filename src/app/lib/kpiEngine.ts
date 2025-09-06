@@ -62,7 +62,10 @@ export function computeKpisV2(slots: Slots, cfg = DEFAULTS): { kpis: KpisV2; gat
   const dtiDebt = nz(normalized.total_debt_balance);
 
   const housingCostMonthly = (rent ?? 0) || (mortPay ?? 0);
-  const hr = gi && gi > 0 ? (housingCostMonthly + runCost) / (gi / 12) : null;
+  // Prefer net income for housing ratio; fall back to gross/12 if net is missing
+  const hr = (ni && ni > 0)
+    ? (housingCostMonthly + runCost) / ni
+    : (gi && gi > 0 ? (housingCostMonthly + runCost) / (gi / 12) : null);
   if (hr == null) {
     provisional.push('HR');
     notes.push('Add gross annual income and rent/mortgage to compute Housing Ratio.');

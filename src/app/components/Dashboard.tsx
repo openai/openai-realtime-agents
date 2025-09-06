@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { ensureHouseholdId } from "@/app/lib/householdLocal";
+import { getSupabaseClient } from "@/app/lib/supabaseClient";
 import { getProsperLevelLabel } from "@/app/lib/prosperLevelLabels";
 import { normaliseCurrency } from "@/app/lib/validate";
 import { normaliseSlots } from "@/app/lib/normalise";
@@ -127,6 +128,7 @@ export default function Dashboard() {
   const [error, setError] = React.useState<string | null>(null);
   const [householdId, setHouseholdId] = React.useState<string | null>(null);
   const [showUsesToast, setShowUsesToast] = React.useState(false);
+  const [showSavedToast, setShowSavedToast] = React.useState(false);
   const [showPremiumBanner, setShowPremiumBanner] = React.useState(false);
   const [showUserData, setShowUserData] = React.useState(false);
 
@@ -158,15 +160,38 @@ export default function Dashboard() {
     };
   }, [load]);
 
+  // Supabase realtime: refresh on new snapshots for this household when anon key is configured
+  React.useEffect(() => {
+    const supa = getSupabaseClient();
+    if (!supa || !householdId) return;
+    const channel = supa
+      .channel(`snapshots:${householdId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'snapshots', filter: `household_id=eq.${householdId}` }, (_payload) => {
+        setShowSavedToast(true);
+        setTimeout(() => setShowSavedToast(false), 3500);
+        load();
+      })
+      .subscribe();
+    return () => { try { channel.unsubscribe(); } catch {} };
+  }, [householdId, load]);
+
   // Auto-refresh when a snapshot is saved via chat
   React.useEffect(() => {
-    const onSaved = () => load();
-    window.addEventListener('pp:snapshot_saved', onSaved as any);
+    const onSaved = () => {
+      load();
+      setShowSavedToast(true);
+      setTimeout(() => setShowSavedToast(false), 3500);
+    };
     const onBilling = () => { setShowPremiumBanner(true); setTimeout(() => setShowPremiumBanner(false), 8000); };
-    window.addEventListener('pp:billing_confirmed', onBilling as any);
     const onOpenUserData = () => setShowUserData(true);
+    window.addEventListener('pp:snapshot_saved', onSaved as any);
+    window.addEventListener('pp:billing_confirmed', onBilling as any);
     window.addEventListener('pp:open_user_data', onOpenUserData as any);
-    return () => window.removeEventListener('pp:snapshot_saved', onSaved as any);
+    return () => {
+      window.removeEventListener('pp:snapshot_saved', onSaved as any);
+      window.removeEventListener('pp:billing_confirmed', onBilling as any);
+      window.removeEventListener('pp:open_user_data', onOpenUserData as any);
+    };
   }, [load]);
 
   const series = data?.series ?? [];
@@ -479,6 +504,13 @@ export default function Dashboard() {
       <div className="fixed bottom-4 right-4 z-50 max-w-sm">
         <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-900 shadow-md">
           You have only a few free uses left. Upgrade to unlock full features and keep going.
+        </div>
+      </div>
+    )}
+    {showSavedToast && (
+      <div className="fixed bottom-20 right-4 z-50 max-w-sm">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 shadow-md">
+          Profile updated — your dashboard is up to date.
         </div>
       </div>
     )}

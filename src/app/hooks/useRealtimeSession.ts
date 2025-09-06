@@ -16,7 +16,7 @@ export interface RealtimeSessionCallbacks {
 }
 
 export interface ConnectOptions {
-  getEphemeralKey: () => Promise<string>;
+  getEphemeralKey: () => Promise<{ key: string; model?: string } | null>;
   initialAgents: RealtimeAgent[];
   audioElement?: HTMLAudioElement;
   extraContext?: Record<string, any>;
@@ -119,8 +119,9 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
       if (sessionRef.current) return; // already connected
 
       updateStatus('CONNECTING');
-
-      const ek = await getEphemeralKey();
+      const ekRes = await getEphemeralKey();
+      if (!ekRes) { updateStatus('DISCONNECTED'); return; }
+      const ek = ekRes.key;
       const rootAgent = initialAgents[0];
 
       // This lets you use the codec selector in the UI to force narrow-band (8 kHz) codecs to
@@ -137,7 +138,7 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
             return pc;
           },
         }),
-        model: 'gpt-4o-realtime-preview-2025-06-03',
+        model: ekRes.model || 'gpt-realtime',
         config: {
           inputAudioFormat: audioFormat,
           outputAudioFormat: audioFormat,
