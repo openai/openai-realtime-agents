@@ -28,7 +28,7 @@ const sdkScenarioMap: Record<string, RealtimeAgent[]> = allAgentSets;
 
 function App() {
   const searchParams = useSearchParams()!;
-  const urlCodec = searchParams.get("codec") || "opus";
+  // codec selection UI removed; keep default codec via SDK
 
   const { addTranscriptMessage, addTranscriptBreadcrumb } = useTranscript();
   const { logClientEvent, logServerEvent } = useEvent();
@@ -394,12 +394,6 @@ function App() {
                 handleTalkButtonUp={handleTalkButtonUp}
                 isAudioPlaybackEnabled={isAudioPlaybackEnabled}
                 setIsAudioPlaybackEnabled={setIsAudioPlaybackEnabled}
-                codec={urlCodec}
-                onCodecChange={(newCodec) => {
-                  const url = new URL(window.location.toString());
-                  url.searchParams.set("codec", newCodec);
-                  window.location.replace(url.toString());
-                }}
               />
               <Transcript
                 userText={userText}
@@ -427,12 +421,6 @@ function App() {
                   handleTalkButtonUp={handleTalkButtonUp}
                   isAudioPlaybackEnabled={isAudioPlaybackEnabled}
                   setIsAudioPlaybackEnabled={setIsAudioPlaybackEnabled}
-                  codec={urlCodec}
-                  onCodecChange={(newCodec) => {
-                    const url = new URL(window.location.toString());
-                    url.searchParams.set("codec", newCodec);
-                    window.location.replace(url.toString());
-                  }}
                 />
                 <Transcript
                   userText={userText}

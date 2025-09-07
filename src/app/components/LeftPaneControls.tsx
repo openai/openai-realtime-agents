@@ -14,9 +14,6 @@ interface LeftPaneControlsProps {
 
   isAudioPlaybackEnabled: boolean;
   setIsAudioPlaybackEnabled: (v: boolean) => void;
-
-  codec: string;
-  onCodecChange: (codec: string) => void;
 }
 
 /**
@@ -34,8 +31,6 @@ export default function LeftPaneControls({
   handleTalkButtonUp,
   isAudioPlaybackEnabled,
   setIsAudioPlaybackEnabled,
-  codec,
-  onCodecChange,
 }: LeftPaneControlsProps) {
   const isConnected = sessionStatus === "CONNECTED";
   const isConnecting = sessionStatus === "CONNECTING";
@@ -102,19 +97,7 @@ export default function LeftPaneControls({
             <span>Audio playback</span>
           </label>
 
-          {/* Codec selector */}
-          <div className="ml-auto inline-flex items-center gap-2 text-sm">
-            <label htmlFor="codec-select" className="text-gray-600">Codec</label>
-            <select
-              id="codec-select"
-              className="h-9 rounded-lg border bg-white px-2 text-sm"
-              value={codec}
-              onChange={(e) => onCodecChange(e.target.value)}
-            >
-              <option value="opus">Opus</option>
-              <option value="pcm">PCM</option>
-            </select>
-          </div>
+          <div className="ml-auto" />
         </div>
       </div>
     </div>
