@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+
+# Build artifacts
+/static/
+/media/
+
+# DB
+db.sqlite3

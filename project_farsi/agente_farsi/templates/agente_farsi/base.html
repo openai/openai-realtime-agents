@@ -1,0 +1,90 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ایجنت فارسی</title>
+    <link rel="stylesheet" href="{% static 'agente_farsi/dist/output.css' %}">
+    <style>
+        /* استایل‌های سفارشی برای اسکرول بار و غیره */
+        .transcript-container {
+            height: calc(100vh - 150px); /* ارتفاع تقریبی برای نمایش */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div id="app" class="flex flex-col h-screen">
+        <!-- هدر -->
+        <header class="p-4 bg-white border-b border-gray-200 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-gray-800">دموی ایجنت بی‌درنگ</h1>
+            <div class="flex items-center space-x-4 space-x-reverse">
+                <!-- TODO: Dropdown to select scenario -->
+                <span :class="sessionStatus === 'CONNECTED' ? 'text-green-500' : 'text-red-500'" class="font-semibold">
+                    {[ sessionStatus === 'CONNECTED' ? 'متصل' : 'قطع' ]}
+                </span>
+            </div>
+        </header>
+
+        <!-- بدنه اصلی -->
+        <main class="flex flex-1 overflow-hidden p-4 gap-4">
+            <!-- پنل رونوشت مکالمه -->
+            <div class="flex-1 flex flex-col bg-white rounded-lg shadow">
+                <div class="p-4 border-b">
+                    <h2 class="text-lg font-semibold">رونوشت مکالمه</h2>
+                </div>
+                <div class="flex-1 p-4 overflow-y-auto transcript-container">
+                    <div v-for="message in transcript" :key="message.id" class="mb-4">
+                        <div :class="message.role === 'user' ? 'text-blue-600' : 'text-gray-800'">
+                            <strong class="capitalize">{[ message.role === 'user' ? 'شما' : 'دستیار' ]}:</strong>
+                            <p class="whitespace-pre-wrap">{[ message.content ]}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- پنل رویدادها -->
+            <div class="w-1/3 bg-white rounded-lg shadow flex flex-col">
+                 <div class="p-4 border-b">
+                    <h2 class="text-lg font-semibold">لاگ رویدادها</h2>
+                </div>
+                <div class="flex-1 p-4 overflow-y-auto">
+                    <div v-for="event in events" :key="event.id" class="text-xs mb-2 p-2 bg-gray-50 rounded">
+                        <p><strong>{[ event.source ]}:</strong> <span class="text-gray-500">{[ event.timestamp ]}</span></p>
+                        <pre class="whitespace-pre-wrap text-gray-600">{[ event.data ]}</pre>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- نوار ابزار پایین -->
+        <footer class="p-4 bg-white border-t border-gray-200">
+            <div class="flex items-center space-x-4 space-x-reverse">
+                <button @click="toggleConnection"
+                        :class="sessionStatus === 'CONNECTED' ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'"
+                        class="px-4 py-2 text-white font-semibold rounded-lg shadow">
+                    {[ sessionStatus === 'CONNECTED' ? 'قطع اتصال' : 'اتصال' ]}
+                </button>
+                <input type="text" v-model="userText" @keyup.enter="handleSendTextMessage"
+                       placeholder="پیام خود را تایپ کنید..."
+                       class="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                       :disabled="sessionStatus !== 'CONNECTED'">
+                <button @click="handleSendTextMessage"
+                        :disabled="sessionStatus !== 'CONNECTED'"
+                        class="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg shadow hover:bg-blue-600 disabled:bg-gray-300">
+                    ارسال
+                </button>
+                 <label class="flex items-center">
+                    <input type="checkbox" v-model="isAudioPlaybackEnabled" class="mr-2">
+                    پخش صدا
+                </label>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Vue.js از طریق CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- اسکریپت اصلی برنامه -->
+    <script src="{% static 'agente_farsi/src/main.js' %}"></script>
+</body>
+</html>
