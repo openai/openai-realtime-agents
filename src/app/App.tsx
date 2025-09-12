@@ -9,6 +9,8 @@ import Image from "next/image";
 import Transcript from "./components/Transcript";
 import Events from "./components/Events";
 import BottomToolbar from "./components/BottomToolbar";
+import Settings from "./components/Settings";
+import ScenariosManager from "./components/ScenariosManager";
 
 // Types
 import { SessionStatus } from "@/app/types";
@@ -19,6 +21,7 @@ import { useTranscript } from "@/app/contexts/TranscriptContext";
 import { useEvent } from "@/app/contexts/EventContext";
 import { useRealtimeSession } from "./hooks/useRealtimeSession";
 import { createModerationGuardrail } from "@/app/agentConfigs/guardrails";
+import { ScenarioProvider, useScenarios } from "@/app/contexts/ScenarioContext";
 
 // Agent configs
 import { allAgentSets, defaultAgentSetKey } from "@/app/agentConfigs";
@@ -40,6 +43,10 @@ import { useHandleSessionHistory } from "./hooks/useHandleSessionHistory";
 
 function App() {
   const searchParams = useSearchParams()!;
+
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isScenariosOpen, setIsScenariosOpen] = useState(false);
+  const [apiKey, setApiKey] = useState<string>("");
 
   // ---------------------------------------------------------------------
   // Codec selector – lets you toggle between wide-band Opus (48 kHz)
@@ -66,6 +73,9 @@ function App() {
   const [selectedAgentConfigSet, setSelectedAgentConfigSet] = useState<
     RealtimeAgent[] | null
   >(null);
+
+  // Dynamic scenario state
+  const { scenarios, currentScenario, setCurrentScenario } = useScenarios();
 
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   // Ref to identify whether the latest agent switch came from an automatic handoff
@@ -134,6 +144,29 @@ function App() {
   useHandleSessionHistory();
 
   useEffect(() => {
+    // Check if we should use dynamic scenarios
+    const scenarioId = searchParams.get("scenarioId");
+
+    if (scenarioId && scenarios.length > 0) {
+      // Use dynamic scenario
+      const scenario = scenarios.find(s => s.id === scenarioId);
+      if (scenario) {
+        setCurrentScenario(scenario);
+        const dynamicAgents = scenario.agents.map(agent => ({
+          name: agent.name,
+          voice: agent.voice as any,
+          instructions: agent.instructions,
+          tools: agent.tools,
+          handoffs: agent.handoffAgentIds.map(id => ({ name: id })),
+        }));
+
+        setSelectedAgentName(scenario.agents[0]?.name || "");
+        setSelectedAgentConfigSet(dynamicAgents as any);
+        return;
+      }
+    }
+
+    // Fallback to static scenarios
     let finalAgentConfig = searchParams.get("agentConfig");
     if (!finalAgentConfig || !allAgentSets[finalAgentConfig]) {
       finalAgentConfig = defaultAgentSetKey;
@@ -148,7 +181,14 @@ function App() {
 
     setSelectedAgentName(agentKeyToUse);
     setSelectedAgentConfigSet(agents);
-  }, [searchParams]);
+  }, [searchParams, scenarios, currentScenario, setCurrentScenario]);
+
+  useEffect(() => {
+    const storedApiKey = localStorage.getItem("openaiApiKey");
+    if (storedApiKey) {
+      setApiKey(storedApiKey);
+    }
+  }, []);
 
   useEffect(() => {
     if (selectedAgentName && sessionStatus === "DISCONNECTED") {
@@ -180,7 +220,13 @@ function App() {
 
   const fetchEphemeralKey = async (): Promise<string | null> => {
     logClientEvent({ url: "/session" }, "fetch_session_token_request");
-    const tokenResponse = await fetch("/api/session");
+    const tokenResponse = await fetch("/api/session", {
+      method: apiKey ? "POST" : "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: apiKey ? JSON.stringify({ apiKey }) : undefined,
+    });
     const data = await tokenResponse.json();
     logServerEvent(data, "fetch_session_token_response");
 
@@ -433,7 +479,8 @@ function App() {
   const agentSetKey = searchParams.get("agentConfig") || "default";
 
   return (
-    <div className="text-base flex flex-col h-screen bg-gray-100 text-gray-800 relative">
+    <ScenarioProvider>
+      <div className="text-base flex flex-col h-screen bg-gray-100 text-gray-800 relative">
       <div className="p-5 text-lg font-semibold flex justify-between items-center">
         <div
           className="flex items-center cursor-pointer"
@@ -449,12 +496,24 @@ function App() {
             />
           </div>
           <div>
-            Realtime API <span className="text-gray-500">Agents</span>
+            عامل‌های API <span className="text-gray-500">بلادرنگ</span>
           </div>
         </div>
         <div className="flex items-center">
+          <button
+            onClick={() => setIsScenariosOpen(true)}
+            className="mr-4 px-3 py-1 bg-blue-200 hover:bg-blue-300 rounded-md text-sm"
+          >
+            سناریوها
+          </button>
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="mr-4 px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded-md text-sm"
+          >
+            تنظیمات
+          </button>
           <label className="flex items-center text-base gap-1 mr-2 font-medium">
-            Scenario
+            سناریو
           </label>
           <div className="relative inline-block">
             <select
@@ -482,7 +541,7 @@ function App() {
           {agentSetKey && (
             <div className="flex items-center ml-6">
               <label className="flex items-center text-base gap-1 mr-2 font-medium">
-                Agent
+                عامل
               </label>
               <div className="relative inline-block">
                 <select
@@ -544,7 +603,20 @@ function App() {
         codec={urlCodec}
         onCodecChange={handleCodecChange}
       />
-    </div>
+
+      <Settings
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        apiKey={apiKey}
+        setApiKey={setApiKey}
+      />
+
+      <ScenariosManager
+        isOpen={isScenariosOpen}
+        onClose={() => setIsScenariosOpen(false)}
+      />
+      </div>
+    </ScenarioProvider>
   );
 }
 

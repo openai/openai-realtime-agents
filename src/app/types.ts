@@ -146,3 +146,41 @@ export const GuardrailOutputZod = z.object({
 });
 
 export type GuardrailOutput = z.infer<typeof GuardrailOutputZod>;
+
+// Dynamic Scenario and Agent Types for runtime configuration
+export interface DynamicTool {
+  id: string;
+  name: string;
+  description: string;
+  parameters: ToolParameters;
+}
+
+export interface DynamicAgent {
+  id: string;
+  name: string;
+  voice: string;
+  instructions: string;
+  tools: DynamicTool[];
+  handoffAgentIds: string[]; // IDs of agents this can hand off to
+  handoffDescription?: string;
+}
+
+export interface DynamicScenario {
+  id: string;
+  name: string;
+  description?: string;
+  agents: DynamicAgent[];
+  companyName?: string; // For guardrails
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ScenarioContextType {
+  scenarios: DynamicScenario[];
+  currentScenario: DynamicScenario | null;
+  loadScenarios: () => Promise<void>;
+  saveScenario: (scenario: DynamicScenario) => Promise<DynamicScenario>;
+  deleteScenario: (scenarioId: string) => Promise<boolean>;
+  updateScenario: (scenarioId: string, updates: Partial<DynamicScenario>) => Promise<DynamicScenario | null>;
+  setCurrentScenario: (scenario: DynamicScenario | null) => void;
+}

@@ -41,9 +41,9 @@ function BottomToolbar({
   };
 
   function getConnectionButtonLabel() {
-    if (isConnected) return "Disconnect";
-    if (isConnecting) return "Connecting...";
-    return "Connect";
+    if (isConnected) return "قطع اتصال";
+    if (isConnecting) return "در حال اتصال...";
+    return "اتصال";
   }
 
   function getConnectionButtonClasses() {
@@ -81,7 +81,7 @@ function BottomToolbar({
           htmlFor="push-to-talk"
           className="flex items-center cursor-pointer"
         >
-          Push to talk
+          فشار برای صحبت
         </label>
         <button
           onMouseDown={handleTalkButtonDown}
@@ -95,7 +95,7 @@ function BottomToolbar({
             (!isPTTActive ? " bg-gray-100 text-gray-400" : "")
           }
         >
-          Talk
+          صحبت
         </button>
       </div>
 
@@ -112,7 +112,7 @@ function BottomToolbar({
           htmlFor="audio-playback"
           className="flex items-center cursor-pointer"
         >
-          Audio playback
+          پخش صوتی
         </label>
       </div>
 
@@ -125,12 +125,12 @@ function BottomToolbar({
           className="w-4 h-4"
         />
         <label htmlFor="logs" className="flex items-center cursor-pointer">
-          Logs
+          لاگ‌ها
         </label>
       </div>
 
       <div className="flex flex-row items-center gap-2">
-        <div>Codec:</div>
+        <div>کدک:</div>
         {/*
           Codec selector – Lets you force the WebRTC track to use 8 kHz 
           PCMU/PCMA so you can preview how the agent will sound 
@@ -145,9 +145,9 @@ function BottomToolbar({
           onChange={handleCodecChange}
           className="border border-gray-300 rounded-md px-2 py-1 focus:outline-none cursor-pointer"
         >
-          <option value="opus">Opus (48 kHz)</option>
-          <option value="pcmu">PCMU (8 kHz)</option>
-          <option value="pcma">PCMA (8 kHz)</option>
+          <option value="opus">Opus (48 کیلوهرتز)</option>
+          <option value="pcmu">PCMU (8 کیلوهرتز)</option>
+          <option value="pcma">PCMA (8 کیلوهرتز)</option>
         </select>
       </div>
     </div>

@@ -42,7 +42,7 @@ function Events({ isExpanded }: EventsProps) {
       {isExpanded && (
         <div>
           <div className="flex items-center justify-between px-6 py-3.5 sticky top-0 z-10 text-base border-b bg-white rounded-t-xl">
-            <span className="font-semibold">Logs</span>
+            <span className="font-semibold">لاگ‌ها</span>
           </div>
           <div>
             {loggedEvents.map((log, idx) => {

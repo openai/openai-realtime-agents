@@ -5,7 +5,7 @@ import App from "./App";
 
 export default function Page() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<div>در حال بارگذاری...</div>}>
       <TranscriptProvider>
         <EventProvider>
           <App />

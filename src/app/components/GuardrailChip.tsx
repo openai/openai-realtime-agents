@@ -40,17 +40,17 @@ export function GuardrailChip({
   switch (state) {
     case "PENDING":
       IconComponent = ClockIcon;
-      label = "Pending";
+      label = "در انتظار";
       textColorClass = "text-gray-600";
       break;
     case "PASS":
       IconComponent = CheckCircledIcon;
-      label = "Pass";
+      label = "قبول";
       textColorClass = "text-green-600";
       break;
     case "FAIL":
       IconComponent = CrossCircledIcon;
-      label = "Fail";
+      label = "رد";
       textColorClass = "text-red-500";
       break;
     default:
@@ -73,7 +73,7 @@ export function GuardrailChip({
           state !== "PENDING" ? "cursor-pointer" : ""
         }`}
       >
-        Guardrail:
+        محافظ:
         <div className={`flex items-center gap-1 ${textColorClass}`}>
           <IconComponent /> {label}
         </div>
@@ -87,7 +87,7 @@ export function GuardrailChip({
         >
           <div className="pt-2 text-xs">
             <strong>
-              Moderation Category: {formatCategory(guardrailResult.category)}
+              دسته‌بندی نظارت: {formatCategory(guardrailResult.category)}
             </strong>
             <div>{guardrailResult.rationale}</div>
             {guardrailResult.testText && (
