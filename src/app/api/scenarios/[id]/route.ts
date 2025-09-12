@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DynamicScenario } from "@/app/types";
+import { allAgentSets } from "@/app/agentConfigs";
 
 // In-memory storage for development - in production, use a database
-let scenarios: DynamicScenario[] = [];
+const scenarios: DynamicScenario[] = [];
 
 // Initialize with default scenarios if empty
 function initializeDefaultScenarios() {
   if (scenarios.length === 0) {
-    // Import default scenarios from agentConfigs
-    const { allAgentSets } = require("@/app/agentConfigs");
+    // Use imported allAgentSets
 
     Object.entries(allAgentSets).forEach(([key, agents]: [string, any]) => {
       const dynamicAgents = (agents as any[]).map((agent: any, index: number) => ({

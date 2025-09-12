@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { DynamicAgent, DynamicScenario } from '@/app/types';
 import { useScenarios } from '@/app/contexts/ScenarioContext';
 
