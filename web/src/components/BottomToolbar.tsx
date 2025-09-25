@@ -1,5 +1,5 @@
-import React from "react";
-import { SessionStatus } from "@/app/types";
+import React from 'react';
+import { SessionStatus } from '@/types';
 
 interface BottomToolbarProps {
   sessionStatus: SessionStatus;
@@ -32,8 +32,8 @@ function BottomToolbar({
   codec,
   onCodecChange,
 }: BottomToolbarProps) {
-  const isConnected = sessionStatus === "CONNECTED";
-  const isConnecting = sessionStatus === "CONNECTING";
+  const isConnected = sessionStatus === 'CONNECTED';
+  const isConnecting = sessionStatus === 'CONNECTING';
 
   const handleCodecChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newCodec = e.target.value;
@@ -41,14 +41,14 @@ function BottomToolbar({
   };
 
   function getConnectionButtonLabel() {
-    if (isConnected) return "Disconnect";
-    if (isConnecting) return "Connecting...";
-    return "Connect";
+    if (isConnected) return 'Disconnect';
+    if (isConnecting) return 'Connecting...';
+    return 'Connect';
   }
 
   function getConnectionButtonClasses() {
-    const baseClasses = "text-white text-base p-2 w-36 rounded-md h-full";
-    const cursorClass = isConnecting ? "cursor-not-allowed" : "cursor-pointer";
+    const baseClasses = 'text-white text-base p-2 w-36 rounded-md h-full';
+    const cursorClass = isConnecting ? 'cursor-not-allowed' : 'cursor-pointer';
 
     if (isConnected) {
       // Connected -> label "Disconnect" -> red
@@ -63,8 +63,7 @@ function BottomToolbar({
       <button
         onClick={onToggleConnection}
         className={getConnectionButtonClasses()}
-        disabled={isConnecting}
-      >
+        disabled={isConnecting}>
         {getConnectionButtonLabel()}
       </button>
 
@@ -79,8 +78,7 @@ function BottomToolbar({
         />
         <label
           htmlFor="push-to-talk"
-          className="flex items-center cursor-pointer"
-        >
+          className="flex items-center cursor-pointer">
           Push to talk
         </label>
         <button
@@ -90,11 +88,10 @@ function BottomToolbar({
           onTouchEnd={handleTalkButtonUp}
           disabled={!isPTTActive}
           className={
-            (isPTTUserSpeaking ? "bg-gray-300" : "bg-gray-200") +
-            " py-1 px-4 cursor-pointer rounded-md" +
-            (!isPTTActive ? " bg-gray-100 text-gray-400" : "")
-          }
-        >
+            (isPTTUserSpeaking ? 'bg-gray-300' : 'bg-gray-200') +
+            ' py-1 px-4 cursor-pointer rounded-md' +
+            (!isPTTActive ? ' bg-gray-100 text-gray-400' : '')
+          }>
           Talk
         </button>
       </div>
@@ -110,8 +107,7 @@ function BottomToolbar({
         />
         <label
           htmlFor="audio-playback"
-          className="flex items-center cursor-pointer"
-        >
+          className="flex items-center cursor-pointer">
           Audio playback
         </label>
       </div>
@@ -143,8 +139,7 @@ function BottomToolbar({
           id="codec-select"
           value={codec}
           onChange={handleCodecChange}
-          className="border border-gray-300 rounded-md px-2 py-1 focus:outline-none cursor-pointer"
-        >
+          className="border border-gray-300 rounded-md px-2 py-1 focus:outline-none cursor-pointer">
           <option value="opus">Opus (48 kHz)</option>
           <option value="pcmu">PCMU (8 kHz)</option>
           <option value="pcma">PCMA (8 kHz)</option>

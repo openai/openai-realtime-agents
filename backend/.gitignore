@@ -1,0 +1,121 @@
+###############################
+# Backend (Python / FastAPI)  #
+###############################
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+*.egg
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+coverage.xml
+*.cover
+*.py,cover
+*.lcov
+pytest_cache/
+
+# Mypy / type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# Pyre type checker
+.pyre/
+
+# Cython debug symbols
+cython_debug/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs & runtime artifacts
+*.log
+logs/
+uvicorn.log
+
+# Local sqlite / persistent data (adjust if you actually commit migrations or DB)
+*.db
+*.sqlite3
+
+# Credentials / environment
+.env
+.env.*
+!/.env.sample
+
+# Cache & profiling
+profiler-output/
+*.prof
+*.pstats
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Generated JSON / schema caches
+schema-cache/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Poetry / pipenv (if not used you can remove)
+poetry.lock
+Pipfile.lock
+
+# Local scripts/output
+tmp/
+/.benchmarks/
+
+# Coverage HTML (already covered above but explicit)
+coverage/
+
+# Ignore any local SSL certs
+certs/
+*.pem
+
+# Ensure sample env stays tracked
+!env.example
+!/.env.sample

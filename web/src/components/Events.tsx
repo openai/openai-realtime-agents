@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import React, { useRef, useEffect, useState } from "react";
-import { useEvent } from "@/app/contexts/EventContext";
-import { LoggedEvent } from "@/app/types";
+import React, { useRef, useEffect, useState } from 'react';
+import { useEvent } from '@/contexts/EventContext';
+import { LoggedEvent } from '@/types';
 
 export interface EventsProps {
   isExpanded: boolean;
@@ -15,9 +15,9 @@ function Events({ isExpanded }: EventsProps) {
   const { loggedEvents, toggleExpand } = useEvent();
 
   const getDirectionArrow = (direction: string) => {
-    if (direction === "client") return { symbol: "▲", color: "#7f5af0" };
-    if (direction === "server") return { symbol: "▼", color: "#2cb67d" };
-    return { symbol: "•", color: "#555" };
+    if (direction === 'client') return { symbol: '▲', color: '#7f5af0' };
+    if (direction === 'server') return { symbol: '▼', color: '#2cb67d' };
+    return { symbol: '•', color: '#555' };
   };
 
   useEffect(() => {
@@ -34,11 +34,10 @@ function Events({ isExpanded }: EventsProps) {
   return (
     <div
       className={
-        (isExpanded ? "w-1/2 overflow-auto" : "w-0 overflow-hidden opacity-0") +
-        " transition-all rounded-xl duration-200 ease-in-out flex-col bg-white"
+        (isExpanded ? 'w-1/2 overflow-auto' : 'w-0 overflow-hidden opacity-0') +
+        ' transition-all rounded-xl duration-200 ease-in-out flex-col bg-white'
       }
-      ref={eventLogsContainerRef}
-    >
+      ref={eventLogsContainerRef}>
       {isExpanded && (
         <div>
           <div className="flex items-center justify-between px-6 py-3.5 sticky top-0 z-10 text-base border-b bg-white rounded-t-xl">
@@ -48,31 +47,27 @@ function Events({ isExpanded }: EventsProps) {
             {loggedEvents.map((log, idx) => {
               const arrowInfo = getDirectionArrow(log.direction);
               const isError =
-                log.eventName.toLowerCase().includes("error") ||
+                log.eventName.toLowerCase().includes('error') ||
                 log.eventData?.response?.status_details?.error != null;
 
               return (
                 <div
                   key={`${log.id}-${idx}`}
-                  className="border-t border-gray-200 py-2 px-6 font-mono"
-                >
+                  className="border-t border-gray-200 py-2 px-6 font-mono">
                   <div
                     onClick={() => toggleExpand(log.id)}
-                    className="flex items-center justify-between cursor-pointer"
-                  >
+                    className="flex items-center justify-between cursor-pointer">
                     <div className="flex items-center flex-1">
                       <span
                         style={{ color: arrowInfo.color }}
-                        className="ml-1 mr-2"
-                      >
-                      {arrowInfo.symbol}
+                        className="ml-1 mr-2">
+                        {arrowInfo.symbol}
                       </span>
                       <span
                         className={
-                          "flex-1 text-sm " +
-                          (isError ? "text-red-600" : "text-gray-800")
-                        }
-                      >
+                          'flex-1 text-sm ' +
+                          (isError ? 'text-red-600' : 'text-gray-800')
+                        }>
                         {log.eventName}
                       </span>
                     </div>
