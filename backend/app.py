@@ -9,6 +9,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from backend.app_agents.router import router as agents_router
+
 # Load .env
 load_dotenv()
 
@@ -31,6 +33,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(agents_router)
 
 
 class SessionResponse(BaseModel):

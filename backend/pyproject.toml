@@ -14,6 +14,7 @@ dependencies = [
   "python-dotenv>=1.0",
   "pydantic>=2.7",
   "openai>=1.108.0",
+  "openai-agents>=0.3.2",
   "httpx>=0.27",
   "orjson>=3.10",
 ]
