@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oartagents-server"
+version = "0.1.0"
+description = "FastAPI backend for OpenAI Realtime Agents demo"
+authors = [{ name = "StackRunner1" }]
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "python-dotenv>=1.0",
+  "pydantic>=2.7",
+  "openai>=1.108.0",
+  "httpx>=0.27",
+  "orjson>=3.10",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio"]
+
+[tool.uvicorn]
+factory = false
+host = "0.0.0.0"
+port = 8000
+reload = true
