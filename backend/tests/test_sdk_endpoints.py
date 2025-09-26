@@ -1,8 +1,10 @@
-import pytest
-import httpx
 import asyncio
 
+import httpx
+import pytest
+
 BASE_URL = "http://localhost:8000"
+
 
 @pytest.mark.asyncio
 async def test_sdk_session_flow():
@@ -23,7 +25,9 @@ async def test_sdk_session_flow():
         assert "final_output" in msg_data
 
         # Transcript
-        r3 = await client.get(f"{BASE_URL}/api/sdk/session/transcript", params={"session_id": session_id})
+        r3 = await client.get(
+            f"{BASE_URL}/api/sdk/session/transcript", params={"session_id": session_id}
+        )
         assert r3.status_code == 200, r3.text
         trans = r3.json()
         assert trans["length"] >= 0

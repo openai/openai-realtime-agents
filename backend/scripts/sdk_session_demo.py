@@ -1,8 +1,10 @@
 import asyncio
-import httpx
 import os
 
+import httpx
+
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:8000")
+
 
 async def main():
     async with httpx.AsyncClient(timeout=15) as client:
@@ -21,9 +23,12 @@ async def main():
         print("Turn Result:", r2.json())
 
         # Transcript
-        r3 = await client.get(f"{BASE_URL}/api/sdk/session/transcript", params={"session_id": sid})
+        r3 = await client.get(
+            f"{BASE_URL}/api/sdk/session/transcript", params={"session_id": sid}
+        )
         r3.raise_for_status()
         print("Transcript length:", r3.json().get("length"))
+
 
 if __name__ == "__main__":
     asyncio.run(main())

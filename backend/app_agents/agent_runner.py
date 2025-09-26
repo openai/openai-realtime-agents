@@ -1,15 +1,23 @@
 from __future__ import annotations
+
 import os
+from typing import Any, Dict, List
+
 import httpx
-from typing import List, Dict, Any
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 
+
 class AgentRunnerError(Exception):
     pass
 
-async def run_single_turn(model: str, messages: List[Dict[str, Any]], tools: List[Dict[str, Any]] | None = None) -> Dict[str, Any]:
+
+async def run_single_turn(
+    model: str,
+    messages: List[Dict[str, Any]],
+    tools: List[Dict[str, Any]] | None = None,
+) -> Dict[str, Any]:
     """Placeholder server-side 'agent run' using Responses API.
 
     Args:
@@ -43,6 +51,8 @@ async def run_single_turn(model: str, messages: List[Dict[str, Any]], tools: Lis
     try:
         res.raise_for_status()
     except httpx.HTTPStatusError as e:
-        raise AgentRunnerError(f"HTTP {e.response.status_code}: {e.response.text}") from e
+        raise AgentRunnerError(
+            f"HTTP {e.response.status_code}: {e.response.text}"
+        ) from e
 
     return res.json()

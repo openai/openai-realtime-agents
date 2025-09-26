@@ -1,39 +1,43 @@
 from __future__ import annotations
+
+import base64
 import os
-import httpx
-from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
-from .registry import list_scenarios, get_scenario
-from .schemas import (
-    SessionInitPayload,
-    ToolExecutionRequest,
-    ToolExecutionResult,
-    ContextSnapshotRequest,
-    ContextSnapshot,
-    ModerationRequest,
-    ModerationDecision,
-    OrchestrationRequest,
-    OrchestrationDecision,
-)
-from .tools import execute_tool
+import time
 from uuid import uuid4
-from .agent_runner import run_single_turn, AgentRunnerError
+
+import httpx
+from fastapi import APIRouter, Body, HTTPException, Query
+from pydantic import BaseModel, Field
+
 from . import sdk_manager
-from pydantic import Field
+from .agent_runner import AgentRunnerError, run_single_turn
+from .registry import get_scenario, list_scenarios
+from .schemas import (ContextSnapshot, ContextSnapshotRequest,
+                      ModerationDecision, ModerationRequest,
+                      OrchestrationDecision, OrchestrationRequest,
+                      SessionInitPayload, ToolExecutionRequest,
+                      ToolExecutionResult)
+from .tools import execute_tool
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 
 router = APIRouter(prefix="/api")
 
+
 class ScenarioListItem(BaseModel):
     id: str
     label: str
     description: str | None = None
 
+
 @router.get("/scenarios", response_model=list[ScenarioListItem])
 async def scenarios_endpoint():
-    return [ScenarioListItem(id=s.id, label=s.label, description=s.description) for s in list_scenarios()]
+    return [
+        ScenarioListItem(id=s.id, label=s.label, description=s.description)
+        for s in list_scenarios()
+    ]
+
 
 @router.get("/scenarios/{scenario_id}")
 async def scenario_detail(scenario_id: str):
@@ -41,6 +45,7 @@ async def scenario_detail(scenario_id: str):
     if not sc:
         raise HTTPException(status_code=404, detail="Scenario not found")
     return sc.model_dump()
+
 
 @router.get("/session2", response_model=SessionInitPayload)
 async def get_session2(
@@ -104,7 +109,10 @@ async def tool_execute(req: ToolExecutionRequest):
     try:
         output = await execute_tool(req.tool, **req.args)
         return ToolExecutionResult(
-            tool=req.tool, success=True, output=output, correlation_id=req.correlation_id
+            tool=req.tool,
+            success=True,
+            output=output,
+            correlation_id=req.correlation_id,
         )
     except Exception as e:
         return ToolExecutionResult(
@@ -130,7 +138,9 @@ async def context_snapshot(req: ContextSnapshotRequest):
     for k, v in req.extra.items():
         content_blocks.append(f"{k}: {v}")
     return ContextSnapshot(
-        id=str(uuid4()), content_blocks=content_blocks, metadata={"size": len(content_blocks)}
+        id=str(uuid4()),
+        content_blocks=content_blocks,
+        metadata={"size": len(content_blocks)},
     )
 
 
@@ -181,9 +191,13 @@ async def agent_run(req: AgentRunRequest):
 
 # ---- Agents SDK Session Endpoints ----
 class SDKSessionCreateRequest(BaseModel):
-    session_id: str | None = Field(None, description="Client provided session id (optional)")
+    session_id: str | None = Field(
+        None, description="Client provided session id (optional)"
+    )
     agent_name: str = Field("assistant", description="Logical name for the agent")
-    instructions: str = Field(..., description="System / developer instructions for the agent")
+    instructions: str = Field(
+        ..., description="System / developer instructions for the agent"
+    )
     model: str = Field("gpt-4.1-mini", description="Model to use for the agent")
 
 
@@ -202,7 +216,9 @@ async def sdk_session_create(req: SDKSessionCreateRequest):
 class SDKSessionMessageRequest(BaseModel):
     session_id: str
     user_input: str
-    agent: dict | None = Field(None, description="Optional override of agent spec: name, instructions, model")
+    agent: dict | None = Field(
+        None, description="Optional override of agent spec: name, instructions, model"
+    )
 
 
 @router.post("/sdk/session/message")
@@ -227,3 +243,37 @@ async def sdk_session_transcript(session_id: str):
         return await sdk_manager.get_session_transcript(session_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"transcript retrieval failed: {e}")
+
+
+# ---- Audio Ingestion (placeholder) ----
+class AudioChunkRequest(BaseModel):
+    session_id: str
+    seq: int
+    pcm16_base64: str = Field(
+        ..., description="Little-endian 16-bit PCM mono @16k base64 encoded"
+    )
+    sample_rate: int = 16000
+    frame_samples: int | None = None
+
+
+@router.post("/sdk/session/audio")
+async def sdk_session_audio(req: AudioChunkRequest):
+    # Decode just to validate integrity; future: queue for ASR.
+    try:
+        raw = base64.b64decode(req.pcm16_base64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid base64")
+    # Basic size sanity (must be even length for 16-bit samples)
+    if len(raw) % 2 != 0:
+        raise HTTPException(status_code=400, detail="PCM byte length not even")
+    sample_count = len(raw) // 2
+    info = {
+        "accepted": True,
+        "session_id": req.session_id,
+        "seq": req.seq,
+        "samples": sample_count,
+        "sample_rate": req.sample_rate,
+        "ts": time.time(),
+    }
+    # For now just echo metadata; could push to in-memory buffer keyed by session.
+    return info

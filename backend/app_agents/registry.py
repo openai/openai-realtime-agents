@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 from typing import Dict, List
-from .schemas import ScenarioDefinition, AgentDefinition
+
+from .schemas import AgentDefinition, ScenarioDefinition
 
 # Minimal starter scenarios mirroring current FE placeholders.
 
@@ -11,7 +13,7 @@ _default_agents: List[AgentDefinition] = [
         instructions="General purpose assistant.",
         voice="alloy",
         tools=[],
-        handoff_targets=[]
+        handoff_targets=[],
     )
 ]
 
@@ -21,9 +23,10 @@ scenarios: Dict[str, ScenarioDefinition] = {
         label="Default",
         default_root="general",
         agents=_default_agents,
-        description="Single general agent"
+        description="Single general agent",
     )
 }
+
 
 def list_scenarios():
     return [s for s in scenarios.values()]

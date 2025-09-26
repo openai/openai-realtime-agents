@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from typing import Any, Dict
 
 # Placeholder tool registry. In future, implement real functions (DB lookups, etc.).
@@ -13,6 +14,7 @@ def _echo_context(**kwargs):
 
 # Register initial tools
 tool_registry["echo_context"] = _echo_context
+
 
 async def execute_tool(name: str, **kwargs) -> Any:
     if name not in tool_registry:

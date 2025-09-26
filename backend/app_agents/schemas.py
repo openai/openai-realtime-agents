@@ -1,8 +1,11 @@
 from __future__ import annotations
-from typing import List, Optional, Dict, Any, Literal
+
+from typing import Any, Dict, List, Literal, Optional
+
 from pydantic import BaseModel, Field
 
 AgentRole = Literal["assistant", "supervisor", "specialist", "simulated_human"]
+
 
 class ToolParam(BaseModel):
     name: str
@@ -10,10 +13,12 @@ class ToolParam(BaseModel):
     description: Optional[str] = None
     required: bool = False
 
+
 class ToolDefinition(BaseModel):
     name: str
     description: str
     params: List[ToolParam] = Field(default_factory=list)
+
 
 class AgentDefinition(BaseModel):
     name: str
@@ -23,8 +28,11 @@ class AgentDefinition(BaseModel):
     voice: Optional[str] = None
     temperature: Optional[float] = 0.8
     tools: List[str] = Field(default_factory=list)  # references ToolDefinition names
-    handoff_targets: List[str] = Field(default_factory=list)  # other agent names it can handoff to
+    handoff_targets: List[str] = Field(
+        default_factory=list
+    )  # other agent names it can handoff to
     metadata: Dict[str, Any] = Field(default_factory=dict)
+
 
 class ScenarioDefinition(BaseModel):
     id: str
@@ -32,6 +40,7 @@ class ScenarioDefinition(BaseModel):
     default_root: str
     agents: List[AgentDefinition]
     description: Optional[str] = None
+
 
 class SessionInitPayload(BaseModel):
     ephemeral_key: str
@@ -92,4 +101,3 @@ class OrchestrationDecision(BaseModel):
     chosen_root: str
     reason: str
     changed: bool
-

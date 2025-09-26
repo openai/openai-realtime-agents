@@ -1,37 +1,74 @@
 from __future__ import annotations
 
+import logging
 import os
+import sys
 from typing import List, Optional
+
+# Add the project root (vision2value/) to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ValidationError
 
 from backend.app_agents.router import router as agents_router
 
 # Load .env
 load_dotenv()
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-CORS_ORIGINS = [
-    o.strip()
-    for o in os.getenv(
-        "CORS_ORIGINS", "http://localhost:5173,http://localhost:3000"
-    ).split(",")
-    if o.strip()
-]
 
 app = FastAPI(title="oartagents FastAPI backend")
 
+
+# Add validation error handler to debug 422 errors
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    logger.error(f"Validation error on {request.method} {request.url}: {exc}")
+    logger.error(f"Request body validation errors: {exc.errors()}")
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": "Validation error", "errors": exc.errors()},
+    )
+
+
+# CORS setup for development with HTTP-only cookies
+def _parse_csv_env(name: str, default: list[str]) -> list[str]:
+    raw = os.getenv(name, "")
+    if not raw:
+        return default
+    return [x.strip() for x in raw.split(",") if x.strip()]
+
+
+DEFAULT_DEV_ORIGINS = [
+    "http://localhost:8080",  # Vite dev alt
+    "http://127.0.0.1:8080",
+    "http://localhost:3000",
+    "http://localhost:5173",  # Common Vite dev
+]
+
+allowed_origins = _parse_csv_env("ALLOWED_ORIGINS", DEFAULT_DEV_ORIGINS)
+allowed_methods = _parse_csv_env(
+    "ALLOWED_METHODS", ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+)
+allowed_headers = _parse_csv_env("ALLOWED_HEADERS", ["*"])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS or ["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=allowed_methods,
+    allow_headers=allowed_headers,
 )
 
 app.include_router(agents_router)
