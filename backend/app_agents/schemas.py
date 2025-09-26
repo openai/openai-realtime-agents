@@ -95,6 +95,7 @@ class OrchestrationRequest(BaseModel):
     last_user_text: Optional[str] = None
     transcript_tail: List[Dict[str, Any]] = Field(default_factory=list)
     context: Dict[str, Any] = Field(default_factory=dict)
+    session_id: Optional[str] = None
 
 
 class OrchestrationDecision(BaseModel):

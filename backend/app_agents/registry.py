@@ -12,7 +12,7 @@ _default_agents: List[AgentDefinition] = [
         model="gpt-4o-realtime-preview-2025-06-03",
         instructions="General purpose assistant.",
         voice="alloy",
-        tools=[],
+        tools=["echo_context"],
         handoff_targets=[],
     )
 ]

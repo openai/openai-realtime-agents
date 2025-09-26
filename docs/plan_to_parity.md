@@ -36,15 +36,16 @@ streaming partial transcription display.
 ### 3. Multi-Agent Setup & Handoffs
 
 - [x] Represent multiple agents (initialAgents array + root tracking)
-- [ ] UI badge for active root agent
-- [ ] Display pending / performed handoff events
-- [ ] Integrate orchestrator call (/api/orchestrate) after each turn
-- [ ] Show handoff reason (structured metadata)
+- [x] UI badge for active root agent
+- [x] Display performed handoff events (placeholder, FE timeline)
+- [x] Integrate orchestrator call (/api/orchestrate) after each turn (stub
+      logic)
+- [x] Show handoff reason (structured metadata) – persisted handoff events
 
 ### 4. Agent Selection & Tool Scoping
 
 - [ ] Per-agent tool registry endpoint / schema
-- [ ] Limit tool invocation to allowed set for current root
+- [x] Limit tool invocation to allowed set for current root (backend guard)
 - [ ] Visible tool list UI + last invocation status
 - [ ] Guard unauthorized tool usage (frontend + backend)
 
@@ -154,3 +155,104 @@ Robust moderation architecture to implement after parity (not yet started):
 
 Progress: Mark items [x] as implemented; keep ordering flexible for parallel
 work.
+
+## M1 vs. M2 - Execution Plan
+
+### Phase wrap guidance (when to pause this sandbox and merge) and how to avoid rework
+
+#### M1 – Stable Core (merge readiness)
+
+Foundational capabilities to complete in sandbox before integrating into main project (items are not removed; they are completed [x] or deferred):
+
+- [x] Stable session core
+      - [x] Session create/delete
+      - [x] Message send (user/assistant) with `client_message_id` + server `seq`
+      - [x] Persisted `activeAgentId`
+- [x] Orchestrator persistence
+      - [x] Orchestrate endpoint reads/writes session state (agent, reason)
+      - [x] Handoff event model defined (with `seq`)
+- [ ] Tool registry skeleton
+      - [ ] Registry interface (list, get, execute)
+      - [x] Sample tool (`echo_context`)
+      - [x] Per‑agent `allowed_tools` enforced server-side
+- [x] Event contract finalized
+      - [x] Unified Event shape (`message`, `handoff`, `tool_call`, `tool_result`, `token`, `final`)
+      - [x] Resume endpoint `/api/sdk/session/{id}/events?since=seq` (memory-backed OK)
+- [x] Frontend merge logic updated
+      - [x] Uses `seq` ordering
+      - [x] Idempotent via `client_message_id`
+      - [x] Shows handoff transitions using events list
+- [x] Storage abstraction
+      - [x] `InMemoryStore` implementing interface
+      - [x] Placeholder `RedisStore` file with TODO stubs
+- [x] Minimal streaming placeholder aligned with contract
+      - [x] Simulated token events + progressive render
+- [ ] Error & reconnect strategy
+      - [ ] FE keeps `lastAppliedSeq`
+      - [ ] On mount/resume: calls `/events?since`
+- [ ] Clear module boundaries in code
+      - [ ] Orchestrator service (pure functions)
+      - [ ] Tool registry module (interface-based)
+      - [x] Session store interface
+      - [ ] HTTP layer thin (adapters only)
+
+#### M2 – Post-merge Enhancements (in main project)
+
+- [ ] Real Redis integration
+- [ ] Real token streaming (WebRTC data channel / websocket)
+- [ ] Metrics / tracing
+- [ ] Moderation enrichment
+- [ ] Advanced tool execution (sandbox, concurrency control)
+- [ ] Caching / vector retrieval
+- [ ] Production auth & rate limiting
+
+#### Why stop at M1
+
+- Cross-cutting contracts (events, seq, ids, registry) are locked → minimal
+  refactor later.
+- Heavy lift (Redis, streaming infra) done once in real deployment context.
+- Avoids divergence between sandbox and main repo architecture decisions.
+
+#### High-level sequencing (now to M1)
+
+1. [x] Define shared models (TypeScript & Python) for events, session, tool spec
+2. [x] Add `seq` + `client_message_id` plumbing (server assigns seq; FE merges)
+3. [x] Introduce session store interface; refactor current in-memory logic
+4. [x] Add orchestrator persistence (read/write through store)
+5. [ ] Implement tool registry interface; keep sample tool + allowlist
+6. [x] Add events list + resume endpoint
+7. [x] FE: refactor transcript builder to consume events pipeline
+8. [x] Add simulated token events generator (timer based)
+9. [ ] Tighten error/reconnect path
+10. [ ] Freeze contracts; tag release; integrate into main project
+
+#### Module boundary blueprint (reference)
+
+Backend:
+
+```
+core/
+      models/ (event.py, session.py, tool.py)
+      store/ (interface.py, memory_store.py, redis_store.py)
+      orchestrator/ (logic.py)
+      tools/ (registry.py, builtins/*.py)
+      events/ (publisher.py, resume.py)
+api/
+      routes/ (session.py, orchestrate.py, tools.py, events.py)
+streaming/ (defer real implementation)
+```
+
+Frontend:
+
+```
+lib/agents/
+      apiClient.ts
+      eventStream.ts (abstract source)
+      store.ts (seq-ordered FE state)
+      toolTypes.ts
+      orchestratorTypes.ts
+components/agents/
+      ChatView.tsx
+      HandoffBadge.tsx
+      ToolResult.tsx
+```

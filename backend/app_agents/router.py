@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import os
 import time
@@ -11,6 +12,8 @@ from pydantic import BaseModel, Field
 
 from . import sdk_manager
 from .agent_runner import AgentRunnerError, run_single_turn
+from .core.models.event import Event
+from .core.store.memory_store import store
 from .registry import get_scenario, list_scenarios
 from .schemas import (ContextSnapshot, ContextSnapshotRequest,
                       ModerationDecision, ModerationRequest,
@@ -45,6 +48,46 @@ async def scenario_detail(scenario_id: str):
     if not sc:
         raise HTTPException(status_code=404, detail="Scenario not found")
     return sc.model_dump()
+
+
+# ---- Tool Registry Endpoints (listing) ----
+class ToolListItem(BaseModel):
+    name: str
+    description: str | None = None
+
+
+@router.get("/tools/list", response_model=list[ToolListItem])
+async def tools_list():
+    from .tools import tool_registry
+
+    items = []
+    for k, v in tool_registry.items():
+        desc = getattr(v, "__doc__", None)
+        items.append(
+            ToolListItem(
+                name=k, description=(desc.strip() if isinstance(desc, str) else None)
+            )
+        )
+    return items
+
+
+class AgentToolsResponse(BaseModel):
+    agent: str
+    allowed_tools: list[str]
+
+
+@router.get("/agents/{agent}/tools", response_model=AgentToolsResponse)
+async def agent_tools(agent: str, scenario_id: str = Query("default")):
+    sc = get_scenario(scenario_id)
+    if not sc:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    ad = next(
+        (a for a in sc.agents if a.name == agent or a.name.lower() == agent.lower()),
+        None,
+    )
+    if not ad:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    return AgentToolsResponse(agent=ad.name, allowed_tools=list(ad.tools or []))
 
 
 @router.get("/session2", response_model=SessionInitPayload)
@@ -105,7 +148,32 @@ async def get_session2(
 
 # ---- Tool Execution Endpoint ----
 @router.post("/tools/execute", response_model=ToolExecutionResult)
-async def tool_execute(req: ToolExecutionRequest):
+async def tool_execute(
+    req: ToolExecutionRequest,
+    scenario_id: str = Query("default"),
+    session_id: str | None = Query(None),
+):
+    # Enforce per-agent allowlist if available in scenario registry
+    try:
+        if session_id:
+            sess = store.get_session(session_id)
+        else:
+            sess = None
+        sc = get_scenario(scenario_id)
+        if sc and sess:
+            # find active agent definition
+            ad = next((a for a in sc.agents if a.name == sess.active_agent_id), None)
+            if ad and ad.tools and req.tool not in ad.tools:
+                return ToolExecutionResult(
+                    tool=req.tool,
+                    success=False,
+                    error=f"Tool '{req.tool}' not allowed for agent '{ad.name}'",
+                    output=None,
+                    correlation_id=req.correlation_id,
+                )
+    except Exception:
+        # Non-fatal: continue to attempt execution if guard lookup fails
+        pass
     try:
         output = await execute_tool(req.tool, **req.args)
         return ToolExecutionResult(
@@ -166,11 +234,37 @@ async def orchestrate(req: OrchestrationRequest):
         raise HTTPException(status_code=404, detail="Scenario not found")
     # Simple rule: keep default root always in this placeholder
     chosen = sc.default_root
-    return OrchestrationDecision(
+    decision = OrchestrationDecision(
         chosen_root=chosen,
         reason="placeholder_default",
         changed=False,
     )
+    # If a session_id is provided, persist a no-op handoff (only if agent changes)
+    if req.session_id:
+        try:
+            sess = store.get_session(req.session_id)
+            if not sess:
+                store.create_session(req.session_id, active_agent_id=chosen)
+                sess = store.get_session(req.session_id)
+            if sess and sess.active_agent_id != chosen:
+                store.set_active_agent(req.session_id, chosen)
+                seq = store.next_seq(req.session_id)
+                ev = Event(
+                    session_id=req.session_id,
+                    seq=seq,
+                    type="handoff",
+                    role="system",
+                    agent_id=chosen,
+                    text=None,
+                    reason=decision.reason,
+                    final=True,
+                    timestamp_ms=int(time.time() * 1000),
+                )
+                store.append_event(req.session_id, ev)
+        except Exception:
+            # Non-fatal: orchestration decision still returned
+            pass
+    return decision
 
 
 # ---- Server-side Agent Single Turn (Responses API) ----
@@ -204,6 +298,8 @@ class SDKSessionCreateRequest(BaseModel):
 @router.post("/sdk/session/create")
 async def sdk_session_create(req: SDKSessionCreateRequest):
     sid = req.session_id or str(uuid4())
+    # Ensure a store-level session exists (active agent is the provided agent_name)
+    store.create_session(sid, active_agent_id=req.agent_name)
     payload = await sdk_manager.create_agent_session(
         session_id=sid,
         name=req.agent_name,
@@ -213,11 +309,27 @@ async def sdk_session_create(req: SDKSessionCreateRequest):
     return payload
 
 
+class SDKSessionDeleteRequest(BaseModel):
+    session_id: str
+
+
+@router.post("/sdk/session/delete")
+async def sdk_session_delete(req: SDKSessionDeleteRequest):
+    try:
+        store.delete_session(req.session_id)
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"delete failed: {e}")
+
+
 class SDKSessionMessageRequest(BaseModel):
     session_id: str
     user_input: str
     agent: dict | None = Field(
         None, description="Optional override of agent spec: name, instructions, model"
+    )
+    client_message_id: str | None = Field(
+        None, description="Client idempotency key for this user message"
     )
 
 
@@ -227,12 +339,102 @@ async def sdk_session_message(req: SDKSessionMessageRequest):
         raise HTTPException(status_code=400, detail="user_input cannot be empty")
     agent_spec = req.agent or {}
     try:
+        # Idempotency: if we have a recorded assistant event for this client_message_id, return it
+        if req.client_message_id:
+            prior = store.get_by_client_message_id(
+                req.session_id, req.client_message_id
+            )
+            if prior:
+                return {
+                    "final_output": prior.text,
+                    "new_items_len": 0,
+                    "tool_calls": [],
+                    "events": [prior.model_dump()],
+                }
+        # Ensure store session exists (fallback if client skipped create)
+        if not store.get_session(req.session_id):
+            store.create_session(
+                req.session_id, active_agent_id=agent_spec.get("name", "assistant")
+            )
+
+        # Create user message event
+        now_ms = int(time.time() * 1000)
+        user_seq = store.next_seq(req.session_id)
+        user_event = Event(
+            session_id=req.session_id,
+            seq=user_seq,
+            type="message",
+            message_id=req.client_message_id,
+            role="user",
+            agent_id=None,
+            text=req.user_input,
+            final=True,
+            timestamp_ms=now_ms,
+        )
+        store.append_event(req.session_id, user_event)
+
+        # Run assistant turn
         result = await sdk_manager.run_agent_turn(
             session_id=req.session_id,
             user_input=req.user_input,
             agent_spec=agent_spec,
         )
-        return result
+        # Simulate token streaming via background task; then emit final message
+        message_id = req.client_message_id or str(uuid4())
+
+        async def _emit_tokens(session_id: str, mid: str, text: str, agent_name: str):
+            # naive chunking
+            chunks = []
+            if text:
+                size = max(5, min(24, len(text) // 4 or 8))
+                for i in range(0, len(text), size):
+                    chunks.append(text[i : i + size])
+            for i, ch in enumerate(chunks):
+                await asyncio.sleep(0.12)
+                seq = store.next_seq(session_id)
+                tok = Event(
+                    session_id=session_id,
+                    seq=seq,
+                    type="token",
+                    message_id=mid,
+                    token_seq=i,
+                    role="assistant",
+                    agent_id=agent_name,
+                    text=ch,
+                    final=False,
+                    timestamp_ms=int(time.time() * 1000),
+                )
+                store.append_event(session_id, tok)
+            # final assistant message
+            seq = store.next_seq(session_id)
+            asst_event = Event(
+                session_id=session_id,
+                seq=seq,
+                type="message",
+                message_id=mid,
+                role="assistant",
+                agent_id=agent_name,
+                text=text,
+                final=True,
+                timestamp_ms=int(time.time() * 1000),
+            )
+            store.append_event(session_id, asst_event)
+            if req.client_message_id:
+                store.remember_client_message(
+                    session_id, req.client_message_id, asst_event
+                )
+
+        asyncio.create_task(
+            _emit_tokens(
+                req.session_id,
+                message_id,
+                result.get("final_output") or "",
+                agent_spec.get("name", "Assistant"),
+            )
+        )
+
+        # Return original payload plus user event only; tokens/final will come via events polling
+        return {**result, "events": [user_event.model_dump()]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"agent turn failed: {e}")
 
@@ -243,6 +445,16 @@ async def sdk_session_transcript(session_id: str):
         return await sdk_manager.get_session_transcript(session_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"transcript retrieval failed: {e}")
+
+
+# ---- Events Resume (M1 scaffold) ----
+@router.get("/sdk/session/{session_id}/events")
+async def list_session_events(session_id: str, since: int | None = Query(None)):
+    try:
+        events = store.list_events(session_id, since_seq=since)
+        return [e.model_dump() for e in events]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"events retrieval failed: {e}")
 
 
 # ---- Audio Ingestion (placeholder) ----

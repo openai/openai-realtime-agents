@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import Transcript from '@/components/Transcript';
-import Events from '@/components/Events';
-import BottomToolbar from '@/components/BottomToolbar';
+import Transcript from '@/components/app_agents/Transcript';
+import Events from '@/components/app_agents/Events';
+import BottomToolbar from '@/components/app_agents/BottomToolbar';
 import { SessionStatus } from '@/types';
 import { useTranscript } from '@/contexts/TranscriptContext';
 import { useEvent } from '@/contexts/EventContext';
