@@ -41,13 +41,20 @@ streaming partial transcription display.
 - [x] Integrate orchestrator call (/api/orchestrate) after each turn (stub
       logic)
 - [x] Show handoff reason (structured metadata) – persisted handoff events
+- [x] Supervisor-driven orchestration via function-calling; heuristic used as
+      fallback when supervisor is unavailable
+- [x] Orchestrate persists handoff events and updates active session agent
+- [x] Manual active-agent switch endpoint: POST
+      /api/sdk/session/set_active_agent
 
 ### 4. Agent Selection & Tool Scoping
 
-- [ ] Per-agent tool registry endpoint / schema
+- [x] Per-agent tool registry endpoint / schema - GET /api/tools/list (with
+      params schema) - GET /api/agents (list agents + their allowlists) - GET
+      /api/agents/{agent}/tools (agent allowlist)
 - [x] Limit tool invocation to allowed set for current root (backend guard)
-- [ ] Visible tool list UI + last invocation status
-- [ ] Guard unauthorized tool usage (frontend + backend)
+- [x] Visible tool list UI + last invocation status (ToolsPanel)
+- [x] Guard unauthorized tool usage (frontend + backend)
 
 ### 5. Guardrails / Moderation
 
@@ -70,22 +77,22 @@ streaming partial transcription display.
 ### 8. Streaming Responses & Transcriptions
 
 - [ ] Explore Agents SDK streaming API / events
-- [ ] Incremental token rendering (typing indicator)
-- [ ] Merge partials into final message entry
+- [x] Incremental token rendering (typing indicator via token events)
+- [x] Merge partials into final message entry (FE merge by message_id)
 - [ ] Stream realtime partial transcriptions into chat (inline updating message)
 
 ### 9. Error & Retry Handling
 
 - [ ] Distinguish user / tool / network errors in UI
 - [ ] Retry button for failed tool calls
-- [ ] Exponential backoff (transient 5xx)
+- [x] Exponential backoff (transient 5xx) for events polling + idle-stop
 - [ ] Central error boundary / toast notifications
 
 ### 10. Metrics & Diagnostics
 
 - [ ] Capture per-turn latency (client timestamps)
 - [ ] Display tool call count per turn
-- [ ] Token usage (if API exposes) placeholder
+- [x] Token usage (per-session aggregate via API + FE UsagePanel)
 - [ ] Timeline / waterfall visualization
 
 ### 11. Audio Configuration Panel
@@ -162,39 +169,31 @@ work.
 
 #### M1 – Stable Core (merge readiness)
 
-Foundational capabilities to complete in sandbox before integrating into main project (items are not removed; they are completed [x] or deferred):
+Foundational capabilities to complete in sandbox before integrating into main
+project (items are not removed; they are completed [x] or deferred):
 
-- [x] Stable session core
-      - [x] Session create/delete
-      - [x] Message send (user/assistant) with `client_message_id` + server `seq`
-      - [x] Persisted `activeAgentId`
-- [x] Orchestrator persistence
-      - [x] Orchestrate endpoint reads/writes session state (agent, reason)
-      - [x] Handoff event model defined (with `seq`)
-- [ ] Tool registry skeleton
-      - [ ] Registry interface (list, get, execute)
-      - [x] Sample tool (`echo_context`)
-      - [x] Per‑agent `allowed_tools` enforced server-side
-- [x] Event contract finalized
-      - [x] Unified Event shape (`message`, `handoff`, `tool_call`, `tool_result`, `token`, `final`)
-      - [x] Resume endpoint `/api/sdk/session/{id}/events?since=seq` (memory-backed OK)
-- [x] Frontend merge logic updated
-      - [x] Uses `seq` ordering
-      - [x] Idempotent via `client_message_id`
-      - [x] Shows handoff transitions using events list
-- [x] Storage abstraction
-      - [x] `InMemoryStore` implementing interface
-      - [x] Placeholder `RedisStore` file with TODO stubs
-- [x] Minimal streaming placeholder aligned with contract
-      - [x] Simulated token events + progressive render
-- [ ] Error & reconnect strategy
-      - [ ] FE keeps `lastAppliedSeq`
-      - [ ] On mount/resume: calls `/events?since`
-- [ ] Clear module boundaries in code
-      - [ ] Orchestrator service (pure functions)
-      - [ ] Tool registry module (interface-based)
-      - [x] Session store interface
-      - [ ] HTTP layer thin (adapters only)
+- [x] Stable session core - [x] Session create/delete - [x] Message send
+      (user/assistant) with `client_message_id` + server `seq` - [x] Persisted
+      `activeAgentId`
+- [x] Orchestrator persistence - [x] Orchestrate endpoint reads/writes session
+      state (agent, reason) - [x] Handoff event model defined (with `seq`)
+- [x] Tool registry skeleton - [x] Registry interface (list, get, execute) - [x]
+      Sample + demo tools (`echo_context`, `weather`, `product_search`) - [x]
+      Per‑agent `allowed_tools` enforced server-side
+- [x] Event contract finalized - [x] Unified Event shape (`message`, `handoff`,
+      `tool_call`, `tool_result`, `token`, `final`) - [x] Resume endpoint
+      `/api/sdk/session/{id}/events?since=seq` (memory-backed OK)
+- [x] Frontend merge logic updated - [x] Uses `seq` ordering - [x] Idempotent
+      via `client_message_id` - [x] Shows handoff transitions using events list
+- [x] Storage abstraction - [x] `InMemoryStore` implementing interface - [x]
+      Placeholder `RedisStore` file with TODO stubs
+- [x] Minimal streaming placeholder aligned with contract - [x] Simulated token
+      events + progressive render
+- [ ] Error & reconnect strategy - [ ] FE keeps `lastAppliedSeq` - [ ] On
+      mount/resume: calls `/events?since`
+- [ ] Clear module boundaries in code - [ ] Orchestrator service (pure
+      functions) - [ ] Tool registry module (interface-based) - [x] Session
+      store interface - [ ] HTTP layer thin (adapters only)
 
 #### M2 – Post-merge Enhancements (in main project)
 
@@ -205,6 +204,9 @@ Foundational capabilities to complete in sandbox before integrating into main pr
 - [ ] Advanced tool execution (sandbox, concurrency control)
 - [ ] Caching / vector retrieval
 - [ ] Production auth & rate limiting
+- [ ] Supervisor agent orchestration via tool/function-calling
+- [ ] Built-in Agents SDK tools wired (FileSearch, WebSearch, Computer, MCP,
+      LocalShell, ImageGeneration, CodeInterpreter) with secured config flags
 
 #### Why stop at M1
 
@@ -219,7 +221,7 @@ Foundational capabilities to complete in sandbox before integrating into main pr
 2. [x] Add `seq` + `client_message_id` plumbing (server assigns seq; FE merges)
 3. [x] Introduce session store interface; refactor current in-memory logic
 4. [x] Add orchestrator persistence (read/write through store)
-5. [ ] Implement tool registry interface; keep sample tool + allowlist
+5. [x] Implement tool registry interface; keep sample tool + allowlist
 6. [x] Add events list + resume endpoint
 7. [x] FE: refactor transcript builder to consume events pipeline
 8. [x] Add simulated token events generator (timer based)

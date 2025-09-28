@@ -16,6 +16,8 @@ class InMemorySessionStore(SessionStore):
         self._seq: Dict[str, int] = {}
         self._idempotency: Dict[str, Dict[str, Event]] = {}
         self._lock = Lock()
+        # Aggregated usage per session
+        self._usage = {}
 
     def create_session(
         self, session_id: str, active_agent_id: str, scenario_id: Optional[str] = None
@@ -35,6 +37,12 @@ class InMemorySessionStore(SessionStore):
                 self._events[session_id] = []
                 self._seq[session_id] = 0
                 self._idempotency[session_id] = {}
+                self._usage[session_id] = {
+                    "requests": 0,
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "total_tokens": 0,
+                }
             return sess
 
     def get_session(self, session_id: str) -> Optional[Session]:
@@ -95,6 +103,55 @@ class InMemorySessionStore(SessionStore):
             self._events.pop(session_id, None)
             self._seq.pop(session_id, None)
             self._idempotency.pop(session_id, None)
+            self._usage.pop(session_id, None)
+
+    # ---- Usage aggregation helpers ----
+    def add_usage(
+        self, session_id: str, usage: Dict[str, int | None]
+    ) -> Dict[str, int]:
+        """Accumulate usage counters for a session and return the new totals."""
+        with self._lock:
+            if session_id not in self._usage:
+                self._usage[session_id] = {
+                    "requests": 0,
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "total_tokens": 0,
+                }
+            u = self._usage[session_id]
+            # Defensive conversions and defaults
+            req = int(usage.get("requests") or 1)
+            in_tok = int(usage.get("input_tokens") or 0)
+            out_tok = int(usage.get("output_tokens") or 0)
+            total = int(usage.get("total_tokens") or (in_tok + out_tok))
+            u["requests"] += req
+            u["input_tokens"] += in_tok
+            u["output_tokens"] += out_tok
+            u["total_tokens"] += total
+            return dict(u)
+
+    def get_usage(self, session_id: str) -> Dict[str, int]:
+        with self._lock:
+            return dict(
+                self._usage.get(
+                    session_id,
+                    {
+                        "requests": 0,
+                        "input_tokens": 0,
+                        "output_tokens": 0,
+                        "total_tokens": 0,
+                    },
+                )
+            )
+
+    def reset_usage(self, session_id: str) -> None:
+        with self._lock:
+            self._usage[session_id] = {
+                "requests": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+            }
 
 
 # singleton for app use

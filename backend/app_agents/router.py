@@ -54,6 +54,7 @@ async def scenario_detail(scenario_id: str):
 class ToolListItem(BaseModel):
     name: str
     description: str | None = None
+    params: dict | None = None
 
 
 @router.get("/tools/list", response_model=list[ToolListItem])
@@ -61,14 +62,49 @@ async def tools_list():
     from .tools import tool_registry
 
     items = []
-    for k, v in tool_registry.items():
-        desc = getattr(v, "__doc__", None)
+    for k, spec in tool_registry.items():
+        desc = spec.description or None
         items.append(
-            ToolListItem(
-                name=k, description=(desc.strip() if isinstance(desc, str) else None)
-            )
+            ToolListItem(name=k, description=desc, params=(spec.params_schema or None))
         )
     return items
+
+
+# Built-in tools config/status (for docs/debug)
+class ToolConfigStatus(BaseModel):
+    name: str
+    enabled: bool
+    available: bool
+
+
+@router.get("/tools/config/status", response_model=list[ToolConfigStatus])
+async def tools_config_status():
+    from .sdk_manager import \
+        _resolve_agent_tools  # reuse resolution map indirectly
+
+    # Reflect configured built-in availability by attempting to resolve them
+    # without adding custom registry tools.
+    names = [
+        "FileSearchTool",
+        "WebSearchTool",
+        "ComputerTool",
+        "HostedMCPTool",
+        "LocalShellTool",
+        "ImageGenerationTool",
+        "CodeInterpreterTool",
+    ]
+    status: list[ToolConfigStatus] = []
+    # Peek into the configuration used by _resolve_agent_tools by calling it with each name
+    for n in names:
+        tools = _resolve_agent_tools([n])
+        status.append(
+            ToolConfigStatus(
+                name=n,
+                enabled=bool(tools and tools[0].__class__.__name__ == n),
+                available=bool(tools),
+            )
+        )
+    return status
 
 
 class AgentToolsResponse(BaseModel):
@@ -88,6 +124,32 @@ async def agent_tools(agent: str, scenario_id: str = Query("default")):
     if not ad:
         raise HTTPException(status_code=404, detail="Agent not found")
     return AgentToolsResponse(agent=ad.name, allowed_tools=list(ad.tools or []))
+
+
+# Agents listing for FE
+class AgentListItem(BaseModel):
+    name: str
+    role: str
+    model: str
+    tools: list[str]
+    handoff_targets: list[str]
+
+
+@router.get("/agents", response_model=list[AgentListItem])
+async def agents_list(scenario_id: str = Query("default")):
+    sc = get_scenario(scenario_id)
+    if not sc:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    return [
+        AgentListItem(
+            name=a.name,
+            role=a.role,
+            model=a.model,
+            tools=a.tools or [],
+            handoff_targets=a.handoff_targets or [],
+        )
+        for a in sc.agents
+    ]
 
 
 @router.get("/session2", response_model=SessionInitPayload)
@@ -229,42 +291,30 @@ async def moderate(req: ModerationRequest):
 # ---- Orchestration Endpoint ----
 @router.post("/orchestrate", response_model=OrchestrationDecision)
 async def orchestrate(req: OrchestrationRequest):
-    sc = get_scenario(req.scenario_id)
-    if not sc:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-    # Simple rule: keep default root always in this placeholder
-    chosen = sc.default_root
-    decision = OrchestrationDecision(
-        chosen_root=chosen,
-        reason="placeholder_default",
-        changed=False,
-    )
-    # If a session_id is provided, persist a no-op handoff (only if agent changes)
-    if req.session_id:
-        try:
-            sess = store.get_session(req.session_id)
-            if not sess:
-                store.create_session(req.session_id, active_agent_id=chosen)
-                sess = store.get_session(req.session_id)
-            if sess and sess.active_agent_id != chosen:
-                store.set_active_agent(req.session_id, chosen)
-                seq = store.next_seq(req.session_id)
-                ev = Event(
-                    session_id=req.session_id,
-                    seq=seq,
-                    type="handoff",
-                    role="system",
-                    agent_id=chosen,
-                    text=None,
-                    reason=decision.reason,
-                    final=True,
-                    timestamp_ms=int(time.time() * 1000),
-                )
-                store.append_event(req.session_id, ev)
-        except Exception:
-            # Non-fatal: orchestration decision still returned
-            pass
-    return decision
+    try:
+        # Prefer supervisor orchestration when available
+        from . import sdk_manager as sm
+
+        text = (
+            getattr(req, "last_user_text", None)
+            or getattr(req, "last_user_input", None)
+            or ""
+        )
+        res = await sm.run_supervisor_orchestrate(
+            scenario_id=req.scenario_id,
+            last_user_text=text,
+            session_id=req.session_id,
+        )
+        return OrchestrationDecision(
+            chosen_root=res.get("chosen_root"),
+            reason=res.get("reason", "unknown"),
+            changed=bool(res.get("changed")),
+        )
+    except Exception as e:
+        # Non-fatal fallback to avoid breaking FE flows; return unchanged decision
+        return OrchestrationDecision(
+            chosen_root=None, reason=f"error:{e}", changed=False
+        )
 
 
 # ---- Server-side Agent Single Turn (Responses API) ----
@@ -293,18 +343,24 @@ class SDKSessionCreateRequest(BaseModel):
         ..., description="System / developer instructions for the agent"
     )
     model: str = Field("gpt-4.1-mini", description="Model to use for the agent")
+    scenario_id: str | None = Field(None, description="Scenario to bind to")
+    overlay: str | None = Field(None, description="Optional overlay/instructions tag")
 
 
 @router.post("/sdk/session/create")
 async def sdk_session_create(req: SDKSessionCreateRequest):
     sid = req.session_id or str(uuid4())
     # Ensure a store-level session exists (active agent is the provided agent_name)
-    store.create_session(sid, active_agent_id=req.agent_name)
+    store.create_session(
+        sid, active_agent_id=req.agent_name, scenario_id=req.scenario_id
+    )
     payload = await sdk_manager.create_agent_session(
         session_id=sid,
         name=req.agent_name,
         instructions=req.instructions,
         model=req.model,
+        scenario_id=req.scenario_id,
+        overlay=req.overlay,
     )
     return payload
 
@@ -330,6 +386,9 @@ class SDKSessionMessageRequest(BaseModel):
     )
     client_message_id: str | None = Field(
         None, description="Client idempotency key for this user message"
+    )
+    scenario_id: str | None = Field(
+        None, description="Scenario binding for tools allowlist"
     )
 
 
@@ -378,7 +437,9 @@ async def sdk_session_message(req: SDKSessionMessageRequest):
             session_id=req.session_id,
             user_input=req.user_input,
             agent_spec=agent_spec,
+            scenario_id=req.scenario_id,
         )
+
         # Simulate token streaming via background task; then emit final message
         message_id = req.client_message_id or str(uuid4())
 
@@ -439,12 +500,107 @@ async def sdk_session_message(req: SDKSessionMessageRequest):
         raise HTTPException(status_code=500, detail=f"agent turn failed: {e}")
 
 
+# Allow FE to switch active agent explicitly (bonus)
+class SetActiveAgentRequest(BaseModel):
+    session_id: str
+    agent_name: str
+
+
+@router.post("/sdk/session/set_active_agent")
+async def set_active_agent(req: SetActiveAgentRequest):
+    try:
+        store.set_active_agent(req.session_id, req.agent_name)
+        seq = store.next_seq(req.session_id)
+        ev = Event(
+            session_id=req.session_id,
+            seq=seq,
+            type="handoff",
+            role="system",
+            agent_id=req.agent_name,
+            text=None,
+            final=True,
+            reason="manual_switch",
+            timestamp_ms=int(time.time() * 1000),
+        )
+        store.append_event(req.session_id, ev)
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"set_active_agent failed: {e}")
+
+
 @router.get("/sdk/session/transcript")
 async def sdk_session_transcript(session_id: str):
     try:
         return await sdk_manager.get_session_transcript(session_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"transcript retrieval failed: {e}")
+
+
+# ---- Usage Endpoints ----
+class UsageResponse(BaseModel):
+    requests: int
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+
+
+@router.get("/sdk/session/usage", response_model=UsageResponse)
+async def get_session_usage(session_id: str = Query(...)):
+    try:
+        u = store.get_usage(session_id)
+        return UsageResponse(**u)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"usage retrieval failed: {e}")
+
+
+# Providers status (OpenAIResponses, LiteLLM)
+class ProvidersStatus(BaseModel):
+    openai_responses: bool
+    litellm: bool
+
+
+@router.get("/models/providers/status", response_model=ProvidersStatus)
+async def providers_status():
+    try:
+        from .sdk_manager import (LiteLLMModel,  # type: ignore
+                                  OpenAIResponsesModel)
+
+        return ProvidersStatus(
+            openai_responses=OpenAIResponsesModel is not None,
+            litellm=LiteLLMModel is not None,
+        )
+    except Exception:
+        return ProvidersStatus(openai_responses=False, litellm=False)
+
+
+class ProviderFlags(BaseModel):
+    use_openai_responses: bool
+    use_litellm: bool
+
+
+@router.get("/models/providers/flags", response_model=ProviderFlags)
+async def get_provider_flags():
+    try:
+        from . import sdk_manager as sm
+
+        return ProviderFlags(
+            use_openai_responses=bool(getattr(sm, "USE_OA_RESPONSES_MODEL", False)),
+            use_litellm=bool(getattr(sm, "USE_LITELLM", False)),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"flags retrieval failed: {e}")
+
+
+@router.post("/models/providers/flags", response_model=ProviderFlags)
+async def set_provider_flags(flags: ProviderFlags):
+    try:
+        from . import sdk_manager as sm
+
+        setattr(sm, "USE_OA_RESPONSES_MODEL", bool(flags.use_openai_responses))
+        setattr(sm, "USE_LITELLM", bool(flags.use_litellm))
+        return await get_provider_flags()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"flags update failed: {e}")
 
 
 # ---- Events Resume (M1 scaffold) ----

@@ -6,6 +6,8 @@ import { SessionConfig } from './components/app_agents/SessionConfig';
 import { RealtimePanel } from './components/app_agents/RealtimePanel';
 import { ChatPanel } from './components/app_agents/ChatPanel';
 import { RawEventsPanel } from './components/app_agents/RawEventsPanel';
+import { UsagePanel } from './components/app_agents/UsagePanel';
+import { ProvidersStatusPanel } from './components/app_agents/ProvidersStatusPanel';
 import { useEvents } from './hooks/useEvents';
 
 export default function SDKTestStandalone() {
@@ -18,17 +20,18 @@ export default function SDKTestStandalone() {
   const [transcript, setTranscript] = useState<any[]>([]);
   const baseUrl =
     (import.meta as any).env.VITE_BACKEND_URL || 'http://localhost:8000';
-  const { events, lastSeq, setEvents, setLastSeq, warn, refresh } = useEvents(
-    baseUrl,
-    sessionId || undefined
-  );
   const [showLogs, setShowLogs] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [netWarn, setNetWarn] = useState<string | null>(null);
   const [pttActive, setPttActive] = useState(false);
+  const { events, lastSeq, setEvents, setLastSeq, warn, refresh } = useEvents(
+    baseUrl,
+    sessionId || undefined,
+    { enabled: autoRefresh, visibilityPause: true, idleStopMs: 45000 }
+  );
   // --- Multi-agent scaffolding ---
   interface AgentDef {
     id: string;
@@ -127,6 +130,7 @@ export default function SDKTestStandalone() {
       setError('Create session first');
       return;
     }
+    if (loading) return; // prevent double sends
     setLoading(true);
     setError(null);
     try {
@@ -145,6 +149,8 @@ export default function SDKTestStandalone() {
       });
       if (!r.ok) throw new Error(await r.text());
       const data = await r.json();
+      // clear input after successful send
+      setInput('');
       setOutput(data.final_output || '');
       setToolCalls(data.tool_calls || []);
       // Append returned events (user event only)
@@ -269,15 +275,14 @@ export default function SDKTestStandalone() {
 
   // Chat parsing and auto-scroll handled inside ChatPanel
 
-  // Auto refresh events (preferred) every 3s; fall back to transcript every 6s
+  // Auto refresh transcript occasionally; events are handled by useEvents
   useEffect(() => {
     if (!autoRefresh) {
       if (refreshTimer.current) clearInterval(refreshTimer.current);
       return;
     }
     refreshTimer.current = window.setInterval(() => {
-      void refresh();
-      // Fallback occasional transcript refresh (optional)
+      // Occasional transcript refresh (optional)
       if (Math.random() < 0.34) void loadTranscript(false);
     }, 3000);
     return () => {
@@ -374,6 +379,8 @@ export default function SDKTestStandalone() {
             allowedTools={allowedTools}
             onError={(msg) => setError(msg || null)}
           />
+          <UsagePanel baseUrl={baseUrl} sessionId={sessionId} />
+          <ProvidersStatusPanel baseUrl={baseUrl} />
           {/* (Legacy microphone panel removed – mic control lives only in Voice Chat panel) */}
         </div>
 

@@ -106,7 +106,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           placeholder="Type a message... (Ctrl+Enter to send)"
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') onSend();
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !loading)
+              onSend();
           }}
         />
         <div className="flex justify-between items-center mt-2">
@@ -120,7 +121,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               Clear
             </button>
             <button
-              onClick={onSend}
+              onClick={() => {
+                if (!loading) onSend();
+              }}
+              disabled={loading}
               className="bg-teal-600 hover:bg-teal-500 rounded px-4 py-1.5 text-sm font-medium">
               Send
             </button>
