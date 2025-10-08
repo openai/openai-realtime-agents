@@ -273,7 +273,11 @@ function App() {
     sendEvent({
       type: 'session.update',
       session: {
-        turn_detection: turnDetection,
+        audio: {
+          input: {
+            turn_detection: turnDetection,
+          },
+        },
       },
     });
 
