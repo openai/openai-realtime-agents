@@ -28,9 +28,9 @@ export interface UseRealtimeOptions {
 
 export function useRealtime(
   audioRef: React.MutableRefObject<HTMLAudioElement | null>,
-  opts: UseRealtimeOptions = {}
+  opts: UseRealtimeOptions & { baseUrl?: string } = {}
 ) {
-  const { forceEnglish = true, disableAutoMic = true } = opts;
+  const { forceEnglish = true, disableAutoMic = true, baseUrl } = opts;
   const sessionRef = useRef<RealtimeSession | null>(null);
   const [status, setStatus] = useState<SessionStatus>('DISCONNECTED');
   const [logs, setLogs] = useState<Log[]>([]);
@@ -49,11 +49,13 @@ export function useRealtime(
   }, []);
 
   const getEphemeralKey = useCallback(async (): Promise<string> => {
-    const r = await fetch('/api/session');
+    const be = baseUrl || (import.meta as any).env.VITE_BACKEND_URL || '';
+    const url = be ? `${be}/api/session` : '/api/session';
+    const r = await fetch(url);
     const j = await r.json();
     if (!j?.client_secret?.value) throw new Error('No ephemeral key');
     return j.client_secret.value;
-  }, []);
+  }, [baseUrl]);
 
   const connect = useCallback(async () => {
     if (sessionRef.current) return;
@@ -155,7 +157,7 @@ export function useRealtime(
     }
     sessionRef.current = s;
     setStatus('CONNECTED');
-  }, [audioRef, forceEnglish]);
+  }, [audioRef, forceEnglish, getEphemeralKey]);
 
   const disconnect = useCallback(() => {
     sessionRef.current?.close();

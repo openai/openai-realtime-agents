@@ -6,6 +6,7 @@ type UseEventsOptions = {
   maxMs?: number; // maximum poll interval
   idleStopMs?: number; // stop polling entirely after this much inactivity
   visibilityPause?: boolean; // pause when tab hidden
+  runtime?: 'sdk' | 'llm'; // which backend runtime to poll
 };
 
 export function useEvents(
@@ -43,10 +44,11 @@ export function useEvents(
       if (!sessionId) return;
       if (!enabledRef.current && !force) return;
       try {
+        const runtime = opts.runtime ?? 'sdk';
         const r = await fetch(
-          `${baseUrl}/api/sdk/session/${encodeURIComponent(sessionId)}/events${
-            lastSeq ? `?since=${lastSeq}` : ''
-          }`
+          `${baseUrl}/api/${runtime}/session/${encodeURIComponent(
+            sessionId
+          )}/events${lastSeq ? `?since=${lastSeq}` : ''}`
         );
         if (!r.ok) throw new Error(await r.text());
         const data = await r.json();

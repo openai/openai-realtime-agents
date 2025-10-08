@@ -83,7 +83,7 @@ export default function SDKTestStandalone() {
 
   // Realtime session (audio+text)
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
-  const realtime = useRealtime(remoteAudioRef, { forceEnglish: true });
+  const realtime = useRealtime(remoteAudioRef, { forceEnglish: true, baseUrl });
   const realtimeConnected = realtime.status === 'CONNECTED';
   const [toolResult, setToolResult] = useState<any | null>(null);
   const [allowedTools, setAllowedTools] = useState<string[]>([]);
@@ -100,15 +100,21 @@ export default function SDKTestStandalone() {
     setCreating(true);
     setError(null);
     try {
+      const ac = new AbortController();
+      const t = window.setTimeout(() => ac.abort(), 15000);
       const r = await fetch(`${baseUrl}/api/sdk/session/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          agent_name: activeAgent.name,
           instructions: effectiveInstructions,
           session_id: sessionId || undefined,
           model,
+          scenario_id: 'default',
         }),
+        signal: ac.signal,
       });
+      window.clearTimeout(t);
       if (!r.ok) throw new Error(await r.text());
       const data = await r.json();
       setSessionId(data.session_id);
@@ -134,19 +140,36 @@ export default function SDKTestStandalone() {
     setLoading(true);
     setError(null);
     try {
+      // Prepare abortable request and refresh events immediately so the user message shows up
+      const ac = new AbortController();
+      const timeout = window.setTimeout(() => ac.abort(), 12000);
       const clientMessageId =
         globalThis.crypto && 'randomUUID' in globalThis.crypto
           ? (globalThis.crypto as any).randomUUID()
           : 'm_' + Math.random().toString(36).slice(2);
-      const r = await fetch(`${baseUrl}/api/sdk/session/message`, {
+      const fetchPromise = fetch(`${baseUrl}/api/sdk/session/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           session_id: sessionId,
           user_input: input,
           client_message_id: clientMessageId,
+          scenario_id: 'default',
+          agent: {
+            name: activeAgent.name,
+            instructions: effectiveInstructions,
+            model,
+          },
         }),
+        signal: ac.signal,
       });
+      // Kick an immediate events refresh while the turn processes on the server
+      // so the just-appended user event is visible right away
+      void refresh();
+      window.setTimeout(() => void refresh(), 250);
+      window.setTimeout(() => void refresh(), 900);
+      const r = await fetchPromise;
+      window.clearTimeout(timeout);
       if (!r.ok) throw new Error(await r.text());
       const data = await r.json();
       // clear input after successful send
@@ -169,16 +192,23 @@ export default function SDKTestStandalone() {
         });
       }
       if (autoRefresh) void loadTranscript(false);
-      // Kick a short fast-poll window to surface streaming tokens quickly
-      fastPollUntil.current = Date.now() + 3500;
-      if (fastPollTimer.current) clearInterval(fastPollTimer.current);
-      fastPollTimer.current = window.setInterval(() => {
-        if (Date.now() > fastPollUntil.current) {
-          if (fastPollTimer.current) clearInterval(fastPollTimer.current);
-          return;
-        }
-        void refresh();
-      }, 200);
+      // Events fetching strategy
+      if (autoRefresh) {
+        // Short fast-poll burst to surface tokens quickly
+        fastPollUntil.current = Date.now() + 3500;
+        if (fastPollTimer.current) clearInterval(fastPollTimer.current);
+        fastPollTimer.current = window.setInterval(() => {
+          if (Date.now() > fastPollUntil.current) {
+            if (fastPollTimer.current) clearInterval(fastPollTimer.current);
+            return;
+          }
+          void refresh();
+        }, 200);
+      } else {
+        // Auto refresh disabled: do a very small number of forced fetches only
+        window.setTimeout(() => void refresh(), 600);
+        window.setTimeout(() => void refresh(), 1400);
+      }
       // Orchestrator call (placeholder: backend may switch root later)
       try {
         const orc = await fetch(`${baseUrl}/api/orchestrate`, {
@@ -211,7 +241,7 @@ export default function SDKTestStandalone() {
         console.warn('orchestrate failed', e);
       }
     } catch (e: any) {
-      setError(e.message);
+      setError(e.name === 'AbortError' ? 'Request timed out' : e.message);
     } finally {
       setLoading(false);
     }
@@ -318,11 +348,14 @@ export default function SDKTestStandalone() {
         );
         if (!r.ok) throw new Error('tools fetch failed');
         const s = await r.json();
-        const list: string[] = Array.isArray(s?.allowed_tools)
+        const listRaw: string[] = Array.isArray(s?.allowed_tools)
           ? s.allowed_tools
           : ['echo_context'];
-        if (!cancelled)
-          setAllowedTools(Array.isArray(list) ? list : ['echo_context']);
+        const list =
+          Array.isArray(listRaw) && listRaw.length > 0
+            ? listRaw
+            : ['echo_context'];
+        if (!cancelled) setAllowedTools(list);
       } catch {
         if (!cancelled) setAllowedTools(['echo_context']);
       }
@@ -379,8 +412,16 @@ export default function SDKTestStandalone() {
             allowedTools={allowedTools}
             onError={(msg) => setError(msg || null)}
           />
-          <UsagePanel baseUrl={baseUrl} sessionId={sessionId} />
-          <ProvidersStatusPanel baseUrl={baseUrl} />
+          <UsagePanel
+            baseUrl={baseUrl}
+            sessionId={sessionId}
+            enabled={autoRefresh}
+          />
+          <ProvidersStatusPanel
+            baseUrl={baseUrl}
+            enabled={autoRefresh}
+            runtime="sdk"
+          />
           {/* (Legacy microphone panel removed – mic control lives only in Voice Chat panel) */}
         </div>
 
@@ -406,7 +447,7 @@ export default function SDKTestStandalone() {
             <button
               onClick={() => setShowLogs((v) => !v)}
               className="mb-2 text-[11px] px-2 py-1 rounded border border-gray-700 hover:bg-gray-800 text-gray-300">
-              {showLogs ? 'Hide Raw' : `Raw Logs (${transcript.length})`}
+              {showLogs ? 'Hide Raw' : `Raw Logs (${events.length})`}
             </button>
           </div>
           <ChatPanel
@@ -455,7 +496,7 @@ export default function SDKTestStandalone() {
           )}
         </div>
 
-        {showLogs && <RawEventsPanel transcript={transcript} />}
+        {showLogs && <RawEventsPanel transcript={transcript} events={events} />}
       </div>
     </div>
   );

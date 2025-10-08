@@ -2,26 +2,88 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any, Dict
+import os
+import logging
 
-from agents import Agent, ModelSettings, Runner, SQLiteSession, function_tool
+def _env_truthy(name: str, default: str = "0") -> bool:
+    v = os.getenv(name)
+    if v is None:
+        v = default
+    return str(v).lower() in ("1", "true", "yes", "on")
 
-try:
-    # Built-in tools (may not all be available or desired)
-    from agents import (CodeInterpreterTool, ComputerTool,  # type: ignore
-                        FileSearchTool, HostedMCPTool, ImageGenerationTool,
-                        LocalShellTool, WebSearchTool)
-except Exception:  # pragma: no cover - optional
-    FileSearchTool = WebSearchTool = ComputerTool = HostedMCPTool = LocalShellTool = ImageGenerationTool = CodeInterpreterTool = None  # type: ignore
-try:
-    # Optional model providers
-    from agents.models.openai_responses import \
-        OpenAIResponsesModel  # type: ignore
-except Exception:  # pragma: no cover
-    OpenAIResponsesModel = None  # type: ignore
-try:
-    from agents.extensions.litellm import LiteLLMModel  # type: ignore
-except Exception:  # pragma: no cover
-    LiteLLMModel = None  # type: ignore
+# Allow both spellings; default is NOT disabled (so SDK is allowed by default)
+DISABLE_AGENTS_SDK = _env_truthy("DISABLE_AGENTS_SDK") or _env_truthy("DISABLE_AGENT_SDK")
+AGENTS_SDK_AVAILABLE = False
+Agent = ModelSettings = Runner = SQLiteSession = function_tool = None  # type: ignore
+
+logger = logging.getLogger(__name__)
+
+def _ensure_agents_sdk_loaded():
+    global Agent, ModelSettings, Runner, SQLiteSession, function_tool, AGENTS_SDK_AVAILABLE
+    if AGENTS_SDK_AVAILABLE or DISABLE_AGENTS_SDK:
+        return
+    try:  # defer import to avoid pulling in heavy deps unless explicitly enabled
+        from agents import Agent as _A, ModelSettings as _MS, Runner as _R, SQLiteSession as _SS, function_tool as _FT  # type: ignore
+        Agent, ModelSettings, Runner, SQLiteSession, function_tool = _A, _MS, _R, _SS, _FT
+        AGENTS_SDK_AVAILABLE = True
+    except Exception:
+        Agent = ModelSettings = Runner = SQLiteSession = function_tool = None  # type: ignore
+        AGENTS_SDK_AVAILABLE = False
+
+# Built-in tools (only if Agents SDK is enabled)
+FileSearchTool = WebSearchTool = ComputerTool = HostedMCPTool = LocalShellTool = ImageGenerationTool = CodeInterpreterTool = None  # type: ignore
+def _ensure_builtin_tools_loaded():
+    global FileSearchTool, WebSearchTool, ComputerTool, HostedMCPTool, LocalShellTool, ImageGenerationTool, CodeInterpreterTool
+    if DISABLE_AGENTS_SDK:
+        return
+    if FileSearchTool is not None:
+        return
+    try:
+        from agents import (  # type: ignore
+            CodeInterpreterTool as _CIT,
+            ComputerTool as _CT,
+            FileSearchTool as _FST,
+            HostedMCPTool as _HMT,
+            ImageGenerationTool as _IGT,
+            LocalShellTool as _LST,
+            WebSearchTool as _WST,
+        )
+        FileSearchTool, WebSearchTool, ComputerTool, HostedMCPTool, LocalShellTool, ImageGenerationTool, CodeInterpreterTool = (
+            _FST, _WST, _CT, _HMT, _LST, _IGT, _CIT
+        )
+    except Exception:
+        FileSearchTool = WebSearchTool = ComputerTool = HostedMCPTool = LocalShellTool = ImageGenerationTool = CodeInterpreterTool = None  # type: ignore
+# Lazy provider wrappers to prevent heavy imports unless explicitly used
+_OpenAIResponsesModel_cls = None
+_LiteLLMModel_cls = None
+
+def _get_OpenAIResponsesModel():
+    global _OpenAIResponsesModel_cls
+    if DISABLE_AGENTS_SDK:
+        return None
+    if _OpenAIResponsesModel_cls is not None:
+        return _OpenAIResponsesModel_cls
+    try:  # type: ignore
+        from agents.models.openai_responses import OpenAIResponsesModel as _C
+        _OpenAIResponsesModel_cls = _C
+        return _C
+    except Exception:
+        _OpenAIResponsesModel_cls = None
+        return None
+
+def _get_LiteLLMModel():
+    global _LiteLLMModel_cls
+    if DISABLE_AGENTS_SDK:
+        return None
+    if _LiteLLMModel_cls is not None:
+        return _LiteLLMModel_cls
+    try:  # type: ignore
+        from agents.extensions.litellm import LiteLLMModel as _C  # type: ignore
+        _LiteLLMModel_cls = _C
+        return _C
+    except Exception:
+        _LiteLLMModel_cls = None
+        return None
 import time
 
 from .core.models.event import Event
@@ -30,10 +92,14 @@ from .registry import get_scenario
 from .tools import tool_registry
 
 # In-memory map of active sessions to SQLiteSession objects (file-backed optional later)
-_session_cache: Dict[str, SQLiteSession] = {}
+# SQLiteSession may be unavailable; store as generic values
+_session_cache: Dict[str, Any] = {}
 
 
-def get_or_create_session(session_id: str) -> SQLiteSession:
+def get_or_create_session(session_id: str):
+    if not AGENTS_SDK_AVAILABLE or SQLiteSession is None:
+        # Fallback: return a simple sentinel object (not used by fallback path)
+        return {"id": session_id}
     session = _session_cache.get(session_id)
     if not session:
         # In-memory; switch to file path: SQLiteSession(session_id, "conversations.db") for persistence
@@ -44,6 +110,8 @@ def get_or_create_session(session_id: str) -> SQLiteSession:
 
 def _resolve_agent_tools(names: list[str]):
     tools = []
+    _ensure_agents_sdk_loaded()
+    _ensure_builtin_tools_loaded()
     # In-file simple boolean switches (safe defaults). Easier to port later.
     BUILTIN_TOOLS_ENABLED = {
         "FileSearchTool": False,
@@ -98,12 +166,14 @@ def _resolve_agent_tools(names: list[str]):
         if b is not None:
             tools.append(b)
 
-    # Then: include custom registry functions
+    # Then: include custom registry functions (only if Agents SDK is available)
     for n in names or []:
+        if not AGENTS_SDK_AVAILABLE or function_tool is None:
+            # Cannot wrap without Agents SDK
+            break
         spec = tool_registry.get(n)
         if not spec:
             continue
-        # Wrap callable into function_tool to expose schema to Agents SDK
         ft = function_tool(
             spec.func,
             name=spec.name,
@@ -116,7 +186,12 @@ def _resolve_agent_tools(names: list[str]):
 
 # Runtime-toggleable provider flags (reflected via router endpoints)
 USE_LITELLM: bool = False
-USE_OA_RESPONSES_MODEL: bool = True
+# For SDK-first restore, default to Responses wrapper off and Agents SDK on.
+USE_OA_RESPONSES_MODEL: bool = False
+# Expose an Agents SDK toggle separate from DISABLE_AGENTS_SDK env. If this is True
+# and DISABLE_AGENTS_SDK is False, we will attempt to use the SDK path; otherwise
+# we will use the direct Responses fallback.
+USE_AGENTS_SDK: bool = True
 
 
 def _build_model_provider(model_name: str):
@@ -124,17 +199,102 @@ def _build_model_provider(model_name: str):
 
     Default is the raw model string.
     """
-    if USE_LITELLM and LiteLLMModel is not None:
+    LLM = _get_LiteLLMModel()
+    if USE_LITELLM and LLM is not None:
         try:
-            return LiteLLMModel(model_name)
+            return LLM(model_name)
         except Exception:
             pass
-    if USE_OA_RESPONSES_MODEL and OpenAIResponsesModel is not None:
+    OARM = _get_OpenAIResponsesModel()
+    if USE_OA_RESPONSES_MODEL and OARM is not None:
         try:
-            return OpenAIResponsesModel(model_name)
+            return OARM(model_name)
         except Exception:
             pass
     return model_name
+
+def _extract_responses_text(resp: Dict[str, Any]) -> str:
+    """Best-effort text extraction for OpenAI Responses API payloads.
+
+    Handles several return shapes across versions.
+    """
+    if not isinstance(resp, dict):
+        return ""
+    # Common helpers
+    def _collect_from_content(content: Any) -> list[str]:
+        out: list[str] = []
+        if isinstance(content, str):
+            out.append(content)
+        elif isinstance(content, list):
+            for c in content:
+                if not isinstance(c, dict):
+                    continue
+                if c.get("type") in {"text", "input_text", "output_text"} and isinstance(c.get("text"), str):
+                    out.append(c["text"].strip())
+        return out
+
+    # 1) Top-level
+    if isinstance(resp.get("output_text"), str):
+        return resp["output_text"]
+    if isinstance(resp.get("content"), str):
+        return resp["content"]
+    # 2) Nested response object
+    r2 = resp.get("response")
+    if isinstance(r2, dict):
+        if isinstance(r2.get("output_text"), str):
+            return r2["output_text"]
+        if isinstance(r2.get("content"), str):
+            return r2["content"]
+        # Or response.output list
+        if isinstance(r2.get("output"), list):
+            texts: list[str] = []
+            for item in r2["output"]:
+                if not isinstance(item, dict):
+                    continue
+                if item.get("type") == "message":
+                    texts += _collect_from_content(item.get("content"))
+                elif isinstance(item.get("text"), str):
+                    texts.append(item["text"])
+            if texts:
+                return "\n".join([t for t in texts if t])
+    # 3) Top-level output array
+    if isinstance(resp.get("output"), list):
+        texts: list[str] = []
+        for item in resp["output"]:
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") == "message":
+                texts += _collect_from_content(item.get("content"))
+            elif isinstance(item.get("text"), str):
+                texts.append(item["text"])
+        if texts:
+            return "\n".join([t for t in texts if t])
+    # 4) Legacy chat-completions shape, just in case
+    if isinstance(resp.get("choices"), list) and resp["choices"]:
+        try:
+            msg = resp["choices"][0]["message"]["content"]
+            if isinstance(msg, str):
+                return msg
+        except Exception:
+            pass
+    return ""
+
+
+def providers_probe() -> Dict[str, bool]:
+    """Report availability of optional providers without forcing heavy imports when disabled."""
+    # If disabled, report false for SDK-related wrappers
+    agents_sdk_available = False
+    if not DISABLE_AGENTS_SDK:
+        try:
+            _ensure_agents_sdk_loaded()
+            agents_sdk_available = bool(AGENTS_SDK_AVAILABLE)
+        except Exception:
+            agents_sdk_available = False
+    return {
+        "openai_responses": _get_OpenAIResponsesModel() is not None,
+        "litellm": _get_LiteLLMModel() is not None,
+        "agents_sdk": agents_sdk_available,
+    }
 
 
 def _extract_usage(result: Any) -> Dict[str, Any] | None:
@@ -180,6 +340,8 @@ async def create_agent_session(
     scenario_id: str | None = None,
     overlay: str | None = None,
 ) -> Dict[str, Any]:
+    # Ensure SDK is loaded before session creation so we don't return a sentinel
+    _ensure_agents_sdk_loaded()
     session = get_or_create_session(session_id)
     # Pull allowlist from scenario if provided
     tools = []
@@ -207,24 +369,24 @@ async def create_agent_session(
         instr = instructions
 
     prov = _build_model_provider(model)
-    ms = None
-    try:
-        # Enable usage for LiteLLM if used
-        if prov.__class__.__name__ == "LitellmModel":  # type: ignore[attr-defined]
-            ms = ModelSettings(include_usage=True)
-    except Exception:
-        pass
-    # Only pass model_settings if present; Agents SDK raises TypeError on None
-    if ms is not None:
-        agent = Agent(
-            name=name, instructions=instr, model=prov, tools=tools, model_settings=ms
-        )
-    else:
-        agent = Agent(name=name, instructions=instr, model=prov, tools=tools)
+    _ensure_agents_sdk_loaded()
+    if USE_AGENTS_SDK and AGENTS_SDK_AVAILABLE and Agent is not None:
+        ms = None
+        try:
+            # Enable usage for LiteLLM if used
+            if prov.__class__.__name__ == "LitellmModel":  # type: ignore[attr-defined]
+                ms = ModelSettings(include_usage=True)
+        except Exception:
+            pass
+        # Only pass model_settings if present; Agents SDK raises TypeError on None
+        if ms is not None:
+            Agent(name=name, instructions=instr, model=prov, tools=tools, model_settings=ms)
+        else:
+            Agent(name=name, instructions=instr, model=prov, tools=tools)
     # Optionally run a priming turn (not required)
     return {
         "session_id": session_id,
-        "agent_name": agent.name,
+        "agent_name": name,
         "model": model,
         "tools": [t.name for t in tools],
         "overlay": overlay,
@@ -237,6 +399,8 @@ async def run_agent_turn(
     agent_spec: Dict[str, Any],
     scenario_id: str | None = None,
 ) -> Dict[str, Any]:
+    # Ensure SDK is loaded before session creation so the session is a real SQLiteSession
+    _ensure_agents_sdk_loaded()
     session = get_or_create_session(session_id)
     # Reconstruct lightweight agent each call (cheap); could cache if instructions stable
     name = agent_spec.get("name", "Assistant")
@@ -264,10 +428,61 @@ async def run_agent_turn(
         )
     except Exception:
         instr = base_instr
+    # Fallback if Agents SDK not available: use single-turn helper
     prov = _build_model_provider(agent_spec.get("model", "gpt-4.1-mini"))
+    _ensure_agents_sdk_loaded()
+    if not (USE_AGENTS_SDK and AGENTS_SDK_AVAILABLE and Agent is not None and Runner is not None):
+        # Minimal call using existing helper and synthesize a result-like dict
+        try:
+            # Respect FE flags: if Responses wrapper is disabled entirely, don't call it
+            if not USE_OA_RESPONSES_MODEL:
+                raise RuntimeError("responses_disabled_by_flag")
+            from .agent_runner import run_single_turn
+            messages = [{"role": "user", "content": user_input}]
+            resp = await run_single_turn(
+                agent_spec.get("model", "gpt-4.1-mini"), messages, None
+            )
+            final_output = (
+                resp.get("output_text")
+                or resp.get("final_output")
+                or resp.get("content")
+                or ""
+            )
+            return {
+                "final_output": final_output,
+                "new_items_len": 0,
+                "tool_calls": [],
+                "used_tools": [],
+                "usage": resp.get("usage"),
+            }
+        except Exception as e:
+            # Surface the failure as a log event in the session store
+            try:
+                seq = store.next_seq(session_id)
+                ev = Event(
+                    session_id=session_id,
+                    seq=seq,
+                    type="log",
+                    role="system",
+                    agent_id=name,
+                    text=f"fallback_responses_error: {e}",
+                    final=True,
+                    timestamp_ms=int(time.time() * 1000),
+                )
+                store.append_event(session_id, ev)
+            except Exception:
+                pass
+            return {
+                "final_output": "",
+                "new_items_len": 0,
+                "tool_calls": [],
+                "used_tools": [],
+                "usage": None,
+            }
+    # Agents SDK path
     ms = None
     try:
-        if prov.__class__.__name__ == "LitellmModel":  # type: ignore[attr-defined]
+        if getattr(prov, "__class__", type("_", (), {})).__name__.lower() == "litellmmodel":  # type: ignore[attr-defined]
             ms = ModelSettings(include_usage=True)
     except Exception:
         pass
@@ -277,7 +492,32 @@ async def run_agent_turn(
         )
     else:
         agent = Agent(name=name, instructions=instr, model=prov, tools=tools)
-    result = await Runner.run(agent, user_input, session=session)
+    try:
+        result = await Runner.run(agent, user_input, session=session)
+    except Exception as e:
+        # Emit a log event and continue to fallback
+        try:
+            seq = store.next_seq(session_id)
+            store.append_event(
+                session_id,
+                Event(
+                    session_id=session_id,
+                    seq=seq,
+                    type="log",
+                    role="system",
+                    agent_id=name,
+                    text=f"agents_sdk_error: {e}",
+                    final=True,
+                    timestamp_ms=int(time.time() * 1000),
+                ),
+            )
+        except Exception:
+            pass
+        # Synthesize minimal result shape to drive fallback
+        class _Empty:
+            final_output = ""
+            new_items: list[Any] = []
+        result = _Empty()
     # Emit tool_call/tool_result events opportunistically
     try:
         for i in getattr(result, "new_items", []) or []:
@@ -341,16 +581,102 @@ async def run_agent_turn(
             usage = {**usage, "aggregated": totals}
     except Exception:
         pass
+    # Try to extract assistant text from the Agents SDK result
+    def _extract_text_from_result(res: Any) -> str | None:
+        try:
+            for attr in ("final_output", "output_text", "text", "message"):
+                v = getattr(res, attr, None)
+                if isinstance(v, str) and v.strip():
+                    return v.strip()
+            r = getattr(res, "response", None)
+            # dict-like response object support
+            if isinstance(r, dict):
+                # direct output_text/content on response
+                for k in ("output_text", "content", "message", "text"):
+                    if isinstance(r.get(k), str) and r.get(k).strip():
+                        return r.get(k).strip()
+                out = r.get("output")
+                if isinstance(out, list):
+                    parts: list[str] = []
+                    for item in out:
+                        if not isinstance(item, dict):
+                            continue
+                        content = item.get("content")
+                        if isinstance(content, list):
+                            for c in content:
+                                if (
+                                    isinstance(c, dict)
+                                    and c.get("type") in ("output_text", "text", "input_text")
+                                    and c.get("text")
+                                ):
+                                    parts.append(str(c.get("text")))
+                        elif isinstance(item.get("text"), str):
+                            parts.append(item.get("text"))
+                    if parts:
+                        return "\n".join(parts).strip()
+        except Exception:
+            return None
+        return None
+
+    # If Agents SDK produced no assistant text, fall back to single-turn Responses API
+    final_text = _extract_text_from_result(result)
+    used_fallback = False
+    if not final_text:
+        try:
+            if not USE_OA_RESPONSES_MODEL:
+                raise RuntimeError("responses_disabled_by_flag")
+            from .agent_runner import run_single_turn
+
+            messages = [{"role": "user", "content": user_input}]
+            resp = await run_single_turn(
+                agent_spec.get("model", "gpt-4.1-mini"), messages, None
+            )
+            final_text = (
+                resp.get("output_text")
+                or resp.get("final_output")
+                or resp.get("content")
+                or ""
+            )
+            used_fallback = True
+            # If usage wasn't available from SDK, use the Responses usage
+            if not usage and resp.get("usage"):
+                try:
+                    totals = store.add_usage(session_id, resp["usage"])  # type: ignore[index]
+                    usage = {**resp["usage"], "aggregated": totals}  # type: ignore[index]
+                except Exception:
+                    pass
+        except Exception as e:
+            # Log the fallback failure so it surfaces in Raw Logs
+            try:
+                seq = store.next_seq(session_id)
+                store.append_event(
+                    session_id,
+                    Event(
+                        session_id=session_id,
+                        seq=seq,
+                        type="log",
+                        role="system",
+                        agent_id=name,
+                        text=f"fallback_responses_error: {e}",
+                        final=True,
+                        timestamp_ms=int(time.time() * 1000),
+                    ),
+                )
+            except Exception:
+                pass
+            # keep as empty string to avoid crashing the turn
+            final_text = final_text or ""
     return {
-        "final_output": result.final_output,
-        "new_items_len": len(result.new_items),
+        "final_output": final_text or getattr(result, "final_output", None) or "",
+        "new_items_len": len(getattr(result, "new_items", []) or []),
         "tool_calls": [
             getattr(i, "tool_name", None)
-            for i in result.new_items
+            for i in (getattr(result, "new_items", []) or [])
             if hasattr(i, "tool_name")
         ],
         "used_tools": [t.name for t in tools],
         "usage": usage,
+        "used_fallback": used_fallback,
     }
 
 
@@ -374,6 +700,64 @@ async def run_supervisor_orchestrate(
         ),
         None,
     )
+    # If Agents SDK isn't available, skip supervisor and use heuristic
+    if not AGENTS_SDK_AVAILABLE:
+        text = (last_user_text or "").lower()
+        def pick_agent() -> str:
+            if any(
+                k in text
+                for k in ["buy", "price", "recommend", "product", "catalog", "purchase"]
+            ):
+                return (
+                    "sales"
+                    if any(a.name == "sales" for a in sc.agents)
+                    else sc.default_root
+                )
+            if any(
+                k in text
+                for k in [
+                    "error",
+                    "issue",
+                    "problem",
+                    "troubleshoot",
+                    "not working",
+                    "help",
+                ]
+            ):
+                return (
+                    "support"
+                    if any(a.name == "support" for a in sc.agents)
+                    else sc.default_root
+                )
+            return sc.default_root
+        chosen = pick_agent()
+        reason = "heuristic_router"
+        changed = False
+        if session_id:
+            try:
+                sess = store.get_session(session_id)
+                if not sess:
+                    store.create_session(session_id, active_agent_id=chosen)
+                    sess = store.get_session(session_id)
+                if sess and sess.active_agent_id != chosen:
+                    changed = True
+                    store.set_active_agent(session_id, chosen)
+                    seq = store.next_seq(session_id)
+                    ev = Event(
+                        session_id=session_id,
+                        seq=seq,
+                        type="handoff",
+                        role="system",
+                        agent_id=chosen,
+                        text=None,
+                        final=True,
+                        reason=reason,
+                        timestamp_ms=int(time.time() * 1000),
+                    )
+                    store.append_event(session_id, ev)
+            except Exception:
+                pass
+        return {"chosen_root": chosen, "reason": reason, "changed": changed}
     if not sup:
         # Fallback heuristic
         text = (last_user_text or "").lower()
@@ -472,7 +856,7 @@ async def run_supervisor_orchestrate(
         prov = _build_model_provider(sup.model)
         ms = None
         try:
-            if prov.__class__.__name__ == "LitellmModel":  # type: ignore[attr-defined]
+            if getattr(prov, "__class__", type("_", (), {})).__name__.lower() == "litellmmodel":  # type: ignore[attr-defined]
                 ms = ModelSettings(include_usage=True)
         except Exception:
             pass
@@ -540,5 +924,10 @@ async def run_supervisor_orchestrate(
 
 async def get_session_transcript(session_id: str) -> Dict[str, Any]:
     session = get_or_create_session(session_id)
+    # If Agents SDK session not available, synthesize transcript from event store
+    if not AGENTS_SDK_AVAILABLE or not hasattr(session, "get_items"):
+        events = store.list_events(session_id)
+        items = [e.model_dump() for e in events]
+        return {"session_id": session_id, "items": items, "length": len(items)}
     items = await session.get_items()
     return {"session_id": session_id, "items": items, "length": len(items)}

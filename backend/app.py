@@ -17,6 +17,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
 
 from backend.app_agents.router import router as agents_router
+from backend.app_agents.sdk_routes import router as sdk_router
+from backend.app_agents.llm_routes import router as llm_router
 
 # Load .env
 load_dotenv()
@@ -71,7 +73,9 @@ app.add_middleware(
     allow_headers=allowed_headers,
 )
 
-app.include_router(agents_router)
+app.include_router(agents_router, prefix="/api")
+app.include_router(sdk_router, prefix="/api")
+app.include_router(llm_router, prefix="/api")
 
 
 class SessionResponse(BaseModel):

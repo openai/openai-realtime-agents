@@ -29,8 +29,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   onSend,
 }) => {
   const chatMessages: ChatMessage[] = useMemo(
-    () => buildChatMessages(events, transcript, realtimeLogs),
-    [events, transcript, realtimeLogs]
+    () =>
+      buildChatMessages(events, transcript, realtimeLogs, {
+        source: activeAgentName === 'LLM' ? 'llm' : 'sdk',
+      }),
+    [events, transcript, realtimeLogs, activeAgentName]
   );
   const streaming = useMemo(() => computeStreaming(events), [events]);
   const chatEndRef = useRef<HTMLDivElement | null>(null);

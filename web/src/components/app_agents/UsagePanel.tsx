@@ -7,20 +7,22 @@ type Usage = {
   total_tokens: number;
 };
 
-export const UsagePanel: React.FC<{ baseUrl: string; sessionId: string }> = ({
-  baseUrl,
-  sessionId,
-}) => {
+export const UsagePanel: React.FC<{
+  baseUrl: string;
+  sessionId: string;
+  enabled?: boolean;
+  pathPrefix?: string; // '/api/sdk' or '/api/llm'
+}> = ({ baseUrl, sessionId, enabled = true, pathPrefix = '/api/sdk' }) => {
   const [usage, setUsage] = useState<Usage | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId || !enabled) return;
     let stop = false;
     async function fetchUsage() {
       try {
         const r = await fetch(
-          `${baseUrl}/api/sdk/session/usage?session_id=${encodeURIComponent(
+          `${baseUrl}${pathPrefix}/session/usage?session_id=${encodeURIComponent(
             sessionId
           )}`
         );
@@ -39,7 +41,7 @@ export const UsagePanel: React.FC<{ baseUrl: string; sessionId: string }> = ({
       stop = true;
       clearInterval(id);
     };
-  }, [baseUrl, sessionId]);
+  }, [baseUrl, sessionId, enabled]);
 
   return (
     <section className="bg-gray-900/70 border border-gray-800 rounded-lg p-4">

@@ -5,9 +5,13 @@ import base64
 import os
 import time
 from uuid import uuid4
+import logging
 
 import httpx
 from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi.responses import StreamingResponse
+import json
+import logging
 from pydantic import BaseModel, Field
 
 from . import sdk_manager
@@ -25,7 +29,8 @@ from .tools import execute_tool
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 
-router = APIRouter(prefix="/api")
+router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class ScenarioListItem(BaseModel):
@@ -207,6 +212,73 @@ async def get_session2(
         root_agent=root,
     )
 
+ 
+
+# ---- Providers status and flags (shared) ----
+class ProvidersStatus(BaseModel):
+    openai_responses: bool
+    litellm: bool
+    agents_sdk: bool
+    default_responses: bool = True
+
+
+@router.get("/models/providers/status", response_model=ProvidersStatus)
+async def providers_status():
+    try:
+        from . import sdk_manager as sm
+        agents_allowed = not bool(getattr(sm, "DISABLE_AGENTS_SDK", False))
+        return ProvidersStatus(
+            openai_responses=True,
+            litellm=True,
+            agents_sdk=agents_allowed,
+            default_responses=True,
+        )
+    except Exception:
+        return ProvidersStatus(openai_responses=False, litellm=False, agents_sdk=False, default_responses=True)
+
+
+class ProviderFlags(BaseModel):
+    use_openai_responses: bool
+    use_litellm: bool
+    use_agents_sdk: bool
+
+
+@router.get("/models/providers/flags", response_model=ProviderFlags)
+async def get_provider_flags():
+    try:
+        from . import sdk_manager as sm
+        use_resp = bool(getattr(sm, "USE_OA_RESPONSES_MODEL", False))
+        use_sdk = bool(getattr(sm, "USE_AGENTS_SDK", False)) and not bool(getattr(sm, "DISABLE_AGENTS_SDK", False))
+        if use_resp:
+            use_sdk = False
+        return ProviderFlags(
+            use_openai_responses=use_resp,
+            use_litellm=bool(getattr(sm, "USE_LITELLM", False)),
+            use_agents_sdk=use_sdk,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"flags retrieval failed: {e}")
+
+
+@router.post("/models/providers/flags", response_model=ProviderFlags)
+async def set_provider_flags(flags: ProviderFlags):
+    try:
+        from . import sdk_manager as sm
+        use_resp = bool(flags.use_openai_responses)
+        use_sdk_req = bool(flags.use_agents_sdk)
+        setattr(sm, "USE_OA_RESPONSES_MODEL", use_resp)
+        setattr(sm, "USE_LITELLM", bool(flags.use_litellm))
+        if use_resp:
+            setattr(sm, "USE_AGENTS_SDK", False)
+        else:
+            if bool(getattr(sm, "DISABLE_AGENTS_SDK", False)):
+                setattr(sm, "USE_AGENTS_SDK", False)
+            else:
+                setattr(sm, "USE_AGENTS_SDK", use_sdk_req)
+        return await get_provider_flags()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"flags update failed: {e}")
+
 
 # ---- Tool Execution Endpoint ----
 @router.post("/tools/execute", response_model=ToolExecutionResult)
@@ -333,315 +405,7 @@ async def agent_run(req: AgentRunRequest):
         raise HTTPException(status_code=502, detail=str(e))
 
 
-# ---- Agents SDK Session Endpoints ----
-class SDKSessionCreateRequest(BaseModel):
-    session_id: str | None = Field(
-        None, description="Client provided session id (optional)"
-    )
-    agent_name: str = Field("assistant", description="Logical name for the agent")
-    instructions: str = Field(
-        ..., description="System / developer instructions for the agent"
-    )
-    model: str = Field("gpt-4.1-mini", description="Model to use for the agent")
-    scenario_id: str | None = Field(None, description="Scenario to bind to")
-    overlay: str | None = Field(None, description="Optional overlay/instructions tag")
+# (streaming helper now lives in llm_routes)
 
 
-@router.post("/sdk/session/create")
-async def sdk_session_create(req: SDKSessionCreateRequest):
-    sid = req.session_id or str(uuid4())
-    # Ensure a store-level session exists (active agent is the provided agent_name)
-    store.create_session(
-        sid, active_agent_id=req.agent_name, scenario_id=req.scenario_id
-    )
-    payload = await sdk_manager.create_agent_session(
-        session_id=sid,
-        name=req.agent_name,
-        instructions=req.instructions,
-        model=req.model,
-        scenario_id=req.scenario_id,
-        overlay=req.overlay,
-    )
-    return payload
-
-
-class SDKSessionDeleteRequest(BaseModel):
-    session_id: str
-
-
-@router.post("/sdk/session/delete")
-async def sdk_session_delete(req: SDKSessionDeleteRequest):
-    try:
-        store.delete_session(req.session_id)
-        return {"ok": True}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"delete failed: {e}")
-
-
-class SDKSessionMessageRequest(BaseModel):
-    session_id: str
-    user_input: str
-    agent: dict | None = Field(
-        None, description="Optional override of agent spec: name, instructions, model"
-    )
-    client_message_id: str | None = Field(
-        None, description="Client idempotency key for this user message"
-    )
-    scenario_id: str | None = Field(
-        None, description="Scenario binding for tools allowlist"
-    )
-
-
-@router.post("/sdk/session/message")
-async def sdk_session_message(req: SDKSessionMessageRequest):
-    if not req.user_input.strip():
-        raise HTTPException(status_code=400, detail="user_input cannot be empty")
-    agent_spec = req.agent or {}
-    try:
-        # Idempotency: if we have a recorded assistant event for this client_message_id, return it
-        if req.client_message_id:
-            prior = store.get_by_client_message_id(
-                req.session_id, req.client_message_id
-            )
-            if prior:
-                return {
-                    "final_output": prior.text,
-                    "new_items_len": 0,
-                    "tool_calls": [],
-                    "events": [prior.model_dump()],
-                }
-        # Ensure store session exists (fallback if client skipped create)
-        if not store.get_session(req.session_id):
-            store.create_session(
-                req.session_id, active_agent_id=agent_spec.get("name", "assistant")
-            )
-
-        # Create user message event
-        now_ms = int(time.time() * 1000)
-        user_seq = store.next_seq(req.session_id)
-        user_event = Event(
-            session_id=req.session_id,
-            seq=user_seq,
-            type="message",
-            message_id=req.client_message_id,
-            role="user",
-            agent_id=None,
-            text=req.user_input,
-            final=True,
-            timestamp_ms=now_ms,
-        )
-        store.append_event(req.session_id, user_event)
-
-        # Run assistant turn
-        result = await sdk_manager.run_agent_turn(
-            session_id=req.session_id,
-            user_input=req.user_input,
-            agent_spec=agent_spec,
-            scenario_id=req.scenario_id,
-        )
-
-        # Simulate token streaming via background task; then emit final message
-        message_id = req.client_message_id or str(uuid4())
-
-        async def _emit_tokens(session_id: str, mid: str, text: str, agent_name: str):
-            # naive chunking
-            chunks = []
-            if text:
-                size = max(5, min(24, len(text) // 4 or 8))
-                for i in range(0, len(text), size):
-                    chunks.append(text[i : i + size])
-            for i, ch in enumerate(chunks):
-                await asyncio.sleep(0.12)
-                seq = store.next_seq(session_id)
-                tok = Event(
-                    session_id=session_id,
-                    seq=seq,
-                    type="token",
-                    message_id=mid,
-                    token_seq=i,
-                    role="assistant",
-                    agent_id=agent_name,
-                    text=ch,
-                    final=False,
-                    timestamp_ms=int(time.time() * 1000),
-                )
-                store.append_event(session_id, tok)
-            # final assistant message
-            seq = store.next_seq(session_id)
-            asst_event = Event(
-                session_id=session_id,
-                seq=seq,
-                type="message",
-                message_id=mid,
-                role="assistant",
-                agent_id=agent_name,
-                text=text,
-                final=True,
-                timestamp_ms=int(time.time() * 1000),
-            )
-            store.append_event(session_id, asst_event)
-            if req.client_message_id:
-                store.remember_client_message(
-                    session_id, req.client_message_id, asst_event
-                )
-
-        asyncio.create_task(
-            _emit_tokens(
-                req.session_id,
-                message_id,
-                result.get("final_output") or "",
-                agent_spec.get("name", "Assistant"),
-            )
-        )
-
-        # Return original payload plus user event only; tokens/final will come via events polling
-        return {**result, "events": [user_event.model_dump()]}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"agent turn failed: {e}")
-
-
-# Allow FE to switch active agent explicitly (bonus)
-class SetActiveAgentRequest(BaseModel):
-    session_id: str
-    agent_name: str
-
-
-@router.post("/sdk/session/set_active_agent")
-async def set_active_agent(req: SetActiveAgentRequest):
-    try:
-        store.set_active_agent(req.session_id, req.agent_name)
-        seq = store.next_seq(req.session_id)
-        ev = Event(
-            session_id=req.session_id,
-            seq=seq,
-            type="handoff",
-            role="system",
-            agent_id=req.agent_name,
-            text=None,
-            final=True,
-            reason="manual_switch",
-            timestamp_ms=int(time.time() * 1000),
-        )
-        store.append_event(req.session_id, ev)
-        return {"ok": True}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"set_active_agent failed: {e}")
-
-
-@router.get("/sdk/session/transcript")
-async def sdk_session_transcript(session_id: str):
-    try:
-        return await sdk_manager.get_session_transcript(session_id)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"transcript retrieval failed: {e}")
-
-
-# ---- Usage Endpoints ----
-class UsageResponse(BaseModel):
-    requests: int
-    input_tokens: int
-    output_tokens: int
-    total_tokens: int
-
-
-@router.get("/sdk/session/usage", response_model=UsageResponse)
-async def get_session_usage(session_id: str = Query(...)):
-    try:
-        u = store.get_usage(session_id)
-        return UsageResponse(**u)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"usage retrieval failed: {e}")
-
-
-# Providers status (OpenAIResponses, LiteLLM)
-class ProvidersStatus(BaseModel):
-    openai_responses: bool
-    litellm: bool
-
-
-@router.get("/models/providers/status", response_model=ProvidersStatus)
-async def providers_status():
-    try:
-        from .sdk_manager import (LiteLLMModel,  # type: ignore
-                                  OpenAIResponsesModel)
-
-        return ProvidersStatus(
-            openai_responses=OpenAIResponsesModel is not None,
-            litellm=LiteLLMModel is not None,
-        )
-    except Exception:
-        return ProvidersStatus(openai_responses=False, litellm=False)
-
-
-class ProviderFlags(BaseModel):
-    use_openai_responses: bool
-    use_litellm: bool
-
-
-@router.get("/models/providers/flags", response_model=ProviderFlags)
-async def get_provider_flags():
-    try:
-        from . import sdk_manager as sm
-
-        return ProviderFlags(
-            use_openai_responses=bool(getattr(sm, "USE_OA_RESPONSES_MODEL", False)),
-            use_litellm=bool(getattr(sm, "USE_LITELLM", False)),
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"flags retrieval failed: {e}")
-
-
-@router.post("/models/providers/flags", response_model=ProviderFlags)
-async def set_provider_flags(flags: ProviderFlags):
-    try:
-        from . import sdk_manager as sm
-
-        setattr(sm, "USE_OA_RESPONSES_MODEL", bool(flags.use_openai_responses))
-        setattr(sm, "USE_LITELLM", bool(flags.use_litellm))
-        return await get_provider_flags()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"flags update failed: {e}")
-
-
-# ---- Events Resume (M1 scaffold) ----
-@router.get("/sdk/session/{session_id}/events")
-async def list_session_events(session_id: str, since: int | None = Query(None)):
-    try:
-        events = store.list_events(session_id, since_seq=since)
-        return [e.model_dump() for e in events]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"events retrieval failed: {e}")
-
-
-# ---- Audio Ingestion (placeholder) ----
-class AudioChunkRequest(BaseModel):
-    session_id: str
-    seq: int
-    pcm16_base64: str = Field(
-        ..., description="Little-endian 16-bit PCM mono @16k base64 encoded"
-    )
-    sample_rate: int = 16000
-    frame_samples: int | None = None
-
-
-@router.post("/sdk/session/audio")
-async def sdk_session_audio(req: AudioChunkRequest):
-    # Decode just to validate integrity; future: queue for ASR.
-    try:
-        raw = base64.b64decode(req.pcm16_base64)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid base64")
-    # Basic size sanity (must be even length for 16-bit samples)
-    if len(raw) % 2 != 0:
-        raise HTTPException(status_code=400, detail="PCM byte length not even")
-    sample_count = len(raw) // 2
-    info = {
-        "accepted": True,
-        "session_id": req.session_id,
-        "seq": req.seq,
-        "samples": sample_count,
-        "sample_rate": req.sample_rate,
-        "ts": time.time(),
-    }
-    # For now just echo metadata; could push to in-memory buffer keyed by session.
-    return info
+# SDK/LLM endpoints moved to dedicated modules.

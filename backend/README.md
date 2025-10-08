@@ -9,7 +9,7 @@
 ### Conda (recommended)
 
 ```powershell
-conda create -y -n oartagents python=3.11 ; conda activate oartagents
+conda create -y -n oartenv python=3.12 ; conda activate oartenv
 pip install -e .[dev]
 ```
 

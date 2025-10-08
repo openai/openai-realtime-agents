@@ -1,4 +1,4 @@
-export type ChatSource = 'sdk' | 'realtime';
+export type ChatSource = 'sdk' | 'llm' | 'realtime';
 
 export interface ChatMessage {
   id: string;
@@ -36,9 +36,11 @@ export function extractText(item: any): string {
 export function buildChatMessages(
   events: any[],
   transcript: any[],
-  realtimeLogs: any[]
+  realtimeLogs: any[],
+  opts?: { source?: ChatSource }
 ): ChatMessage[] {
   const msgs: ChatMessage[] = [];
+  const source: ChatSource = opts?.source || 'sdk';
   if (events.length > 0) {
     const partials = new Map<string, string>();
     for (const ev of events) {
@@ -54,7 +56,7 @@ export function buildChatMessages(
           }`,
           raw: ev,
           kind: 'system',
-          source: 'sdk',
+          source,
         });
       } else if (ev.type === 'message') {
         const role = ev.role || 'assistant';
@@ -76,7 +78,7 @@ export function buildChatMessages(
           text,
           raw: ev,
           kind,
-          source: 'sdk',
+          source,
         });
       }
     }
@@ -92,7 +94,7 @@ export function buildChatMessages(
           text,
           raw: { message_id: mid, type: 'token' },
           kind: 'assistant',
-          source: 'sdk',
+          source,
         });
       }
     }
@@ -116,7 +118,7 @@ export function buildChatMessages(
         text,
         raw: it,
         kind,
-        source: 'sdk',
+        source,
       });
     }
   }

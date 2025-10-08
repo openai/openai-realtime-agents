@@ -1,3 +1,4 @@
+// web/src/App.tsx
 import React, { useEffect, useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import Transcript from '@/components/app_agents/Transcript';
@@ -120,8 +121,10 @@ export default function App() {
   }, [isPTTActive]);
 
   const fetchEphemeralKey = async (): Promise<string | null> => {
-    logClientEvent({ url: '/session' }, 'fetch_session_token_request');
-    const tokenResponse = await fetch('/api/session');
+    const be = (import.meta as any).env.VITE_BACKEND_URL || '';
+    const url = be ? `${be}/api/session` : '/api/session';
+    logClientEvent({ url }, 'fetch_session_token_request');
+    const tokenResponse = await fetch(url);
     const data = await tokenResponse.json();
     logServerEvent(data, 'fetch_session_token_response');
     if (!data.client_secret?.value) {
