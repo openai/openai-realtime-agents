@@ -2,7 +2,7 @@ import { RealtimeAgent } from '@openai/agents/realtime';
 
 export const simulatedHumanAgent = new RealtimeAgent({
   name: 'simulatedHuman',
-  voice: 'sage',
+  voice: 'marin',
   handoffDescription:
     'Placeholder, simulated human agent that can provide more advanced help to the user. Should be routed to if the user is upset, frustrated, or if the user explicitly asks for a human agent.',
   instructions:

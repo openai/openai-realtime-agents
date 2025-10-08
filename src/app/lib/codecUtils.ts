@@ -1,11 +1,18 @@
-export function audioFormatForCodec(codec: string): 'pcm16' | 'g711_ulaw' | 'g711_alaw' {
-  let audioFormat: 'pcm16' | 'g711_ulaw' | 'g711_alaw' = 'pcm16';
-  if (typeof window !== 'undefined') {
-    const c = codec.toLowerCase();
-    if (c === 'pcmu') audioFormat = 'g711_ulaw';
-    else if (c === 'pcma') audioFormat = 'g711_alaw';
+import type { RealtimeAudioFormat } from '@openai/agents/realtime';
+
+export function audioFormatForCodec(codec: string): RealtimeAudioFormat {
+  const normalized = typeof codec === 'string' ? codec.toLowerCase() : 'opus';
+
+  if (normalized === 'pcmu') {
+    return { type: 'audio/pcmu' };
   }
-  return audioFormat;
+
+  if (normalized === 'pcma') {
+    return { type: 'audio/pcma' };
+  }
+
+  // Default to wideband PCM for Opus or any other codec
+  return { type: 'audio/pcm', rate: 24000 };
 }
 
 // Apply preferred codec on a peer connection's audio transceivers. Safe to call multiple times.
