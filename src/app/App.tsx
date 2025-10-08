@@ -273,6 +273,7 @@ function App() {
     sendEvent({
       type: 'session.update',
       session: {
+        type: 'realtime',
         audio: {
           input: {
             turn_detection: turnDetection,
@@ -306,6 +307,7 @@ function App() {
     interrupt();
 
     setIsPTTUserSpeaking(true);
+    mute(false);
     sendClientEvent({ type: 'input_audio_buffer.clear' }, 'clear PTT buffer');
 
     // No placeholder; we'll rely on server transcript once ready.
@@ -318,6 +320,8 @@ function App() {
     setIsPTTUserSpeaking(false);
     sendClientEvent({ type: 'input_audio_buffer.commit' }, 'commit PTT');
     sendClientEvent({ type: 'response.create' }, 'trigger response PTT');
+    sendClientEvent({ type: 'input_audio_buffer.clear' }, 'reset buffer after PTT');
+    mute(true);
   };
 
   const onToggleConnection = () => {
@@ -387,6 +391,16 @@ function App() {
   }, [isAudioPlaybackEnabled]);
 
   useEffect(() => {
+    if (sessionStatus !== 'CONNECTED') return;
+
+    const shouldMuteMic = isPTTActive
+      ? !isPTTUserSpeaking
+      : !isAudioPlaybackEnabled;
+
+    mute(shouldMuteMic);
+  }, [sessionStatus, isPTTActive, isPTTUserSpeaking, isAudioPlaybackEnabled, mute]);
+
+  useEffect(() => {
     if (audioElementRef.current) {
       if (isAudioPlaybackEnabled) {
         audioElementRef.current.muted = false;
@@ -399,27 +413,7 @@ function App() {
         audioElementRef.current.pause();
       }
     }
-
-    // Toggle server-side audio stream mute so bandwidth is saved when the
-    // user disables playback. 
-    try {
-      mute(!isAudioPlaybackEnabled);
-    } catch (err) {
-      console.warn('Failed to toggle SDK mute', err);
-    }
   }, [isAudioPlaybackEnabled]);
-
-  // Ensure mute state is propagated to transport right after we connect or
-  // whenever the SDK client reference becomes available.
-  useEffect(() => {
-    if (sessionStatus === 'CONNECTED') {
-      try {
-        mute(!isAudioPlaybackEnabled);
-      } catch (err) {
-        console.warn('mute sync after connect failed', err);
-      }
-    }
-  }, [sessionStatus, isAudioPlaybackEnabled]);
 
   useEffect(() => {
     if (sessionStatus === "CONNECTED" && audioElementRef.current?.srcObject) {
