@@ -1,8 +1,9 @@
+# TODO: prune / remove as no longer using the separate Responses API
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any, Dict, List
-import logging
 
 import httpx
 
@@ -86,7 +87,11 @@ async def run_single_turn(
                     for c in content:
                         if not isinstance(c, dict):
                             continue
-                        if c.get("type") in ("output_text", "text", "input_text") and c.get("text"):
+                        if c.get("type") in (
+                            "output_text",
+                            "text",
+                            "input_text",
+                        ) and c.get("text"):
                             parts.append(str(c.get("text")))
             if parts:
                 text = "\n".join(parts).strip()

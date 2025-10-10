@@ -2,20 +2,19 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
+import logging
 import os
 import time
 from uuid import uuid4
-import logging
 
 import httpx
 from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import StreamingResponse
-import json
-import logging
 from pydantic import BaseModel, Field
 
 from . import sdk_manager
-from .agent_runner import AgentRunnerError, run_single_turn
+## Removed Responses single-turn path; focusing on Agents SDK endpoints only.
 from .core.models.event import Event
 from .core.store.memory_store import store
 from .registry import get_scenario, list_scenarios
@@ -212,31 +211,35 @@ async def get_session2(
         root_agent=root,
     )
 
- 
 
-# ---- Providers status and flags (shared) ----
+# ---- Providers status (SDK-only) ----
 class ProvidersStatus(BaseModel):
     openai_responses: bool
     litellm: bool
     agents_sdk: bool
-    default_responses: bool = True
+    default_responses: bool = False
 
 
 @router.get("/models/providers/status", response_model=ProvidersStatus)
 async def providers_status():
+    # SDK-only: report only Agents SDK availability; others false
     try:
-        from . import sdk_manager as sm
-        agents_allowed = not bool(getattr(sm, "DISABLE_AGENTS_SDK", False))
         return ProvidersStatus(
-            openai_responses=True,
-            litellm=True,
-            agents_sdk=agents_allowed,
-            default_responses=True,
+            openai_responses=False,
+            litellm=False,
+            agents_sdk=True,
+            default_responses=False,
         )
     except Exception:
-        return ProvidersStatus(openai_responses=False, litellm=False, agents_sdk=False, default_responses=True)
+        return ProvidersStatus(
+            openai_responses=False,
+            litellm=False,
+            agents_sdk=False,
+            default_responses=False,
+        )
 
 
+# Flags API (compat): static SDK-only values; POST is a no-op
 class ProviderFlags(BaseModel):
     use_openai_responses: bool
     use_litellm: bool
@@ -246,38 +249,19 @@ class ProviderFlags(BaseModel):
 @router.get("/models/providers/flags", response_model=ProviderFlags)
 async def get_provider_flags():
     try:
-        from . import sdk_manager as sm
-        use_resp = bool(getattr(sm, "USE_OA_RESPONSES_MODEL", False))
-        use_sdk = bool(getattr(sm, "USE_AGENTS_SDK", False)) and not bool(getattr(sm, "DISABLE_AGENTS_SDK", False))
-        if use_resp:
-            use_sdk = False
         return ProviderFlags(
-            use_openai_responses=use_resp,
-            use_litellm=bool(getattr(sm, "USE_LITELLM", False)),
-            use_agents_sdk=use_sdk,
+            use_openai_responses=False, use_litellm=False, use_agents_sdk=True
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"flags retrieval failed: {e}")
+    except Exception:
+        return ProviderFlags(
+            use_openai_responses=False, use_litellm=False, use_agents_sdk=False
+        )
 
 
 @router.post("/models/providers/flags", response_model=ProviderFlags)
 async def set_provider_flags(flags: ProviderFlags):
-    try:
-        from . import sdk_manager as sm
-        use_resp = bool(flags.use_openai_responses)
-        use_sdk_req = bool(flags.use_agents_sdk)
-        setattr(sm, "USE_OA_RESPONSES_MODEL", use_resp)
-        setattr(sm, "USE_LITELLM", bool(flags.use_litellm))
-        if use_resp:
-            setattr(sm, "USE_AGENTS_SDK", False)
-        else:
-            if bool(getattr(sm, "DISABLE_AGENTS_SDK", False)):
-                setattr(sm, "USE_AGENTS_SDK", False)
-            else:
-                setattr(sm, "USE_AGENTS_SDK", use_sdk_req)
-        return await get_provider_flags()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"flags update failed: {e}")
+    # Ignore inputs; keep SDK-only
+    return await get_provider_flags()
 
 
 # ---- Tool Execution Endpoint ----
@@ -389,23 +373,4 @@ async def orchestrate(req: OrchestrationRequest):
         )
 
 
-# ---- Server-side Agent Single Turn (Responses API) ----
-class AgentRunRequest(BaseModel):
-    model: str
-    messages: list[dict]
-    tools: list[dict] | None = None
-
-
-@router.post("/agent/run")
-async def agent_run(req: AgentRunRequest):
-    try:
-        resp = await run_single_turn(req.model, req.messages, req.tools)
-        return resp
-    except AgentRunnerError as e:
-        raise HTTPException(status_code=502, detail=str(e))
-
-
-# (streaming helper now lives in llm_routes)
-
-
-# SDK/LLM endpoints moved to dedicated modules.
+# Removed Responses single-turn endpoint; LLM routes removed; SDK endpoints remain.

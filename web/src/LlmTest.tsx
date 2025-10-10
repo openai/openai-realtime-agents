@@ -9,6 +9,8 @@ import { useWsEvents } from './hooks/useWsEvents';
 import { ToolsPanel } from './components/app_agents/ToolsPanel';
 
 export default function LlmTest() {
+  // Note: This page targets /api/llm/* which is deprecated/disabled in SDK-only mode.
+  // Keep it for reference, but consider removing it from navigation when using Agents SDK-only.
   const baseUrl =
     (import.meta as any).env.VITE_BACKEND_URL || 'http://localhost:8000';
   const [sessionId, setSessionId] = useState('');

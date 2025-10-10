@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from uuid import uuid4
-import logging
 
-from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import (APIRouter, HTTPException, Query, WebSocket,
+                     WebSocketDisconnect)
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -18,7 +19,14 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-async def _simulate_token_stream(session_id: str, agent_id: str, message_id: str, final_text: str, delay_ms: int = 120, chunk_size: int = 18):
+async def _simulate_token_stream(
+    session_id: str,
+    agent_id: str,
+    message_id: str,
+    final_text: str,
+    delay_ms: int = 120,
+    chunk_size: int = 18,
+):
     try:
         text = final_text or ""
         token_idx = 0
@@ -62,7 +70,9 @@ async def _simulate_token_stream(session_id: str, agent_id: str, message_id: str
 
 
 class LLMSessionCreateRequest(BaseModel):
-    session_id: str | None = Field(None, description="Client-provided session id (optional)")
+    session_id: str | None = Field(
+        None, description="Client-provided session id (optional)"
+    )
     model: str | None = Field(None, description="Default model (optional)")
 
 
@@ -90,9 +100,15 @@ async def llm_session_message(req: LLMSessionMessageRequest):
         raise HTTPException(status_code=400, detail="user_input cannot be empty")
     try:
         if req.client_message_id:
-            prior = store.get_by_client_message_id(req.session_id, req.client_message_id)
+            prior = store.get_by_client_message_id(
+                req.session_id, req.client_message_id
+            )
             if prior:
-                return {"final_output": prior.text or "", "events": [prior.model_dump()], "usage": store.get_usage(req.session_id)}
+                return {
+                    "final_output": prior.text or "",
+                    "events": [prior.model_dump()],
+                    "usage": store.get_usage(req.session_id),
+                }
         if not store.get_session(req.session_id):
             store.create_session(req.session_id, active_agent_id="llm")
 
@@ -134,7 +150,12 @@ async def llm_session_message(req: LLMSessionMessageRequest):
                 messages.append({"role": "system", "content": req.system})
             messages.append({"role": "user", "content": req.user_input})
             resp = await run_single_turn((req.model or "gpt-4.1-mini"), messages, None)
-            text = (resp.get("output_text") or resp.get("final_output") or resp.get("content") or "")
+            text = (
+                resp.get("output_text")
+                or resp.get("final_output")
+                or resp.get("content")
+                or ""
+            )
             usage = resp.get("usage")
             if usage:
                 try:
@@ -186,7 +207,9 @@ async def llm_session_message(req: LLMSessionMessageRequest):
                 pass
 
         message_id = req.client_message_id or str(uuid4())
-        asyncio.create_task(_simulate_token_stream(req.session_id, "llm", message_id, final_text or ""))
+        asyncio.create_task(
+            _simulate_token_stream(req.session_id, "llm", message_id, final_text or "")
+        )
 
         if req.client_message_id and final_text is not None:
             try:
@@ -202,7 +225,9 @@ async def llm_session_message(req: LLMSessionMessageRequest):
                     final=False,
                     timestamp_ms=int(time.time() * 1000),
                 )
-                store.remember_client_message(req.session_id, req.client_message_id, placeholder)
+                store.remember_client_message(
+                    req.session_id, req.client_message_id, placeholder
+                )
             except Exception:
                 pass
         try:
@@ -222,7 +247,11 @@ async def llm_session_message(req: LLMSessionMessageRequest):
             )
         except Exception:
             pass
-        return {"final_output": final_text or "", "usage": usage, "events": [user_event.model_dump()]}
+        return {
+            "final_output": final_text or "",
+            "usage": usage,
+            "events": [user_event.model_dump()],
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"llm message failed: {e}")
 
@@ -240,7 +269,12 @@ async def llm_list_session_events(session_id: str, since: int | None = Query(Non
 async def get_llm_session_usage(session_id: str = Query(...)):
     try:
         u = store.get_usage(session_id)
-        return {"requests": u["requests"], "input_tokens": u["input_tokens"], "output_tokens": u["output_tokens"], "total_tokens": u["total_tokens"]}
+        return {
+            "requests": u["requests"],
+            "input_tokens": u["input_tokens"],
+            "output_tokens": u["output_tokens"],
+            "total_tokens": u["total_tokens"],
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"llm usage retrieval failed: {e}")
 
@@ -290,4 +324,5 @@ async def stream_llm_session_events(session_id: str, since: int | None = Query(N
                 await asyncio.sleep(0.5)
         except asyncio.CancelledError:
             return
+
     return StreamingResponse(event_gen(), media_type="text/event-stream")

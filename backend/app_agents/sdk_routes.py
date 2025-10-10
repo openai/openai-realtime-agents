@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import logging
 import time
 from uuid import uuid4
-import logging
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from . import sdk_manager
-from .agent_runner import run_single_turn
+## Removed Responses fallback; SDK-only execution path.
 from .core.models.event import Event
 from .core.store.memory_store import store
 
@@ -21,9 +21,13 @@ logger = logging.getLogger(__name__)
 
 # ---- SDK: Session Create/Delete/Message ----
 class SDKSessionCreateRequest(BaseModel):
-    session_id: str | None = Field(None, description="Client provided session id (optional)")
+    session_id: str | None = Field(
+        None, description="Client provided session id (optional)"
+    )
     agent_name: str = Field("assistant", description="Logical name for the agent")
-    instructions: str = Field(..., description="System / developer instructions for the agent")
+    instructions: str = Field(
+        ..., description="System / developer instructions for the agent"
+    )
     model: str = Field("gpt-4.1-mini", description="Model to use for the agent")
     scenario_id: str | None = Field(None, description="Scenario to bind to")
     overlay: str | None = Field(None, description="Optional overlay/instructions tag")
@@ -32,7 +36,9 @@ class SDKSessionCreateRequest(BaseModel):
 @router.post("/sdk/session/create")
 async def sdk_session_create(req: SDKSessionCreateRequest):
     sid = req.session_id or str(uuid4())
-    store.create_session(sid, active_agent_id=req.agent_name, scenario_id=req.scenario_id)
+    store.create_session(
+        sid, active_agent_id=req.agent_name, scenario_id=req.scenario_id
+    )
     try:
         payload = await asyncio.wait_for(
             sdk_manager.create_agent_session(
@@ -64,7 +70,13 @@ async def sdk_session_create(req: SDKSessionCreateRequest):
             )
         except Exception:
             pass
-        return {"session_id": sid, "agent_name": req.agent_name, "model": req.model, "tools": [], "overlay": req.overlay}
+        return {
+            "session_id": sid,
+            "agent_name": req.agent_name,
+            "model": req.model,
+            "tools": [],
+            "overlay": req.overlay,
+        }
     except Exception as e:
         try:
             seq = store.next_seq(sid)
@@ -83,7 +95,13 @@ async def sdk_session_create(req: SDKSessionCreateRequest):
             )
         except Exception:
             pass
-        return {"session_id": sid, "agent_name": req.agent_name, "model": req.model, "tools": [], "overlay": req.overlay}
+        return {
+            "session_id": sid,
+            "agent_name": req.agent_name,
+            "model": req.model,
+            "tools": [],
+            "overlay": req.overlay,
+        }
 
 
 class SDKSessionDeleteRequest(BaseModel):
@@ -102,9 +120,15 @@ async def sdk_session_delete(req: SDKSessionDeleteRequest):
 class SDKSessionMessageRequest(BaseModel):
     session_id: str
     user_input: str
-    agent: dict | None = Field(None, description="Optional override of agent spec: name, instructions, model")
-    client_message_id: str | None = Field(None, description="Client idempotency key for this user message")
-    scenario_id: str | None = Field(None, description="Scenario binding for tools allowlist")
+    agent: dict | None = Field(
+        None, description="Optional override of agent spec: name, instructions, model"
+    )
+    client_message_id: str | None = Field(
+        None, description="Client idempotency key for this user message"
+    )
+    scenario_id: str | None = Field(
+        None, description="Scenario binding for tools allowlist"
+    )
 
 
 @router.post("/sdk/session/message")
@@ -114,19 +138,25 @@ async def sdk_session_message(req: SDKSessionMessageRequest):
     agent_spec = req.agent or {}
     try:
         logger.info(
-            "/sdk/session/message start sid=%s len=%s flags sdk=%s oarm=%s litellm=%s",
+            "/sdk/session/message start sid=%s len=%s",
             req.session_id,
             len(req.user_input),
-            getattr(sdk_manager, 'USE_AGENTS_SDK', None),
-            getattr(sdk_manager, 'USE_OA_RESPONSES_MODEL', None),
-            getattr(sdk_manager, 'USE_LITELLM', None),
         )
         if req.client_message_id:
-            prior = store.get_by_client_message_id(req.session_id, req.client_message_id)
+            prior = store.get_by_client_message_id(
+                req.session_id, req.client_message_id
+            )
             if prior:
-                return {"final_output": prior.text, "new_items_len": 0, "tool_calls": [], "events": [prior.model_dump()]}
+                return {
+                    "final_output": prior.text,
+                    "new_items_len": 0,
+                    "tool_calls": [],
+                    "events": [prior.model_dump()],
+                }
         if not store.get_session(req.session_id):
-            store.create_session(req.session_id, active_agent_id=agent_spec.get("name", "assistant"))
+            store.create_session(
+                req.session_id, active_agent_id=agent_spec.get("name", "assistant")
+            )
 
         now_ms = int(time.time() * 1000)
         user_seq = store.next_seq(req.session_id)
@@ -161,8 +191,6 @@ async def sdk_session_message(req: SDKSessionMessageRequest):
         except Exception:
             pass
 
-        use_sdk = bool(getattr(sdk_manager, 'USE_AGENTS_SDK', False)) and not bool(getattr(sdk_manager, 'DISABLE_AGENTS_SDK', False))
-
         async def _sdk_path():
             return await sdk_manager.run_agent_turn(
                 session_id=req.session_id,
@@ -171,49 +199,8 @@ async def sdk_session_message(req: SDKSessionMessageRequest):
                 scenario_id=req.scenario_id,
             )
 
-        async def _responses_path():
-            try:
-                resp = await run_single_turn(
-                    agent_spec.get("model", "gpt-4.1-mini"),
-                    [{"role": "user", "content": req.user_input}],
-                    None,
-                )
-                final_output = (
-                    resp.get("output_text") or resp.get("final_output") or resp.get("content") or ""
-                )
-                usage = resp.get("usage")
-                if usage:
-                    try:
-                        totals = store.add_usage(req.session_id, usage)
-                        usage = {**usage, "aggregated": totals}
-                    except Exception:
-                        pass
-                return {"final_output": final_output, "new_items_len": 0, "tool_calls": [], "used_tools": [], "usage": usage, "used_fallback": False}
-            except Exception as e:
-                try:
-                    seqe = store.next_seq(req.session_id)
-                    store.append_event(
-                        req.session_id,
-                        Event(
-                            session_id=req.session_id,
-                            seq=seqe,
-                            type="log",
-                            role="system",
-                            agent_id=agent_spec.get("name", "Assistant"),
-                            text=f"responses_error: {e}",
-                            final=True,
-                            timestamp_ms=int(time.time() * 1000),
-                        ),
-                    )
-                except Exception:
-                    pass
-                return {"final_output": "", "new_items_len": 0, "tool_calls": [], "used_tools": [], "usage": None, "used_fallback": False}
-
         try:
-            if use_sdk:
-                result = await asyncio.wait_for(_sdk_path(), timeout=15.0)
-            else:
-                result = await asyncio.wait_for(_responses_path(), timeout=15.0)
+            result = await asyncio.wait_for(_sdk_path(), timeout=15.0)
         except asyncio.TimeoutError:
             try:
                 seqt = store.next_seq(req.session_id)
@@ -232,63 +219,18 @@ async def sdk_session_message(req: SDKSessionMessageRequest):
                 )
             except Exception:
                 pass
-            result = {"final_output": "", "new_items_len": 0, "tool_calls": [], "used_tools": [], "usage": None, "used_fallback": False}
+            result = {
+                "final_output": "",
+                "new_items_len": 0,
+                "tool_calls": [],
+                "used_tools": [],
+                "usage": None,
+                "used_fallback": False,
+            }
 
-        if (not (result.get("final_output") or "").strip()) and bool(getattr(sdk_manager, "USE_OA_RESPONSES_MODEL", False)):
-            try:
-                seqpf = store.next_seq(req.session_id)
-                store.append_event(
-                    req.session_id,
-                    Event(
-                        session_id=req.session_id,
-                        seq=seqpf,
-                        type="log",
-                        role="system",
-                        agent_id=agent_spec.get("name", "Assistant"),
-                        text="post_fallback_invoked",
-                        final=True,
-                        timestamp_ms=int(time.time() * 1000),
-                    ),
-                )
-            except Exception:
-                pass
-            try:
-                resp2 = await run_single_turn(
-                    agent_spec.get("model", "gpt-4.1-mini"),
-                    [{"role": "user", "content": req.user_input}],
-                    None,
-                )
-                final2 = (resp2.get("output_text") or resp2.get("final_output") or resp2.get("content") or "")
-                if final2:
-                    result["final_output"] = final2
-                    result["used_fallback"] = True
-                    usage2 = resp2.get("usage")
-                    if usage2:
-                        try:
-                            totals = store.add_usage(req.session_id, usage2)
-                            result["usage"] = {**usage2, "aggregated": totals}
-                        except Exception:
-                            pass
-            except Exception as e:
-                try:
-                    seqpfe = store.next_seq(req.session_id)
-                    store.append_event(
-                        req.session_id,
-                        Event(
-                            session_id=req.session_id,
-                            seq=seqpfe,
-                            type="log",
-                            role="system",
-                            agent_id=agent_spec.get("name", "Assistant"),
-                            text=f"post_fallback_error: {e}",
-                            final=True,
-                            timestamp_ms=int(time.time() * 1000),
-                        ),
-                    )
-                except Exception:
-                    pass
+        # No Responses fallback; if empty, we still append assistant event for visibility.
 
-        if not (result.get('final_output') or '').strip():
+        if not (result.get("final_output") or "").strip():
             try:
                 seqnt = store.next_seq(req.session_id)
                 store.append_event(
@@ -322,7 +264,9 @@ async def sdk_session_message(req: SDKSessionMessageRequest):
         )
         store.append_event(req.session_id, asst_event)
         if req.client_message_id:
-            store.remember_client_message(req.session_id, req.client_message_id, asst_event)
+            store.remember_client_message(
+                req.session_id, req.client_message_id, asst_event
+            )
 
         try:
             seq1 = store.next_seq(req.session_id)
@@ -376,7 +320,15 @@ async def sdk_session_message(req: SDKSessionMessageRequest):
             )
         except Exception:
             pass
-        return {"final_output": "", "new_items_len": 0, "tool_calls": [], "used_tools": [], "usage": None, "used_fallback": False, "events": []}
+        return {
+            "final_output": "",
+            "new_items_len": 0,
+            "tool_calls": [],
+            "used_tools": [],
+            "usage": None,
+            "used_fallback": False,
+            "events": [],
+        }
 
 
 # ---- SDK: Set Active Agent ----
@@ -457,6 +409,7 @@ async def stream_sdk_session_events(session_id: str, since: int | None = Query(N
                 await asyncio.sleep(0.5)
         except asyncio.CancelledError:
             return
+
     return StreamingResponse(event_gen(), media_type="text/event-stream")
 
 
@@ -464,7 +417,9 @@ async def stream_sdk_session_events(session_id: str, since: int | None = Query(N
 class AudioChunkRequest(BaseModel):
     session_id: str
     seq: int
-    pcm16_base64: str = Field(..., description="Little-endian 16-bit PCM mono @16k base64 encoded")
+    pcm16_base64: str = Field(
+        ..., description="Little-endian 16-bit PCM mono @16k base64 encoded"
+    )
     sample_rate: int = 16000
     frame_samples: int | None = None
 
@@ -478,4 +433,11 @@ async def sdk_session_audio(req: AudioChunkRequest):
     if len(raw) % 2 != 0:
         raise HTTPException(status_code=400, detail="PCM byte length not even")
     sample_count = len(raw) // 2
-    return {"accepted": True, "session_id": req.session_id, "seq": req.seq, "samples": sample_count, "sample_rate": req.sample_rate, "ts": time.time()}
+    return {
+        "accepted": True,
+        "session_id": req.session_id,
+        "seq": req.seq,
+        "samples": sample_count,
+        "sample_rate": req.sample_rate,
+        "ts": time.time(),
+    }
