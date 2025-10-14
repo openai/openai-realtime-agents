@@ -16,8 +16,8 @@ try:
         hasattr(_agents, n)
         for n in ("Agent", "ModelSettings", "Runner", "SQLiteSession", "function_tool")
     ):
-        from agents import (Agent, ModelSettings, Runner,  # type: ignore
-                            SQLiteSession, function_tool)
+        from agents import Runner  # type: ignore
+        from agents import Agent, ModelSettings, SQLiteSession, function_tool
     else:
         raise ImportError(
             "'agents' module found but missing required attributes; possibly a different package installed."
@@ -37,8 +37,9 @@ except Exception as e1:  # pragma: no cover
                 "function_tool",
             )
         ):
-            from openai_agents import (Agent, ModelSettings,  # type: ignore
-                                       Runner, SQLiteSession, function_tool)
+            from openai_agents import ModelSettings  # type: ignore
+            from openai_agents import (Agent, Runner, SQLiteSession,
+                                       function_tool)
 
             _import_err = None
         else:
@@ -609,7 +610,15 @@ async def run_supervisor_orchestrate(
         def pick_agent() -> str:
             if any(
                 k in text
-                for k in ["buy", "price", "recommend", "product", "catalog", "purchase"]
+                for k in [
+                    "buy",
+                    "price",
+                    "recommend",
+                    "product",
+                    "catalog",
+                    "purchase",
+                    "ticket",
+                ]
             ):
                 return (
                     "sales"
@@ -738,6 +747,51 @@ async def run_supervisor_orchestrate(
 
     chosen = decision.get("target", sc.default_root)
     reason = decision.get("reason", "supervisor_default")
+
+    # If supervisor didn't call the handoff tool, use heuristic as a fallback guidance
+    if reason == "no_call":
+        text = (last_user_text or "").lower()
+
+        def pick_agent() -> str:
+            if any(
+                k in text
+                for k in [
+                    "buy",
+                    "price",
+                    "recommend",
+                    "product",
+                    "catalog",
+                    "purchase",
+                    "ticket",
+                ]
+            ):
+                return (
+                    "sales"
+                    if any(a.name == "sales" for a in sc.agents)
+                    else sc.default_root
+                )
+            if any(
+                k in text
+                for k in [
+                    "error",
+                    "issue",
+                    "problem",
+                    "troubleshoot",
+                    "not working",
+                    "help",
+                ]
+            ):
+                return (
+                    "support"
+                    if any(a.name == "support" for a in sc.agents)
+                    else sc.default_root
+                )
+            return sc.default_root
+
+        heuristic = pick_agent()
+        if heuristic != chosen:
+            chosen = heuristic
+            reason = "supervisor_no_call_heuristic"
     changed = False
     if session_id:
         try:

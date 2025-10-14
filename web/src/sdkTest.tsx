@@ -3,11 +3,13 @@ import useMicrophone from './hooks/useMicrophone';
 import { useRealtime } from './realtime/useRealtime';
 import { ToolsPanel } from './components/app_agents/ToolsPanel';
 import { SessionConfig } from './components/app_agents/SessionConfig';
+import { AgentConfig } from './components/app_agents/AgentConfig';
+import { PageHeader } from './components/app_agents/PageHeader';
 import { RealtimePanel } from './components/app_agents/RealtimePanel';
 import { ChatPanel } from './components/app_agents/ChatPanel';
 import { RawEventsPanel } from './components/app_agents/RawEventsPanel';
 import { UsagePanel } from './components/app_agents/UsagePanel';
-import { ProvidersStatusPanel } from './components/app_agents/ProvidersStatusPanel';
+// Providers panel is redundant in SDK-only mode; removed from this page
 import { useEvents } from './hooks/useEvents';
 
 export default function SDKTestStandalone() {
@@ -18,6 +20,7 @@ export default function SDKTestStandalone() {
   const [output, setOutput] = useState('');
   const [toolCalls, setToolCalls] = useState<string[]>([]);
   const [transcript, setTranscript] = useState<any[]>([]);
+  const [allowedTools, setAllowedTools] = useState<string[]>(['echo_context']);
   const baseUrl =
     (import.meta as any).env.VITE_BACKEND_URL || 'http://localhost:8000';
   const [showLogs, setShowLogs] = useState(false);
@@ -25,13 +28,17 @@ export default function SDKTestStandalone() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [netWarn, setNetWarn] = useState<string | null>(null);
+  const [netWarn] = useState<string | null>(null);
   const [pttActive, setPttActive] = useState(false);
+  const [sessionOpen, setSessionOpen] = useState(true);
+  const [chatStarted, setChatStarted] = useState(false);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const { events, lastSeq, setEvents, setLastSeq, warn, refresh } = useEvents(
     baseUrl,
     sessionId || undefined,
     { enabled: autoRefresh, visibilityPause: true, idleStopMs: 45000 }
   );
+
   // --- Multi-agent scaffolding ---
   interface AgentDef {
     id: string;
@@ -81,21 +88,17 @@ export default function SDKTestStandalone() {
     pttActiveRef.current = pttActive;
   }, [pttActive]);
 
-  // Realtime session (audio+text)
-  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
-  const realtime = useRealtime(remoteAudioRef, { forceEnglish: true, baseUrl });
+  // Realtime session
+  const realtime = useRealtime(remoteAudioRef, {
+    baseUrl,
+    disableAutoMic: true,
+    forceEnglish: true,
+  });
   const realtimeConnected = realtime.status === 'CONNECTED';
-  const [toolResult, setToolResult] = useState<any | null>(null);
-  const [allowedTools, setAllowedTools] = useState<string[]>([]);
-
-  // Inline helper components removed – split into separate files
-
-  // (Removed assistant playback switch per cleanup request)
-
-  // User mic waveform (reuse mic.level for simplicity, smoothing already handled in hook)
+  // User mic waveform (reuse mic.level for simplicity)
   const userLevel = mic.level; // 0..1
 
-  // --- Session / messaging helpers (restored after refactor) ---
+  // --- Session / messaging helpers ---
   async function createSession() {
     setCreating(true);
     setError(null);
@@ -172,6 +175,8 @@ export default function SDKTestStandalone() {
       window.clearTimeout(timeout);
       if (!r.ok) throw new Error(await r.text());
       const data = await r.json();
+      // Mark chat as started on first successful turn
+      if (!chatStarted) setChatStarted(true);
       // clear input after successful send
       setInput('');
       setOutput(data.final_output || '');
@@ -297,7 +302,7 @@ export default function SDKTestStandalone() {
       }
     }, 500);
     return () => clearInterval(interval);
-  }, [mic.enabled, pttActive, realtimeConnected]);
+  }, [mic.enabled, pttActive, realtimeConnected, realtime]);
 
   {
     /* (Removed standalone microphone panel; controls moved into Voice Chat) */
@@ -376,35 +381,81 @@ export default function SDKTestStandalone() {
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 p-6 font-sans">
       <div className="max-w-7xl mx-auto grid grid-cols-1 xl:grid-cols-4 gap-6 transition-all">
+        {/* Full-width header */}
+        <div className="xl:col-span-4">
+          <PageHeader
+            title="OA Agents SDK"
+            subtitle="Realtime and multi-turn chat demo"
+          />
+        </div>
+
+        {/* Left column: Session, Agent, Tools, Usage, Logs toggle */}
         <div className="space-y-4 lg:col-span-1">
-          <header>
-            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-              OA Agents SDK
-              {/* Removed active agent badge from global header */}
-            </h1>
-            <p className="text-sm text-gray-400">
-              RealTime and Multi-turn Chat Demo
-            </p>
-          </header>
-          <SessionConfig
-            sessionId={sessionId}
-            setSessionId={setSessionId}
-            model={model}
-            setModel={setModel}
-            autoRefresh={autoRefresh}
-            setAutoRefresh={setAutoRefresh}
+          <section className="bg-gray-900/70 border border-gray-800 rounded-lg">
+            <div className="px-4 py-2 border-b border-gray-800 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-teal-300">Session</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // New Session: clear persisted id and in-memory state
+                    try {
+                      localStorage.removeItem('lastSessionId');
+                    } catch {}
+                    setSessionId('');
+                    setEvents([]);
+                    setTranscript([]);
+                    setLastSeq(0);
+                    setError(null);
+                  }}
+                  className="text-[11px] px-2 py-1 rounded border border-gray-700 hover:bg-gray-800 text-gray-300">
+                  New Session
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSessionOpen((v) => !v)}
+                  className="text-[11px] px-2 py-1 rounded border border-gray-700 hover:bg-gray-800 text-gray-300">
+                  {sessionOpen ? 'Collapse' : 'Expand'}
+                </button>
+              </div>
+            </div>
+            {sessionOpen && (
+              <div className="p-4">
+                <SessionConfig
+                  sessionId={sessionId}
+                  setSessionId={setSessionId}
+                  model={model}
+                  setModel={setModel}
+                  autoRefresh={autoRefresh}
+                  setAutoRefresh={setAutoRefresh}
+                  agents={agents}
+                  activeAgentId={activeAgentId}
+                  setActiveAgentId={setActiveAgentId}
+                  instructions={instructions}
+                  setInstructions={setInstructions}
+                  effectiveInstructions={effectiveInstructions}
+                  creating={creating}
+                  createSession={createSession}
+                  loadTranscript={() => loadTranscript()}
+                  error={error}
+                  realtimeConnected={realtimeConnected}
+                  hideAgentControls
+                />
+              </div>
+            )}
+          </section>
+
+          <AgentConfig
             agents={agents}
             activeAgentId={activeAgentId}
             setActiveAgentId={setActiveAgentId}
             instructions={instructions}
             setInstructions={setInstructions}
             effectiveInstructions={effectiveInstructions}
-            creating={creating}
-            createSession={createSession}
-            loadTranscript={() => loadTranscript()}
-            error={error}
             realtimeConnected={realtimeConnected}
+            title="Agent"
           />
+
           <ToolsPanel
             sessionId={sessionId}
             baseUrl={baseUrl}
@@ -412,19 +463,22 @@ export default function SDKTestStandalone() {
             allowedTools={allowedTools}
             onError={(msg) => setError(msg || null)}
           />
+
           <UsagePanel
             baseUrl={baseUrl}
             sessionId={sessionId}
-            enabled={autoRefresh}
+            // Only poll usage after chat has started (first message turn)
+            enabled={!!sessionId && chatStarted}
           />
-          <ProvidersStatusPanel
-            baseUrl={baseUrl}
-            enabled={autoRefresh}
-            runtime="sdk"
-          />
-          {/* (Legacy microphone panel removed – mic control lives only in Voice Chat panel) */}
+
+          <button
+            onClick={() => setShowLogs((v) => !v)}
+            className="w-full text-left text-[11px] px-2 py-1 rounded border border-gray-700 hover:bg-gray-800 text-gray-300">
+            {showLogs ? 'Hide Raw Logs' : `Show Raw Logs (${events.length})`}
+          </button>
         </div>
 
+        {/* Middle column: Realtime + Chat */}
         <div className="xl:col-span-2 flex flex-col gap-6">
           <RealtimePanel
             status={realtime.status}
@@ -443,13 +497,6 @@ export default function SDKTestStandalone() {
             micEnabled={mic.enabled}
           />
           <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
-          <div className="flex items-center justify-end">
-            <button
-              onClick={() => setShowLogs((v) => !v)}
-              className="mb-2 text-[11px] px-2 py-1 rounded border border-gray-700 hover:bg-gray-800 text-gray-300">
-              {showLogs ? 'Hide Raw' : `Raw Logs (${events.length})`}
-            </button>
-          </div>
           <ChatPanel
             events={events}
             transcript={transcript}
@@ -460,6 +507,7 @@ export default function SDKTestStandalone() {
             input={input}
             setInput={setInput}
             onSend={sendMessage}
+            handoffEvents={handoffEvents}
           />
 
           {/* Final Output panel hidden for now */}
@@ -496,7 +544,12 @@ export default function SDKTestStandalone() {
           )}
         </div>
 
-        {showLogs && <RawEventsPanel transcript={transcript} events={events} />}
+        {/* Full-width Raw Logs when open */}
+        {showLogs && (
+          <div className="xl:col-span-4">
+            <RawEventsPanel transcript={transcript} events={events} fullWidth />
+          </div>
+        )}
       </div>
     </div>
   );

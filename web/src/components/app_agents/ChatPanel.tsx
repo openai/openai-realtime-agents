@@ -15,6 +15,13 @@ export interface ChatPanelProps {
   input: string;
   setInput: (v: string) => void;
   onSend: () => void;
+  handoffEvents?: {
+    id: string;
+    from: string;
+    to: string;
+    reason: string;
+    at: string;
+  }[];
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -27,6 +34,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   input,
   setInput,
   onSend,
+  handoffEvents = [],
 }) => {
   const chatMessages: ChatMessage[] = useMemo(
     () =>
@@ -52,6 +60,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           {streaming && (
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-700/30 border border-amber-600 text-amber-200 uppercase tracking-wide">
               Streaming
+            </span>
+          )}
+          {handoffEvents.length > 0 && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-700/30 border border-indigo-600 text-indigo-200 uppercase tracking-wide">
+              Handoff: {handoffEvents[handoffEvents.length - 1].to}
             </span>
           )}
         </div>
@@ -89,6 +102,21 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               ) : (
                 <span className="opacity-50 italic">(no textual content)</span>
               )}
+            </div>
+          </div>
+        ))}
+        {handoffEvents.map((h) => (
+          <div key={h.id} className="flex justify-start">
+            <div className="max-w-[75%] rounded-md px-3 py-2 text-xs bg-indigo-900/40 text-indigo-200 border border-indigo-800">
+              <span className="font-semibold">Handoff</span>: {h.from} → {h.to}
+              {h.reason ? (
+                <span className="opacity-80"> — {h.reason}</span>
+              ) : null}
+              {h.at ? (
+                <span className="ml-2 opacity-60">
+                  [{new Date(h.at).toLocaleTimeString()}]
+                </span>
+              ) : null}
             </div>
           </div>
         ))}
