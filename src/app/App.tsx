@@ -27,7 +27,8 @@ import { chatSupervisorScenario } from "@/app/agentConfigs/chatSupervisor";
 import { customerServiceRetailCompanyName } from "@/app/agentConfigs/customerServiceRetail";
 import { chatSupervisorCompanyName } from "@/app/agentConfigs/chatSupervisor";
 import { simpleHandoffScenario } from "@/app/agentConfigs/simpleHandoff";
-import { realEstateScenario, realEstateCompanyName } from "@/app/agentConfigs/real-estate-agent";
+import { realEstateScenario } from "@/app/agentConfigs/real-estate-agent";
+import { realEstateCompanyName } from "@/app/agentConfigs/real-estate-agent/constants";
 
 // Map used by connect logic for scenarios defined via the SDK.
 const sdkScenarioMap: Record<string, RealtimeAgent[]> = {

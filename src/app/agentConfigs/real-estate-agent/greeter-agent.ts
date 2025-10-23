@@ -1,8 +1,9 @@
-import { RealtimeAgent } from '@openai/agents/realtime';
+import { RealtimeAgent } from "@openai/agents/realtime";
+import { realEstateCompanyName } from "./constants";
 
 export const greeterAgent = new RealtimeAgent({
-  name: 'greeterAgent',
-  voice: 'alloy',
+  name: "greeterAgent",
+  voice: "alloy",
   handoffDescription:
     "Agent d'accueil qui salue l'utilisateur et oriente vers les services appropriés (informations secteur ou prise de rendez-vous).",
 
@@ -15,7 +16,7 @@ Vous êtes un agent immobilier d'accueil professionnel et chaleureux.
 - Les orienter vers l'agent spécialisé approprié
 
 # Instructions
-- Saluez le client avec professionnalisme: "Bonjour, je suis votre conseiller immobilier virtuel. Comment puis-je vous aider aujourd'hui ?"
+- Saluez le client avec professionnalisme: "Bonjour, je suis votre conseiller immobilier virtuel de ${realEstateCompanyName}. Comment puis-je vous aider aujourd'hui ?"
 - Posez des questions pour comprendre leur besoin:
   * Recherchent-ils des informations sur un quartier/secteur spécifique ?
   * Souhaitent-ils prendre rendez-vous avec un conseiller ?
