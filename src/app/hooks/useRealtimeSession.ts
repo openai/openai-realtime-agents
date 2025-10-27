@@ -5,7 +5,7 @@ import {
   OpenAIRealtimeWebRTC,
 } from '@openai/agents/realtime';
 
-import { audioFormatForCodec, applyCodecPreferences } from '../lib/codecUtils';
+import { applyCodecPreferences } from '../lib/codecUtils';
 import { useEvent } from '../contexts/EventContext';
 import { useHandleSessionHistory } from './useHandleSessionHistory';
 import { SessionStatus } from '../types';
@@ -72,7 +72,9 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
       .toLowerCase(),
   );
 
-  // Wrapper to pass current codec param
+  // Wrapper to pass current codec param.
+  // This lets you use the codec selector in the UI to force narrow-band (8 kHz) codecs to
+  // simulate how the voice agent sounds over a PSTN/SIP phone call.
   const applyCodec = useCallback(
     (pc: RTCPeerConnection) => applyCodecPreferences(pc, codecParamRef.current),
     [],
@@ -123,11 +125,6 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
       const ek = await getEphemeralKey();
       const rootAgent = initialAgents[0];
 
-      // This lets you use the codec selector in the UI to force narrow-band (8 kHz) codecs to
-      //  simulate how the voice agent sounds over a PSTN/SIP phone call.
-      const codecParam = codecParamRef.current;
-      const audioFormat = audioFormatForCodec(codecParam);
-
       sessionRef.current = new RealtimeSession(rootAgent, {
         transport: new OpenAIRealtimeWebRTC({
           audioElement,
@@ -139,8 +136,6 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
         }),
         model: 'gpt-4o-realtime-preview-2025-06-03',
         config: {
-          inputAudioFormat: audioFormat,
-          outputAudioFormat: audioFormat,
           inputAudioTranscription: {
             model: 'gpt-4o-mini-transcribe',
           },
