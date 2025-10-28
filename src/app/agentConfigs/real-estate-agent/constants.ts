@@ -53,6 +53,13 @@ export const companyInfo = {
       contactableByPhone: true,
     },
     {
+      name: "Aurélien Borst",
+      role: "Gérant IT",
+      phone: "076 804 86 09",
+      email: "aurélien.borst@gmail.com",
+      contactableByPhone: true,
+    },
+    {
       name: "Julien Gogniat",
       role: "Gérant technique",
       phone: "032 487 11 29",
@@ -109,6 +116,11 @@ export const getCompanyInfoText = () => `
 
 **Notre équipe**:
 ${companyInfo.team
-  .map((m) => `- ${m.name}${m.role ? ` - ${m.role}` : ""} | Tél: ${m.phone} | Email: ${m.email}`)
+  .map(
+    (m) =>
+      `- ${m.name}${m.role ? ` - ${m.role}` : ""} | Tél: ${m.phone} | Email: ${
+        m.email
+      }`
+  )
   .join("\n")}
 `;

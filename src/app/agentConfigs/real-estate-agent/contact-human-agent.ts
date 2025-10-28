@@ -117,22 +117,38 @@ Vous êtes l'agent de mise en relation avec les collaborateurs de Grand Chassera
             type: "string",
             description: "Le numéro de téléphone du client",
           },
+          clientEmail: {
+            type: "string",
+            description: "L'email du client",
+          },
           message: {
             type: "string",
             description: "Le message ou la raison de l'appel",
           },
         },
-        required: ["collaboratorName", "clientName", "clientPhone", "message"],
+        required: [
+          "collaboratorName",
+          "clientName",
+          "clientPhone",
+          "clientEmail",
+          "message",
+        ],
         additionalProperties: false,
       },
       execute: async (input: any) => {
-        const { collaboratorName, clientName, clientPhone, message } =
-          input as {
-            collaboratorName: string;
-            clientName: string;
-            clientPhone: string;
-            message: string;
-          };
+        const {
+          collaboratorName,
+          clientName,
+          clientPhone,
+          clientEmail,
+          message,
+        } = input as {
+          collaboratorName: string;
+          clientName: string;
+          clientPhone: string;
+          clientEmail: string;
+          message: string;
+        };
 
         return {
           sent: true,
@@ -140,6 +156,7 @@ Vous êtes l'agent de mise en relation avec les collaborateurs de Grand Chassera
           collaborator: collaboratorName,
           client: clientName,
           phone: clientPhone,
+          email: clientEmail,
           message,
           confirmation: `Votre demande de rappel a été envoyée à ${collaboratorName}. Vous serez contacté au ${clientPhone} dans les plus brefs délais.`,
         };
