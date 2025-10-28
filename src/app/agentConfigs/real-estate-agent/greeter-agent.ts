@@ -42,6 +42,7 @@ ${getCompanyInfoText()}
   * Contacter un collaborateur ou un département → 'contactHumanAgent'
   * Prise de rendez-vous → 'appointmentAgent'
   * Demandes complexes ou hors périmètre → 'complexTaskAgent'
+  * Test d'envoi d'email (si l'utilisateur dit "sendTestMail") → 'sendTestMailAgent'
 
 # Ton
 - Professionnel mais chaleureux
@@ -71,6 +72,10 @@ Assistant: "Très bien ! Je vais vérifier la disponibilité de Sandy Bircher et
 User: "J'aimerais prendre rendez-vous"
 Assistant: "Très bien ! Je vous transfère vers notre service de prise de rendez-vous."
 [Transfer to appointmentAgent]
+
+User: "sendTestMail"
+Assistant: "Je vous transfère vers l'agent de test d'email."
+[Transfer to sendTestMailAgent]
 `,
 
   tools: [],

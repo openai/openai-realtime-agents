@@ -84,7 +84,7 @@ Vous êtes l'agent de mise en relation avec les collaborateurs de Grand Chassera
           };
         }
 
-        const isAvailable = Math.random() > 0.3;
+        const isAvailable = Math.random() > 0.95;
 
         return {
           found: true,
@@ -150,16 +150,53 @@ Vous êtes l'agent de mise en relation avec les collaborateurs de Grand Chassera
           message: string;
         };
 
-        return {
-          sent: true,
-          requestId: `CALLBACK-${Date.now()}`,
-          collaborator: collaboratorName,
-          client: clientName,
-          phone: clientPhone,
-          email: clientEmail,
-          message,
-          confirmation: `Votre demande de rappel a été envoyée à ${collaboratorName}. Vous serez contacté au ${clientPhone} dans les plus brefs délais.`,
-        };
+        // Appeler l'API Next.js pour envoyer l'email (côté serveur)
+        try {
+          const response = await fetch('/api/send-callback', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              collaboratorName,
+              clientName,
+              clientPhone,
+              clientEmail,
+              message,
+            }),
+          });
+
+          const result = await response.json();
+
+          if (response.ok && result.success) {
+            return {
+              sent: true,
+              requestId: result.requestId,
+              messageId: result.messageId,
+              collaborator: result.collaborator,
+              collaboratorEmail: result.collaboratorEmail,
+              client: clientName,
+              phone: clientPhone,
+              email: clientEmail,
+              message,
+              confirmation: result.confirmation,
+            };
+          } else {
+            return {
+              sent: false,
+              error: result.error || 'Erreur inconnue',
+              requestId: `CALLBACK-${Date.now()}`,
+              confirmation: result.confirmation || `Désolé, une erreur s'est produite lors de l'envoi de l'email.`,
+            };
+          }
+        } catch (error) {
+          return {
+            sent: false,
+            error: error instanceof Error ? error.message : 'Erreur réseau',
+            requestId: `CALLBACK-${Date.now()}`,
+            confirmation: `Désolé, impossible de contacter le serveur. Veuillez réessayer plus tard.`,
+          };
+        }
       },
     }),
   ],
