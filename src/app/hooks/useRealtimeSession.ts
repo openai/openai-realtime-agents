@@ -152,11 +152,18 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
         }),
         model: "gpt-realtime",
         config: {
-          speed: 4,
+          speed: 1.5,
           inputAudioFormat: audioFormat,
           outputAudioFormat: audioFormat,
           inputAudioTranscription: {
             model: "gpt-4o-mini-transcribe",
+          },
+          turnDetection: {
+            type: "server_vad",
+            threshold: 0.9,
+            prefixPaddingMs: 300,
+            silenceDurationMs: 500,
+            createResponse: true,
           },
         },
         outputGuardrails: outputGuardrails ?? [],
