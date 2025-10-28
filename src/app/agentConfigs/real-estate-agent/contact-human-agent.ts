@@ -1,11 +1,11 @@
-import { RealtimeAgent, tool } from '@openai/agents/realtime';
-import { companyInfo } from './constants';
+import { RealtimeAgent, tool } from "@openai/agents/realtime";
+import { companyInfo } from "./constants";
 
 export const contactHumanAgent = new RealtimeAgent({
-  name: 'contactHumanAgent',
-  voice: 'echo',
+  name: "contactHumanAgent",
+  voice: "echo",
   handoffDescription:
-    'Gère les demandes de contact avec un collaborateur spécifique. Vérifie la disponibilité et propose des alternatives si nécessaire.',
+    "Gère les demandes de contact avec un collaborateur spécifique. Vérifie la disponibilité et propose des alternatives si nécessaire.",
 
   instructions: `
 Vous êtes l'agent de mise en relation avec les collaborateurs de Grand Chasseral Immo SA.
@@ -18,12 +18,13 @@ Vous êtes l'agent de mise en relation avec les collaborateurs de Grand Chassera
 
 # Procédure
 1. Demander le nom du collaborateur ou le département concerné si pas encore clair
-2. Utiliser l'outil 'checkCollaboratorAvailability' avec le nom du collaborateur
-3. Analyser la réponse:
+2. Vérifier si le collaborateur existe dans la liste des membres de l'équipe et proposer le collaborateur qui ressemble plus au nom donné si non existant.
+3. Utiliser l'outil 'checkCollaboratorAvailability' avec le nom du collaborateur
+4. Analyser la réponse:
    - Si disponible (available: true) → "Je vous transfère immédiatement à [Nom]"
    - Si non disponible (available: false) → "Malheureusement, [Nom] n'est pas disponible actuellement. Puis-je vous proposer de lui envoyer un email pour qu'il/elle vous rappelle ? J'aurais besoin de votre nom, numéro de téléphone et un bref message."
    - Si non-contactable (contactable: false) → "[Nom] ne peut pas être joint directement par téléphone. Je vous propose de contacter [escalateTo] ou d'envoyer un email."
-4. Si le client accepte l'email, collecter: nom, téléphone, message, puis utiliser l'outil 'sendCallbackRequest'
+5. Si le client accepte l'email, collecter: nom, téléphone, message, puis utiliser l'outil 'sendCallbackRequest'
 
 # Ton
 - Professionnel et efficace
@@ -37,24 +38,26 @@ Vous êtes l'agent de mise en relation avec les collaborateurs de Grand Chassera
 
   tools: [
     tool({
-      name: 'checkCollaboratorAvailability',
-      description: 'Vérifie si un collaborateur est disponible et contactable par téléphone.',
+      name: "checkCollaboratorAvailability",
+      description:
+        "Vérifie si un collaborateur est disponible et contactable par téléphone.",
       parameters: {
-        type: 'object',
+        type: "object",
         properties: {
           collaboratorName: {
-            type: 'string',
-            description: 'Le nom du collaborateur à contacter (ex: "Julien Bichsel", "Sandy Bircher")',
+            type: "string",
+            description:
+              'Le nom du collaborateur à contacter (ex: "Julien Bichsel", "Sandy Bircher")',
           },
         },
-        required: ['collaboratorName'],
+        required: ["collaboratorName"],
         additionalProperties: false,
       },
       execute: async (input: any) => {
         const { collaboratorName } = input as { collaboratorName: string };
-        
-        const member = companyInfo.team.find(
-          (m) => m.name.toLowerCase().includes(collaboratorName.toLowerCase())
+
+        const member = companyInfo.team.find((m) =>
+          m.name.toLowerCase().includes(collaboratorName.toLowerCase())
         );
 
         if (!member) {
@@ -71,7 +74,13 @@ Vous êtes l'agent de mise en relation avec les collaborateurs de Grand Chassera
             name: member.name,
             role: member.role,
             escalateTo: member.escalateTo || null,
-            message: `${member.name} ne peut pas être contacté directement par téléphone.${member.escalateTo ? ` Veuillez contacter ${member.escalateTo}.` : ''}`,
+            message: `${
+              member.name
+            } ne peut pas être contacté directement par téléphone.${
+              member.escalateTo
+                ? ` Veuillez contacter ${member.escalateTo}.`
+                : ""
+            }`,
           };
         }
 
@@ -91,38 +100,39 @@ Vous êtes l'agent de mise en relation avec les collaborateurs de Grand Chassera
     }),
 
     tool({
-      name: 'sendCallbackRequest',
-      description: 'Envoie une demande de rappel par email au collaborateur.',
+      name: "sendCallbackRequest",
+      description: "Envoie une demande de rappel par email au collaborateur.",
       parameters: {
-        type: 'object',
+        type: "object",
         properties: {
           collaboratorName: {
-            type: 'string',
-            description: 'Le nom du collaborateur à qui envoyer la demande',
+            type: "string",
+            description: "Le nom du collaborateur à qui envoyer la demande",
           },
           clientName: {
-            type: 'string',
-            description: 'Le nom du client',
+            type: "string",
+            description: "Le nom du client",
           },
           clientPhone: {
-            type: 'string',
-            description: 'Le numéro de téléphone du client',
+            type: "string",
+            description: "Le numéro de téléphone du client",
           },
           message: {
-            type: 'string',
-            description: 'Le message ou la raison de l\'appel',
+            type: "string",
+            description: "Le message ou la raison de l'appel",
           },
         },
-        required: ['collaboratorName', 'clientName', 'clientPhone', 'message'],
+        required: ["collaboratorName", "clientName", "clientPhone", "message"],
         additionalProperties: false,
       },
       execute: async (input: any) => {
-        const { collaboratorName, clientName, clientPhone, message } = input as {
-          collaboratorName: string;
-          clientName: string;
-          clientPhone: string;
-          message: string;
-        };
+        const { collaboratorName, clientName, clientPhone, message } =
+          input as {
+            collaboratorName: string;
+            clientName: string;
+            clientPhone: string;
+            message: string;
+          };
 
         return {
           sent: true,
