@@ -1,0 +1,18 @@
+# Unsloth - Efficient LLM Training
+unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git
+
+# Core dependencies (installed with unsloth)
+# torch>=2.1.0
+# transformers>=4.51.3
+# trl>=0.18.2
+# peft>=0.7.1
+# datasets>=3.4.1
+# accelerate>=0.34.1
+
+# Optional: For experiment tracking
+# wandb
+# tensorboard
+
+# Optional: For better performance
+# flash-attn  # Requires specific CUDA version
+# xformers    # Installed automatically with unsloth
