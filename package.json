@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "@openai/agents": "^0.0.5",
     "@radix-ui/react-icons": "^1.3.2",
     "dotenv": "^16.4.7",
