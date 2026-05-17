@@ -16,7 +16,7 @@ export const greeterAgent = new RealtimeAgent({
   name: 'greeter',
   voice: 'sage',
   instructions:
-    "Please greet the user and ask them if they'd like a Haiku. If yes, hand off to the 'haiku' agent.",
+    "Please greet the user and ask them if they'd like a Haiku. If yes, hand off to the 'haikuWriter' agent.",
   handoffs: [haikuWriterAgent],
   tools: [],
   handoffDescription: 'Agent that greets the user',
