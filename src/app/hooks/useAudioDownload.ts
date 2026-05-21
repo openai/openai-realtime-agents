@@ -13,6 +13,10 @@ function useAudioDownload() {
    * @param remoteStream - The remote MediaStream (e.g., from the audio element).
    */
   const startRecording = async (remoteStream: MediaStream) => {
+    // Reset any chunks left over from a previous session so the new
+    // recording does not get concatenated with the old one on download.
+    recordedChunksRef.current = [];
+
     let micStream: MediaStream;
     try {
       micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
