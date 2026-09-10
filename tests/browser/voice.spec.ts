@@ -24,3 +24,20 @@ test('cancelling a pending microphone request releases late stream',async({page}
  await expect.poll(()=>page.evaluate(()=>(window as unknown as {stopped:boolean}).stopped)).toBe(true);
  await expect(page.getByRole('button',{name:'Start conversation'})).toBeEnabled();
 });
+
+test('brain selector persists for the next call',async({page})=>{
+ await page.route('**/api/health',r=>r.fulfill({json:{ready:true}}));await page.goto('/');
+ await page.getByRole('button',{name:'Astra Highest capability'}).click();await page.reload();
+ await expect(page.getByRole('button',{name:'Astra Highest capability'})).toHaveAttribute('aria-pressed','true');
+ await expect(page.getByText('Mode: Astra',{exact:true})).toBeVisible();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.screenshot({path:'test-results/brain-modes.png',fullPage:true});
+});
+test('selected starting mode is sent to the session endpoint',async({page})=>{
+ await page.route('**/api/health',r=>r.fulfill({json:{ready:true}}));
+ await page.addInitScript(()=>{navigator.mediaDevices.getUserMedia=async()=>({getTracks:()=>[{stop:()=>{}}],getAudioTracks:()=>[{addEventListener:()=>{}}]} as unknown as MediaStream);});
+ let selected='';
+ await page.route('**/api/session',r=>{selected=r.request().postDataJSON().brain;return r.fulfill({status:503,json:{error:'Test session stopped before OpenAI connection.'}});});
+ await page.goto('/');await page.getByRole('button',{name:'Terra Lower cost'}).click();await page.getByRole('button',{name:'Start conversation'}).click();
+ await expect(page.locator('.notice.error')).toContainText('Test session stopped');expect(selected).toBe('terra');
+});

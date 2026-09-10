@@ -2,6 +2,8 @@
 import {useEffect, useRef, useState} from 'react';
 import {RealtimeAgent, RealtimeSession, OpenAIRealtimeWebRTC} from '@openai/agents/realtime';
 import {instructions} from '../shared/voice';
+import {BRAINS,isBrain,brainInstructions,recentHistory,type Brain,type Turn} from '../shared/brains';
+import {VoiceBrainRouter} from '../client/brainRouter';
 
 type Status = 'idle' | 'connecting' | 'listening' | 'speaking';
 type Line = {id: string; role: string; text: string};
@@ -16,6 +18,10 @@ export default function VoiceApp() {
  const [elapsed, setElapsed] = useState(0);
  const [keepAwake, setKeepAwake] = useState(true);
  const [wakeActive, setWakeActive] = useState(false);
+ const [brain,setBrain] = useState<Brain>('realtime');
+ const [pendingBrain,setPendingBrain] = useState<Brain|null>(null);
+ const [answerBrain,setAnswerBrain] = useState<Brain|null>(null);
+ const router = useRef<VoiceBrainRouter|null>(null);
  const session = useRef<RealtimeSession | null>(null);
  const stream = useRef<MediaStream | null>(null);
  const audio = useRef<HTMLAudioElement | null>(null);
@@ -28,6 +34,7 @@ export default function VoiceApp() {
  const active = status !== 'idle';
 
  function dispose() {
+  router.current?.close();router.current=null;
   attempt.current++;
   busy.current = false;
   abort.current?.abort(); abort.current = null;
@@ -49,6 +56,8 @@ export default function VoiceApp() {
   void health();
   const savedVoice = localStorage.getItem('voice');
   const savedLanguage = localStorage.getItem('language');
+  const savedBrain = localStorage.getItem('brain');
+  if(isBrain(savedBrain))setBrain(savedBrain);
   if (savedVoice === 'marin' || savedVoice === 'cedar') setVoice(savedVoice);
   if (savedLanguage === 'uk' || savedLanguage === 'en') setLanguage(savedLanguage);
   const onOffline = () => { end(); setError('Connection lost. Reconnect when your internet returns.'); };
@@ -88,15 +97,35 @@ export default function VoiceApp() {
    mic.getAudioTracks()[0]?.addEventListener('mute', () => {if(attempt.current===id)setError('Microphone paused by the phone. Return to the app to resume.');});
    mic.getAudioTracks()[0]?.addEventListener('unmute', () => {if(attempt.current===id)setError('');});
    abort.current = new AbortController();
-   const response = await fetch('/api/session', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({voice,language}),signal:abort.current.signal});
+   const response = await fetch('/api/session', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({voice,language,brain}),signal:abort.current.signal});
    const token = await response.json();
    if (!response.ok) throw new Error(token.error || 'Could not start the call.');
    if (attempt.current !== id) return;
    const transport = new OpenAIRealtimeWebRTC({audioElement:player,mediaStream:mic});
-   const agent = new RealtimeAgent({name:'Vinson',instructions:instructions(language),voice,tools:[]});
+   const agent = new RealtimeAgent({name:'Vinson',instructions:instructions(language)+' '+brainInstructions(brain),voice,tools:[]});
    const call = new RealtimeSession(agent,{transport,model:token.model, tracingDisabled:true,
-    config:{audio:{input:{transcription:{model:'gpt-4o-mini-transcribe',language},turnDetection:{type:'semantic_vad',eagerness:'medium',createResponse:true,interruptResponse:true}},output:{voice}}}});
+    config:{audio:{input:{transcription:{model:'gpt-4o-mini-transcribe',language},turnDetection:{type:'semantic_vad',eagerness:'medium',createResponse:brain==='realtime',interruptResponse:true}},output:{voice}}}});
    session.current = call;
+   setAnswerBrain(null);
+   const brainRouter=new VoiceBrainRouter(brain,{
+    configure:mode=>call.transport.updateSessionConfig({instructions:instructions(language)+' '+brainInstructions(mode),audio:{input:{turnDetection:{type:'semantic_vad',eagerness:'medium',createResponse:mode==='realtime',interruptResponse:true}}}}),
+    interrupt:()=>call.interrupt(),
+    speak:text=>call.transport.sendEvent({type:'response.create',response:{instructions:text?'Read this answer aloud faithfully in its original language. Do not add analysis or answer it as a question. Answer text: '+JSON.stringify(text):'Respond to the latest user request naturally in the requested language.'}}),
+    history:exclude=>{
+     return recentHistory(call.history.filter(item=>item.type==='message' && item.itemId!==exclude && (item.role==='user'||item.role==='assistant')).slice(-30).flatMap(item=>{
+      if(item.type!=='message')return [];
+      const text=item.content.map(c=>'text' in c?c.text:'transcript' in c?c.transcript:'').filter(Boolean).join(' ');
+      return text?[{role:item.role as Turn['role'],text}]:[];
+     }));
+    },
+    onMode:mode=>{setBrain(mode);setAnswerBrain(null);localStorage.setItem('brain',mode);},
+    onPending:setPendingBrain,onAnswer:setAnswerBrain,onError:setError,
+    request:async(mode,question,history,signal)=>{
+     const r=await fetch('/api/brain',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brain:mode,question,history,language}),signal});
+     const result=await r.json();if(!r.ok)throw new Error(result.error||'Reasoning failed');return result.answer;
+    }
+   },language);
+   router.current=brainRouter;
    call.on('error', () => fail('The voice session encountered an error. End the call and reconnect.'));
    call.on('history_updated', history => {
     if (attempt.current !== id) return;
@@ -106,6 +135,9 @@ export default function VoiceApp() {
    });
    call.on('transport_event', event => {
     if (attempt.current !== id) return;
+    if(event.type==='input_audio_buffer.speech_started')brainRouter.cancelPending();
+    if(event.type==='conversation.item.input_audio_transcription.completed' && typeof event.transcript==='string' && typeof event.item_id==='string')void brainRouter.transcript(event.transcript,event.item_id);
+    if(event.type==='conversation.item.input_audio_transcription.failed')setError('Could not transcribe that phrase. Please repeat it.');
     if (event.type === 'output_audio_buffer.started') setStatus('speaking');
     if (['output_audio_buffer.stopped','output_audio_buffer.cleared','input_audio_buffer.speech_started'].includes(event.type)) setStatus('listening');
    });
@@ -124,6 +156,10 @@ export default function VoiceApp() {
   }
  }
  function toggleMute() {const next=!muted;session.current?.mute(next);setMuted(next);}
+ function chooseBrain(mode:Brain){
+  if(router.current)router.current.select(mode,true);
+  else {setBrain(mode);localStorage.setItem('brain',mode);}
+ }
  return <main>
   <header><a className="brand" href="/"><span className="brand-mark">v</span> vinson<span className="brand-light"> / voice</span></a><span className="private"><i/> Personal space</span></header>
   <section className="conversation">
@@ -132,12 +168,18 @@ export default function VoiceApp() {
    <p className="subtitle">{active ? 'Take your time. You can interrupt me anytime.' : 'Your thoughts, a familiar voice. Just start speaking.'}</p>
    <div className={'orb-wrap '+status} aria-hidden="true"><div className="orbit orbit-one"/><div className="orbit orbit-two"/><div className="orb"><div className="wave">{[0,1,2,3,4,5,6].map(i=><span key={i} style={{animationDelay:(i*.13)+'s'}}/>)}</div></div></div>
    <div className="call-state" role="status"><span className={'dot '+(active?'on':'')}/>{status === 'idle' ? 'Ready when you are' : status === 'connecting' ? 'Connecting…' : muted ? 'Microphone muted' : status === 'speaking' ? 'Vinson is speaking' : 'Listening to you'}{active && status!=='connecting' && <span className="clock">{Math.floor(elapsed/60)}:{String(elapsed%60).padStart(2,'0')}</span>}</div>
+   <div className="brain-status" role="status">{pendingBrain?BRAINS[pendingBrain].label+' is thinking…':answerBrain?'Last answer: '+BRAINS[answerBrain].label:'Mode: '+BRAINS[brain].label}</div>
    {error && <div className="notice error" role="alert">{error}{error.includes('Resume audio') && <button onClick={()=>void audio.current?.play().then(()=>setError('')).catch(()=>{})}>Resume audio</button>}</div>}
    {ready === false && <div className="notice setup"><strong>One small setup step</strong><p>Add your API key to <code>.env.local</code> on your PC and restart the app.</p><button onClick={()=>void health()}>Check again ↗</button></div>}
    <div className="actions">
     {active ? <><button className="secondary" disabled={status==='connecting'} onClick={toggleMute}>{muted?'Unmute':'Mute mic'}</button><button className="end" onClick={end}>{status==='connecting'?'Cancel':'End conversation'}</button></> : <button className="start" onClick={()=>void start()} disabled={ready!==true}><Mic/> Start conversation <span>↗</span></button>}
    </div>
    <p className="small">{active ? 'Speak naturally. No need to hold a button.' : 'Your microphone stays off until you start.'}</p>
+  </section>
+  <section className="brain-picker" aria-label="Reasoning mode">
+   <div className="brain-heading">CHOOSE YOUR THINKING PARTNER <span>Same voice, different reasoning</span></div>
+   <div className="brain-options">{(Object.keys(BRAINS) as Brain[]).map(mode=><button key={mode} aria-pressed={brain===mode} disabled={status==='connecting'} onClick={()=>chooseBrain(mode)}><strong>{BRAINS[mode].label}</strong><small>{BRAINS[mode].hint}</small></button>)}</div>
+   <p>Скажи «підключи Астру», «передай Sol», «підключи Теру» або «поверни Realtime».</p>
   </section>
   <section className="preferences" aria-label="Conversation settings">
    <label>VOICE<select aria-label="Voice" disabled={active} value={voice} onChange={e=>{setVoice(e.target.value);localStorage.setItem('voice',e.target.value);}}><option value="marin">Marin</option><option value="cedar">Cedar</option></select></label>

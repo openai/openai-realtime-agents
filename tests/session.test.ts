@@ -24,3 +24,9 @@ test('private origin gets only short-lived credential and configured model',asyn
 test('upstream failures are sanitized',async()=>{
  for(const status of [401,429,500]){const r=await createSession(request(),{OPENAI_API_KEY:'secret'},async()=>Response.json({error:'sensitive upstream details'},{status}));assert.equal(r.status,502);assert.doesNotMatch(await r.text(),/sensitive|secret/);}
 });
+
+test('selected starting mode disables automatic Realtime answers',async()=>{
+ const r=await createSession(request(undefined,{voice:'marin',language:'uk',brain:'astra'}),{OPENAI_API_KEY:'secret'},async(_url,init)=>{
+  const payload=JSON.parse(init?.body as string);assert.equal(payload.session.audio.input.turn_detection.create_response,false);assert.match(payload.session.instructions,/Astra/);return Response.json({value:'ephemeral'});
+ });assert.equal(r.status,200);
+});

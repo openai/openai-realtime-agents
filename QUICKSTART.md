@@ -58,3 +58,20 @@ Logs contain server operational messages; do not add keys/transcripts to logs.
 Stop app: `./Stop-Voice.ps1`.
 Disable only its Tailscale route: `tailscale serve --https=443 off`.
 Do not use serve reset if you later add other routes.
+
+## Manual reasoning modes
+
+Choose Realtime, Terra, Sol or Astra before starting or during a call. The last selection is saved on this browser.
+- Realtime: the existing native speech-to-speech behavior.
+- Terra: gpt-5.6-terra; Sol: gpt-5.6-sol; Astra: gpt-6-astra through Responses API, medium reasoning.
+- Voice commands: «підключи Астру», «передай Sol», «підключи Теру», «поверни Realtime»; English «switch to Astra» also works.
+- Commands change the persistent mode. «Підключи Астру: поясни ...» switches and asks in one utterance.
+- Commands must begin the utterance (optional «будь ласка»). Merely mentioning model names does not switch modes.
+- In a reasoning mode automatic Realtime answers are disabled. The completed input transcript is routed in code to the selected model, then Realtime reads the returned answer. This adds transcription and reasoning latency.
+- Up to 30 recent text turns, capped at 60,000 characters, are forwarded as context; no cross-call memory.
+- Speaking again, switching modes, or ending a call cancels pending work locally and discards late answers. Provider work already performed can still incur cost.
+- There is no silent fallback to another model. Failures are shown and spoken; choose another mode or repeat the question.
+- OpenAI text-model charges are additional to Realtime voice charges. Astra costs more than Sol, which costs more than Terra at the verified current rates.
+
+Validation: production build; 20 automated tests; one real Responses API answer from each of Terra, Sol and Astra.
+The complete spoken switching flow still needs a real-microphone check on your phone.
