@@ -41,3 +41,16 @@ test('selected starting mode is sent to the session endpoint',async({page})=>{
  await page.goto('/');await page.getByRole('button',{name:'Terra Lower cost'}).click();await page.getByRole('button',{name:'Start conversation'}).click();
  await expect(page.locator('.notice.error')).toContainText('Test session stopped');expect(selected).toBe('terra');
 });
+
+test('live status shows connection timer and resets when cancelled',async({page})=>{
+ await page.route('**/api/health',r=>r.fulfill({json:{ready:true}}));
+ await page.addInitScript(()=>{navigator.mediaDevices.getUserMedia=()=>new Promise(()=>{});});
+ await page.goto('/');
+ await expect(page.locator('.live-process')).toHaveAttribute('data-phase','idle');
+ await page.getByRole('button',{name:'Start conversation'}).click();
+ await expect(page.locator('.live-process')).toHaveAttribute('data-phase','connecting');
+ await expect(page.locator('.phase-timer')).not.toHaveText('0 с');
+ await page.getByRole('button',{name:'Cancel',exact:true}).click();
+ await expect(page.locator('.live-process')).toHaveAttribute('data-phase','idle');
+ await expect(page.locator('.phase-timer')).toHaveCount(0);
+});

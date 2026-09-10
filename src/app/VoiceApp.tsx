@@ -4,6 +4,7 @@ import {RealtimeAgent, RealtimeSession, OpenAIRealtimeWebRTC} from '@openai/agen
 import {instructions} from '../shared/voice';
 import {BRAINS,isBrain,brainInstructions,recentHistory,type Brain,type Turn} from '../shared/brains';
 import {VoiceBrainRouter} from '../client/brainRouter';
+import {processStatus,type ProcessEvent,type ProcessStatus} from '../client/processStatus';
 
 type Status = 'idle' | 'connecting' | 'listening' | 'speaking';
 type Line = {id: string; role: string; text: string};
@@ -19,7 +20,10 @@ export default function VoiceApp() {
  const [keepAwake, setKeepAwake] = useState(true);
  const [wakeActive, setWakeActive] = useState(false);
  const [brain,setBrain] = useState<Brain>('realtime');
- const [pendingBrain,setPendingBrain] = useState<Brain|null>(null);
+ const [process,setProcess] = useState<ProcessStatus>({phase:'idle',model:'realtime',since:0});
+ const [now,setNow] = useState(0);
+ function progress(event:ProcessEvent){setProcess(previous=>processStatus(previous,event));}
+ useEffect(()=>{if(process.phase==='idle')return;setNow(Date.now());const tick=setInterval(()=>setNow(Date.now()),1000);return ()=>clearInterval(tick);},[process.phase,process.since]);
  const [answerBrain,setAnswerBrain] = useState<Brain|null>(null);
  const router = useRef<VoiceBrainRouter|null>(null);
  const session = useRef<RealtimeSession | null>(null);
@@ -47,7 +51,7 @@ export default function VoiceApp() {
   if (watchdog.current) clearTimeout(watchdog.current);
   timer.current = null; watchdog.current = null;
  }
- function end() { dispose(); setStatus('idle'); setMuted(false); setWakeActive(false); }
+ function end() { dispose(); progress({phase:'idle'}); setStatus('idle'); setMuted(false); setWakeActive(false); }
  async function health() {
   try { const r = await fetch('/api/health', {cache:'no-store'}); if (!r.ok) throw new Error(); const data = await r.json(); setReady(Boolean(data.ready)); }
   catch { setReady(null); setError('Cannot reach your PC. Check Tailscale and restart the app.'); }
@@ -83,7 +87,7 @@ export default function VoiceApp() {
  async function start() {
   if (busy.current || session.current) return;
   busy.current = true; const id = ++attempt.current;
-  setError(''); setLines([]); setElapsed(0); setMuted(false); setStatus('connecting');
+  setError(''); setLines([]); setElapsed(0); setMuted(false); setStatus('connecting'); progress({phase:'connecting',model:'realtime'});
   const fail = (message: string) => { if (attempt.current !== id) return; end(); setError(message); };
   watchdog.current = setTimeout(() => fail('Connection timed out. Check microphone permission and try again.'), 35000);
   try {
@@ -110,7 +114,7 @@ export default function VoiceApp() {
    const brainRouter=new VoiceBrainRouter(brain,{
     configure:mode=>call.transport.updateSessionConfig({instructions:instructions(language)+' '+brainInstructions(mode),audio:{input:{turnDetection:{type:'semantic_vad',eagerness:'medium',createResponse:mode==='realtime',interruptResponse:true}}}}),
     interrupt:()=>call.interrupt(),
-    speak:text=>call.transport.sendEvent({type:'response.create',response:{instructions:text?'Read this answer aloud faithfully in its original language. Do not add analysis or answer it as a question. Answer text: '+JSON.stringify(text):'Respond to the latest user request naturally in the requested language.'}}),
+    speak:(text,source='realtime')=>{progress({phase:'voicing',model:source});call.transport.sendEvent({type:'response.create',response:{instructions:text?'Read this answer aloud faithfully in its original language. Do not add analysis or answer it as a question. Answer text: '+JSON.stringify(text):'Respond to the latest user request naturally in the requested language.'}});},
     history:exclude=>{
      return recentHistory(call.history.filter(item=>item.type==='message' && item.itemId!==exclude && (item.role==='user'||item.role==='assistant')).slice(-30).flatMap(item=>{
       if(item.type!=='message')return [];
@@ -119,7 +123,7 @@ export default function VoiceApp() {
      }));
     },
     onMode:mode=>{setBrain(mode);setAnswerBrain(null);localStorage.setItem('brain',mode);},
-    onPending:setPendingBrain,onAnswer:setAnswerBrain,onError:setError,
+    onPending:mode=>{if(mode)progress({phase:'thinking',model:mode});},onAnswer:setAnswerBrain,onError:setError,
     request:async(mode,question,history,signal)=>{
      const r=await fetch('/api/brain',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brain:mode,question,history,language}),signal});
      const result=await r.json();if(!r.ok)throw new Error(result.error||'Reasoning failed');return result.answer;
@@ -135,9 +139,10 @@ export default function VoiceApp() {
    });
    call.on('transport_event', event => {
     if (attempt.current !== id) return;
+    progress({transport:event.type});
     if(event.type==='input_audio_buffer.speech_started')brainRouter.cancelPending();
     if(event.type==='conversation.item.input_audio_transcription.completed' && typeof event.transcript==='string' && typeof event.item_id==='string')void brainRouter.transcript(event.transcript,event.item_id);
-    if(event.type==='conversation.item.input_audio_transcription.failed')setError('Could not transcribe that phrase. Please repeat it.');
+    if(event.type==='conversation.item.input_audio_transcription.failed'){setError('Could not transcribe that phrase. Please repeat it.');progress({phase:'listening'});}
     if (event.type === 'output_audio_buffer.started') setStatus('speaking');
     if (['output_audio_buffer.stopped','output_audio_buffer.cleared','input_audio_buffer.speech_started'].includes(event.type)) setStatus('listening');
    });
@@ -149,6 +154,7 @@ export default function VoiceApp() {
    const started = Date.now(); timer.current = setInterval(()=>setElapsed(Math.floor((Date.now()-started)/1000)),1000);
    await player.play().catch(()=>setError('Audio playback paused. Tap Resume audio.'));
    // Ask for a greeting without inserting a fabricated user message into the transcript.
+   progress({phase:'voicing',model:'realtime'});
    call.transport.sendEvent({type:'response.create',response:{instructions:'Give one short greeting and invite the user to speak.'}});
   } catch (e) {
    const message = e instanceof Error ? (e.name === 'NotAllowedError' ? 'Microphone permission was denied. Allow it in your browser settings and try again.' : e.name === 'NotFoundError' ? 'No microphone found. Connect a microphone and retry.' : e.message) : 'Could not connect.';
@@ -167,8 +173,17 @@ export default function VoiceApp() {
    <h1>{active ? 'I’m here.' : 'Let’s talk.'}</h1>
    <p className="subtitle">{active ? 'Take your time. You can interrupt me anytime.' : 'Your thoughts, a familiar voice. Just start speaking.'}</p>
    <div className={'orb-wrap '+status} aria-hidden="true"><div className="orbit orbit-one"/><div className="orbit orbit-two"/><div className="orb"><div className="wave">{[0,1,2,3,4,5,6].map(i=><span key={i} style={{animationDelay:(i*.13)+'s'}}/>)}</div></div></div>
-   <div className="call-state" role="status"><span className={'dot '+(active?'on':'')}/>{status === 'idle' ? 'Ready when you are' : status === 'connecting' ? 'Connecting…' : muted ? 'Microphone muted' : status === 'speaking' ? 'Vinson is speaking' : 'Listening to you'}{active && status!=='connecting' && <span className="clock">{Math.floor(elapsed/60)}:{String(elapsed%60).padStart(2,'0')}</span>}</div>
-   <div className="brain-status" role="status">{pendingBrain?BRAINS[pendingBrain].label+' is thinking…':answerBrain?'Last answer: '+BRAINS[answerBrain].label:'Mode: '+BRAINS[brain].label}</div>
+   <div className="live-process" data-phase={process.phase}>
+    <div className="process-top"><span className="brain-status">Mode: {BRAINS[brain].label}</span>{active && <span className="clock" aria-label="Call duration">{Math.floor(elapsed/60)}:{String(elapsed%60).padStart(2,'0')}</span>}</div>
+    <div className="process-title" role="status"><span className={'dot '+(active?'on':'')}/>{({
+     idle:'Готовий до розмови',connecting:'Підключаю голос…',listening:muted?'Мікрофон вимкнено':'Слухаю тебе',
+     hearing:'Чую тебе…',transcribing:'Розпізнаю фразу…',thinking:BRAINS[process.model].label+' думає…',
+     voicing:'Готую озвучення…',speaking:'Говорю'
+    })[process.phase]}</div>
+    <div className="process-detail">{process.phase==='thinking' ? 'Очікую відповідь від '+BRAINS[process.model].label : ['voicing','speaking'].includes(process.phase) ? 'Голос: Realtime · Відповідь: '+BRAINS[process.model].label : process.phase==='transcribing' ? 'Перетворюю голос на текст' : active ? 'Голосовий канал: Realtime'+(muted?' · Мікрофон вимкнено':'') : 'Голос: Realtime · Обраний режим збережено'}
+    {['connecting','transcribing','thinking','voicing','speaking'].includes(process.phase) && <span className="phase-timer" aria-hidden="true">{Math.max(0,Math.floor((now-process.since)/1000))} с</span>}</div>
+    {answerBrain && <div className="last-answer">Останню відповідь підготував {BRAINS[answerBrain].label}</div>}
+   </div>
    {error && <div className="notice error" role="alert">{error}{error.includes('Resume audio') && <button onClick={()=>void audio.current?.play().then(()=>setError('')).catch(()=>{})}>Resume audio</button>}</div>}
    {ready === false && <div className="notice setup"><strong>One small setup step</strong><p>Add your API key to <code>.env.local</code> on your PC and restart the app.</p><button onClick={()=>void health()}>Check again ↗</button></div>}
    <div className="actions">

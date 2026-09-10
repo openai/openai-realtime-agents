@@ -2,7 +2,7 @@ import {BRAINS,parseBrainCommand,type Brain,type Turn} from '../shared/brains';
 type Ports = {
  configure:(brain:Brain)=>void;
  interrupt:()=>void;
- speak:(text:string)=>void;
+ speak:(text:string,source?:Brain)=>void;
  history:(excludeItemId?:string)=>Turn[];
  onMode:(brain:Brain)=>void;
  onPending:(brain:Brain|null)=>void;
@@ -51,7 +51,7 @@ export class VoiceBrainRouter {
   try{
    const answer=await this.ports.request(brain,question,this.ports.history(itemId),controller.signal);
    if(this.closed || version!==this.generation || controller.signal.aborted)return;
-   this.controller=null;this.ports.onPending(null);this.ports.onAnswer(brain);this.ports.speak(answer);
+   this.controller=null;this.ports.onPending(null);this.ports.onAnswer(brain);this.ports.speak(answer,brain);
   }catch{
    if(this.closed || version!==this.generation || controller.signal.aborted)return;
    this.controller=null;this.ports.onPending(null);
