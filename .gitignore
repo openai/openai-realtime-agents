@@ -30,6 +30,11 @@ yarn-error.log*
 
 # Ignore all env files except .env.sample
 .env
+.env.*
+!.env.sample
+/logs/
+/test-results/
+/playwright-report/
 
 
 # vercel
