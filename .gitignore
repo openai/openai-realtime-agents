@@ -45,3 +45,5 @@ yarn-error.log*
 next-env.d.ts
 todo.md
 
+
+/.browser-profile/

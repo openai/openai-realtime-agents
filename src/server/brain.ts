@@ -1,8 +1,10 @@
 import {BRAINS,isBrain,type Turn} from '../shared/brains';
+import {browserTools,callBrowser} from './browser';
+import {BROWSER_POLICY} from '../shared/browser';
 type Env={OPENAI_API_KEY?:string;APP_ORIGIN?:string};
 const headers={'Cache-Control':'no-store'};
 const fail=(error:string,status=400)=>Response.json({error},{status,headers});
-export async function answerWithBrain(request:Request,env:Env={OPENAI_API_KEY:process.env.OPENAI_API_KEY,APP_ORIGIN:process.env.APP_ORIGIN},upstream:typeof fetch=fetch) {
+export async function answerWithBrain(request:Request,env:Env={OPENAI_API_KEY:process.env.OPENAI_API_KEY,APP_ORIGIN:process.env.APP_ORIGIN},upstream:typeof fetch=fetch,browser={list:browserTools,call:callBrowser}) {
  const origins=['http://localhost:3210','http://127.0.0.1:3210',env.APP_ORIGIN];
  if (!origins.includes(request.headers.get('origin')||'')) return fail('Request must come from your voice app.',403);
  if (!env.OPENAI_API_KEY) return fail('OpenAI API key is missing.',503);
@@ -12,20 +14,44 @@ export async function answerWithBrain(request:Request,env:Env={OPENAI_API_KEY:pr
  if (data.history.some((t:Turn)=>!t || !['user','assistant'].includes(t.role) || typeof t.text!=='string' || t.text.length>8000)) return fail('Invalid conversation history.');
  const brain=data.brain as Exclude<keyof typeof BRAINS,'realtime'>;
  try {
+  const signal=AbortSignal.any([request.signal,AbortSignal.timeout(data.browser?180000:120000)]);
+  const tools=data.browser===true?await browser.list():[];
+  const input:unknown[]=[...data.history.map((t:Turn)=>({role:t.role,content:t.text})),{role:'user',content:data.question}];
+  let toolCount=0;
+  for(let step=0;step<13;step++){
+  signal.throwIfAborted();
   const response=await upstream('https://api.openai.com/v1/responses',{
-   method:'POST',signal:AbortSignal.any([request.signal,AbortSignal.timeout(120000)]),
+   method:'POST',signal,
    headers:{Authorization:'Bearer '+env.OPENAI_API_KEY,'Content-Type':'application/json'},
    body:JSON.stringify({model:BRAINS[brain].model,store:false,reasoning:{effort:'medium'},max_output_tokens:4096,
-    instructions:'You are '+BRAINS[brain].label+', the reasoning model for a private voice companion. Reply in '+(data.language==='uk'?'Ukrainian':'English')+' unless the user explicitly requests otherwise. The following input contains a bounded transcript of the conversation followed by the latest request. Answer the latest request using that context. Usually use 2-5 conversational sentences; expand when needed. No markdown tables or spoken URLs. Be accurate and preserve uncertainty. You have no external tools or live browsing. Never claim otherwise.',
-    input:[...data.history.map((t:Turn)=>({role:t.role,content:t.text})),{role:'user',content:data.question}]
+    ...(tools.length?{parallel_tool_calls:false,tools:tools.map(t=>({type:'function',name:t.name,description:t.description,parameters:t.inputSchema,strict:false}))}:{}),
+    instructions:'You are '+BRAINS[brain].label+', the reasoning model for a private voice companion. Reply in '+(data.language==='uk'?'Ukrainian':'English')+' unless the user explicitly requests otherwise. The following input contains a bounded transcript of the conversation followed by the latest request. Answer the latest request using that context. Usually use 2-5 conversational sentences; expand when needed. No markdown tables or spoken URLs. Be accurate and preserve uncertainty. '+(data.browser===true?BROWSER_POLICY:'You have no external tools or live browsing. Never claim otherwise.'),
+    input
    })
   });
   if(!response.ok) return fail(response.status===404||response.status===403?'Selected model is not available to this API key. Choose another mode.':response.status===429?'OpenAI usage limit reached. Try again or choose another mode.':'The selected model could not answer. Try again or choose another mode.',502);
   const result=await response.json();
   if(result.status && result.status!=='completed') return fail('The model did not finish its answer. Try a shorter question.',502);
+  const calls=(result.output||[]).filter((item:{type:string})=>item.type==='function_call');
+  if(calls.length){
+   if(toolCount+calls.length>12)return fail('Browser step limit reached. Ask to continue the task.',502);
+   input.push(...result.output);
+   for(const call of calls){
+    signal.throwIfAborted();toolCount++;
+    let output:string;
+    try{
+     if(!tools.some(t=>t.name===call.name))throw new Error('Unavailable tool');
+     output=await browser.call(call.name,JSON.parse(call.arguments),signal);
+    }catch{signal.throwIfAborted();output=JSON.stringify({isError:true,error:'Browser action failed. Take a fresh snapshot or report the failure.'});}
+    input.push({type:'function_call_output',call_id:call.call_id,output});
+   }
+   continue;
+  }
   const answer=(result.output||[]).filter((item:{type:string})=>item.type==='message').flatMap((item:{content?:{type:string;text?:string}[]})=>item.content||[]).filter((c:{type:string})=>c.type==='output_text').map((c:{text:string})=>c.text).join('\n').trim();
   if(!answer)return fail('The model returned no spoken answer. Please try again.',502);
   return Response.json({answer,brain,model:BRAINS[brain].model},{headers});
+  }
+  return fail('Browser step limit reached. Ask to continue.',502);
  } catch {return fail(request.signal.aborted?'Request cancelled.':'The reasoning request timed out or lost connection. Please try again.',502);}
 }
 

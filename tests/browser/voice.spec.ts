@@ -54,3 +54,13 @@ test('live status shows connection timer and resets when cancelled',async({page}
  await expect(page.locator('.live-process')).toHaveAttribute('data-phase','idle');
  await expect(page.locator('.phase-timer')).toHaveCount(0);
 });
+
+test('browser tools can be disabled before a call and login opens through the local API',async({page})=>{
+ await page.route('**/api/health',r=>r.fulfill({json:{ready:true}}));
+ let action='';await page.route('**/api/browser',r=>{action=r.request().postDataJSON().action;return r.fulfill({json:{ok:true}});});
+ await page.goto('/');
+ const checkbox=page.getByRole('checkbox',{name:'Browser tools · Playwright MCP'});
+ await expect(checkbox).toBeChecked();await checkbox.uncheck();await expect(checkbox).not.toBeChecked();
+ await page.getByRole('button',{name:'Open browser on PC'}).click();
+ await expect.poll(()=>action).toBe('show');await expect(page.getByRole('button',{name:'Open browser on PC'})).toBeEnabled();
+});

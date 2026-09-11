@@ -11,18 +11,20 @@
     "test:browser": "playwright test"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@openai/agents": "0.17.2",
+    "@playwright/mcp": "0.0.80",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "latest",
     "@types/node": "^24",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "typescript": "^5",
     "tsx": "latest",
-    "@playwright/test": "latest"
+    "typescript": "^5"
   }
 }

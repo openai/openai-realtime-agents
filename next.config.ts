@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  serverExternalPackages: ['@playwright/mcp', '@modelcontextprotocol/sdk', '@playwright/test', 'playwright', 'playwright-core'],
 };
 
 export default nextConfig;

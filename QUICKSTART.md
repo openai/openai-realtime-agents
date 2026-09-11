@@ -75,3 +75,17 @@ Choose Realtime, Terra, Sol or Astra before starting or during a call. The last 
 
 Validation: production build; 20 automated tests; one real Responses API answer from each of Terra, Sol and Astra.
 The complete spoken switching flow still needs a real-microphone check on your phone.
+
+## Browser tools (Playwright MCP)
+
+Browser tools are enabled by default for Realtime, Terra, Sol and Astra. Turn off **Browser tools** before starting a call to use voice without browsing.
+
+Try: “Відкрий example.com і прочитай заголовок” or “Знайди на сайті …”. The UI shows the actual browser action while it runs. The model receives page text and accessibility snapshots through OpenAI; the browser itself runs on this PC.
+
+To sign in to Facebook or another site, end the voice call, click **Open browser on PC**, and log in manually in that browser window. Then start a new call. The dedicated `.browser-profile` preserves logins and is excluded from Git. It does not use your normal Chrome profile automatically. The first time this button is used, the hidden browser is restarted as a visible window; open pages may need reopening.
+
+The app exposes navigation, snapshots, finding, clicking, typing, form filling, keyboard input, hovering, selecting, tabs and short waits. It does not expose arbitrary JavaScript, shell commands, file upload or cookie export. The agent is instructed to require explicit user authorization for sending messages, publishing, purchases or deletions. This is an instruction to the model, not a deterministic transaction approval system.
+
+The profile is shared by this personal app; use one active browser task at a time. Ending or interrupting reasoning prevents subsequent actions; an already executed browser action cannot be rolled back. Text-model browser tasks are limited to 12 tool steps and 3 minutes per request.
+
+Checks: `npm test`, `npm run test:browser`, `npm run build`. `node scripts/smoke-browser.mjs` performs a small paid Realtime API test against example.com using the existing local key; set `NODE_USE_SYSTEM_CA=1` if required on this PC.

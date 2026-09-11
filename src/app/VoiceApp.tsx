@@ -1,10 +1,12 @@
 'use client';
 import {useEffect, useRef, useState} from 'react';
-import {RealtimeAgent, RealtimeSession, OpenAIRealtimeWebRTC} from '@openai/agents/realtime';
+import {RealtimeAgent, RealtimeSession, OpenAIRealtimeWebRTC, tool} from '@openai/agents/realtime';
 import {instructions} from '../shared/voice';
 import {BRAINS,isBrain,brainInstructions,recentHistory,type Brain,type Turn} from '../shared/brains';
 import {VoiceBrainRouter} from '../client/brainRouter';
 import {processStatus,type ProcessEvent,type ProcessStatus} from '../client/processStatus';
+
+import {BROWSER_LABELS,type BrowserTool} from '../shared/browser';
 
 type Status = 'idle' | 'connecting' | 'listening' | 'speaking';
 type Line = {id: string; role: string; text: string};
@@ -19,6 +21,10 @@ export default function VoiceApp() {
  const [elapsed, setElapsed] = useState(0);
  const [keepAwake, setKeepAwake] = useState(true);
  const [wakeActive, setWakeActive] = useState(false);
+ const [browserEnabled,setBrowserEnabled]=useState(true);
+ const [browserActivity,setBrowserActivity]=useState({busy:false,action:'Браузер готовий',since:0});
+ const [browserOpening,setBrowserOpening]=useState(false);
+ const browserRequests=useRef(new Set<AbortController>());
  const [brain,setBrain] = useState<Brain>('realtime');
  const [process,setProcess] = useState<ProcessStatus>({phase:'idle',model:'realtime',since:0});
  const [now,setNow] = useState(0);
@@ -36,8 +42,22 @@ export default function VoiceApp() {
  const watchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
  const abort = useRef<AbortController | null>(null);
  const active = status !== 'idle';
+ useEffect(()=>{
+  if(!active || !browserEnabled)return;
+  let cancelled=false;const controller=new AbortController();
+  const poll=async()=>{try{const r=await fetch('/api/browser',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'status'}),signal:controller.signal});if(r.ok){const data=await r.json();if(!cancelled)setBrowserActivity(data);}}catch{}};
+  void poll();const interval=setInterval(()=>void poll(),1000);
+  return ()=>{cancelled=true;controller.abort();clearInterval(interval);};
+ },[active,browserEnabled]);
+ async function showBrowser(){
+  setBrowserOpening(true);setError('');
+  try{const r=await fetch('/api/browser',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'show'})});if(!r.ok)throw new Error();}
+  catch{setError('Could not open the browser on your PC. Try again.');}finally{setBrowserOpening(false);}
+ }
+
 
  function dispose() {
+  browserRequests.current.forEach(c=>c.abort());browserRequests.current.clear();
   router.current?.close();router.current=null;
   attempt.current++;
   busy.current = false;
@@ -106,7 +126,28 @@ export default function VoiceApp() {
    if (!response.ok) throw new Error(token.error || 'Could not start the call.');
    if (attempt.current !== id) return;
    const transport = new OpenAIRealtimeWebRTC({audioElement:player,mediaStream:mic});
-   const agent = new RealtimeAgent({name:'Vinson',instructions:instructions(language)+' '+brainInstructions(brain),voice,tools:[]});
+   let browserDefinitions:BrowserTool[]=[];
+   if(browserEnabled){
+    const r=await fetch('/api/browser',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'list'}),signal:abort.current.signal});
+    if(!r.ok)throw new Error('Browser tools could not start. Retry or disable Browser tools.');
+    browserDefinitions=(await r.json()).tools;
+   }
+   if(attempt.current!==id)return;
+   const browserFunctions=browserDefinitions.map(definition=>tool({
+    name:definition.name,description:definition.description||definition.name,strict:false,
+    parameters:JSON.parse(JSON.stringify(definition.inputSchema)),
+    execute:async(args)=>{
+     if(attempt.current!==id || router.current?.mode!=='realtime')return JSON.stringify({isError:true,error:'Call ended or mode changed. Stop browser work.'});
+     const controller=new AbortController();browserRequests.current.add(controller);
+     setBrowserActivity({busy:true,action:BROWSER_LABELS[definition.name],since:Date.now()});
+     try{
+      const r=await fetch('/api/browser',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'call',name:definition.name,arguments:args}),signal:controller.signal});
+      const data=await r.json();return r.ok?data.output:JSON.stringify({isError:true,error:data.error});
+     }catch{return JSON.stringify({isError:true,error:'Browser action cancelled or connection lost. Do not claim success.'});}
+     finally{browserRequests.current.delete(controller);if(attempt.current===id)setBrowserActivity({busy:false,action:'Браузер очікує наступну дію',since:Date.now()});}
+    }
+   }));
+   const agent = new RealtimeAgent({name:'Vinson',instructions:instructions(language,browserEnabled)+' '+brainInstructions(brain),voice,tools:browserFunctions});
    const call = new RealtimeSession(agent,{transport,model:token.model, tracingDisabled:true,
     config:{audio:{input:{transcription:{model:'gpt-4o-mini-transcribe',language},turnDetection:{type:'semantic_vad',eagerness:'medium',createResponse:brain==='realtime',interruptResponse:true}},output:{voice}}}});
    session.current = call;
@@ -125,7 +166,7 @@ export default function VoiceApp() {
     onMode:mode=>{setBrain(mode);setAnswerBrain(null);localStorage.setItem('brain',mode);},
     onPending:mode=>{if(mode)progress({phase:'thinking',model:mode});},onAnswer:setAnswerBrain,onError:setError,
     request:async(mode,question,history,signal)=>{
-     const r=await fetch('/api/brain',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brain:mode,question,history,language}),signal});
+     const r=await fetch('/api/brain',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brain:mode,question,history,language,browser:browserEnabled}),signal});
      const result=await r.json();if(!r.ok)throw new Error(result.error||'Reasoning failed');return result.answer;
     }
    },language);
@@ -184,6 +225,7 @@ export default function VoiceApp() {
     {['connecting','transcribing','thinking','voicing','speaking'].includes(process.phase) && <span className="phase-timer" aria-hidden="true">{Math.max(0,Math.floor((now-process.since)/1000))} с</span>}</div>
     {answerBrain && <div className="last-answer">Останню відповідь підготував {BRAINS[answerBrain].label}</div>}
    </div>
+   {browserEnabled && active && <div className="browser-activity" role="status">🌐 {browserActivity.action}{browserActivity.busy && <span aria-hidden="true"> · {Math.max(0,Math.floor((now-browserActivity.since)/1000))} с</span>}</div>}
    {error && <div className="notice error" role="alert">{error}{error.includes('Resume audio') && <button onClick={()=>void audio.current?.play().then(()=>setError('')).catch(()=>{})}>Resume audio</button>}</div>}
    {ready === false && <div className="notice setup"><strong>One small setup step</strong><p>Add your API key to <code>.env.local</code> on your PC and restart the app.</p><button onClick={()=>void health()}>Check again ↗</button></div>}
    <div className="actions">
@@ -195,6 +237,11 @@ export default function VoiceApp() {
    <div className="brain-heading">CHOOSE YOUR THINKING PARTNER <span>Same voice, different reasoning</span></div>
    <div className="brain-options">{(Object.keys(BRAINS) as Brain[]).map(mode=><button key={mode} aria-pressed={brain===mode} disabled={status==='connecting'} onClick={()=>chooseBrain(mode)}><strong>{BRAINS[mode].label}</strong><small>{BRAINS[mode].hint}</small></button>)}</div>
    <p>Скажи «підключи Астру», «передай Sol», «підключи Теру» або «поверни Realtime».</p>
+  </section>
+  <section className="browser-settings" aria-label="Browser tools">
+   <label><input type="checkbox" checked={browserEnabled} disabled={active} onChange={e=>setBrowserEnabled(e.target.checked)}/> Browser tools · Playwright MCP</label>
+   <button className="secondary" disabled={browserOpening||active} onClick={()=>void showBrowser()}>{browserOpening?'Opening…':'Open browser on PC'}</button>
+   <p>Окремий профіль зберігає входи на сайти. Увійди на ПК один раз, потім керуй голосом.</p>
   </section>
   <section className="preferences" aria-label="Conversation settings">
    <label>VOICE<select aria-label="Voice" disabled={active} value={voice} onChange={e=>{setVoice(e.target.value);localStorage.setItem('voice',e.target.value);}}><option value="marin">Marin</option><option value="cedar">Cedar</option></select></label>
