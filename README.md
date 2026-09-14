@@ -27,6 +27,22 @@ There are two main patterns demonstrated:
 - Open your browser to [http://localhost:3000](http://localhost:3000). It should default to the `chatSupervisor` Agent Config.
 - You can change examples via the "Scenario" dropdown in the top right.
 
+To enforce a client-side maximum duration for a session, pass `maxDurationMs`
+when calling the `connect` helper returned by `useRealtimeSession`:
+
+```typescript
+await connect({
+  getEphemeralKey: fetchEphemeralKey,
+  initialAgents: agents,
+  maxDurationMs: 60 * 60 * 1000,
+});
+```
+
+The hook closes the Realtime transport when the timer expires and also clears
+the timer when the user disconnects or the component unmounts. This is a
+client-side guard; enforce any billing or authorization limit on your server as
+well.
+
 # Agentic Pattern 1: Chat-Supervisor
 
 This is demonstrated in the [chatSupervisor](src/app/agentConfigs/chatSupervisor/index.ts) Agent Config. The chat agent uses the realtime model to converse with the user and handle basic tasks, like greeting the user, casual conversation, and collecting information, and a more intelligent, text-based supervisor model (e.g. `gpt-4.1`) is used extensively to handle tool calls and more challenging responses. You can control the decision boundary by "opting in" specific tasks to the chat agent as desired.

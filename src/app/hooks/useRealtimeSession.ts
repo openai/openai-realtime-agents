@@ -21,10 +21,13 @@ export interface ConnectOptions {
   audioElement?: HTMLAudioElement;
   extraContext?: Record<string, any>;
   outputGuardrails?: any[];
+  /** Close the client session after this many milliseconds. */
+  maxDurationMs?: number;
 }
 
 export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
   const sessionRef = useRef<RealtimeSession | null>(null);
+  const maxDurationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [status, setStatus] = useState<
     SessionStatus
   >('DISCONNECTED');
@@ -110,6 +113,16 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
     }
   }, [sessionRef.current]);
 
+  const disconnect = useCallback(() => {
+    if (maxDurationTimerRef.current !== null) {
+      clearTimeout(maxDurationTimerRef.current);
+      maxDurationTimerRef.current = null;
+    }
+    sessionRef.current?.close();
+    sessionRef.current = null;
+    updateStatus('DISCONNECTED');
+  }, [updateStatus]);
+
   const connect = useCallback(
     async ({
       getEphemeralKey,
@@ -117,8 +130,15 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
       audioElement,
       extraContext,
       outputGuardrails,
+      maxDurationMs,
     }: ConnectOptions) => {
       if (sessionRef.current) return; // already connected
+      if (
+        maxDurationMs !== undefined &&
+        (!Number.isFinite(maxDurationMs) || maxDurationMs <= 0)
+      ) {
+        throw new RangeError('maxDurationMs must be a finite positive number');
+      }
 
       updateStatus('CONNECTING');
 
@@ -146,15 +166,26 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
 
       await sessionRef.current.connect({ apiKey: ek });
       updateStatus('CONNECTED');
+
+      if (maxDurationMs !== undefined) {
+        maxDurationTimerRef.current = setTimeout(() => {
+          disconnect();
+        }, maxDurationMs);
+      }
     },
-    [callbacks, updateStatus],
+    [applyCodec, disconnect, updateStatus],
   );
 
-  const disconnect = useCallback(() => {
-    sessionRef.current?.close();
-    sessionRef.current = null;
-    updateStatus('DISCONNECTED');
-  }, [updateStatus]);
+  useEffect(() => {
+    return () => {
+      if (maxDurationTimerRef.current !== null) {
+        clearTimeout(maxDurationTimerRef.current);
+        maxDurationTimerRef.current = null;
+      }
+      sessionRef.current?.close();
+      sessionRef.current = null;
+    };
+  }, []);
 
   const assertconnected = () => {
     if (!sessionRef.current) throw new Error('RealtimeSession not connected');
