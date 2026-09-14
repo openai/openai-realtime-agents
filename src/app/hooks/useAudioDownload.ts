@@ -24,6 +24,16 @@ function useAudioDownload() {
 
     // Create an AudioContext to merge the streams.
     const audioContext = new AudioContext();
+    // The recording effect can run outside the user-gesture that created the
+    // connection. Browsers may therefore create the context suspended, which
+    // drops the beginning of the first utterance until it is resumed.
+    if (audioContext.state === "suspended") {
+      try {
+        await audioContext.resume();
+      } catch (err) {
+        console.warn("Audio context could not be resumed before recording:", err);
+      }
+    }
     const destination = audioContext.createMediaStreamDestination();
 
     // Connect the remote audio stream.
@@ -118,4 +128,4 @@ function useAudioDownload() {
   return { startRecording, stopRecording, downloadRecording };
 }
 
-export default useAudioDownload; 
+export default useAudioDownload;
