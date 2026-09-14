@@ -50,7 +50,9 @@ export function useHandleSessionHistory() {
 
   const extractLastAssistantMessage = (history: any[] = []): any => {
     if (!Array.isArray(history)) return undefined;
-    return history.reverse().find((c: any) => c.type === 'message' && c.role === 'assistant');
+    // `history` is the SDK's live session array. Copy it before reversing so
+    // moderation lookup never mutates the conversation order for later turns.
+    return [...history].reverse().find((c: any) => c.type === 'message' && c.role === 'assistant');
   };
 
   const extractModeration = (obj: any) => {
