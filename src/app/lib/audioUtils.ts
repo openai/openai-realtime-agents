@@ -64,7 +64,14 @@ export function encodeWAV(samples: Float32Array, sampleRate: number): ArrayBuffe
 export async function convertWebMBlobToWav(blob: Blob): Promise<Blob> {
   const arrayBuffer = await blob.arrayBuffer();
   const audioContext = new AudioContext();
-  const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+  let audioBuffer: AudioBuffer;
+  try {
+    audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+  } finally {
+    // Browsers allow only a handful of live AudioContexts, so release this one
+    // as soon as decoding is done instead of leaking one per download.
+    await audioContext.close();
+  }
   const numChannels = audioBuffer.numberOfChannels;
   const length = audioBuffer.length;
   const combined = new Float32Array(length);
