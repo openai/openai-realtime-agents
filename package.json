@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "node --test tests/*.test.cjs",
     "lint": "next lint"
   },
   "dependencies": {
