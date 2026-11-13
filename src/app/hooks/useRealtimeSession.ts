@@ -25,6 +25,7 @@ export interface ConnectOptions {
 
 export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
   const sessionRef = useRef<RealtimeSession | null>(null);
+  const connectAttemptRef = useRef<symbol | null>(null);
   const [status, setStatus] = useState<
     SessionStatus
   >('DISCONNECTED');
@@ -118,15 +119,20 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
       extraContext,
       outputGuardrails,
     }: ConnectOptions) => {
-      if (sessionRef.current) return; // already connected
+      if (sessionRef.current || connectAttemptRef.current) return;
 
-      updateStatus('CONNECTING');
+      // Claim the attempt before awaiting the key, while sessionRef is still null.
+      const attempt = Symbol();
+      connectAttemptRef.current = attempt;
+      let session: RealtimeSession | null = null;
 
       try {
+        updateStatus('CONNECTING');
         const ek = await getEphemeralKey();
+        if (connectAttemptRef.current !== attempt) return; // disconnected meanwhile
         const rootAgent = initialAgents[0];
 
-        sessionRef.current = new RealtimeSession(rootAgent, {
+        session = new RealtimeSession(rootAgent, {
           transport: new OpenAIRealtimeWebRTC({
             audioElement,
             // Set preferred codec before offer creation
@@ -145,22 +151,26 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
           context: extraContext ?? {},
         });
 
-        await sessionRef.current.connect({ apiKey: ek });
-        updateStatus('CONNECTED');
+        sessionRef.current = session;
+        await session.connect({ apiKey: ek });
+        if (connectAttemptRef.current === attempt) updateStatus('CONNECTED');
       } catch (err) {
         // Don't leave a dead session behind: the early return above would turn
         // every later connect() into a silent no-op, stranding the UI on
         // "Connecting...". Callers still see the original error.
-        sessionRef.current?.close();
-        sessionRef.current = null;
-        updateStatus('DISCONNECTED');
+        session?.close();
+        if (sessionRef.current === session) sessionRef.current = null;
+        if (connectAttemptRef.current === attempt) updateStatus('DISCONNECTED');
         throw err;
+      } finally {
+        if (connectAttemptRef.current === attempt) connectAttemptRef.current = null;
       }
     },
     [callbacks, updateStatus],
   );
 
   const disconnect = useCallback(() => {
+    connectAttemptRef.current = null;
     sessionRef.current?.close();
     sessionRef.current = null;
     updateStatus('DISCONNECTED');
